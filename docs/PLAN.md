@@ -29,23 +29,23 @@ This system turns scanned tickets into those Excel sheets. The AI reads the tick
 
 ### 1.2 Decisions already made — do not revisit
 
-| Topic             | Decision                                                                                                                                                                          |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Input             | Paper tickets, one per worker per shift, filled in by the shift leader. Collected at the office and scanned (sheet-fed scanner PDF preferred; phone photos accepted as JPEG/PNG). |
-| Ticket            | Plain slip, three per A4 page, photocopiable. **No QR code, no serial number.**                                                                                                   |
-| Ticket fields     | First name, last name, workplace, date, start time, end time, total worked. **No break field** (breaks are paid). **No shift leader field.**                                      |
-| Handwriting       | Mainly Hebrew, occasionally English.                                                                                                                                              |
-| UI language       | English. Hebrew values must display correctly (right-to-left) inside it.                                                                                                          |
-| Rounding          | None. Minutes are kept exactly as written.                                                                                                                                        |
-| Workers           | No worker list, no IDs, no grouping. Different workers often share a name, even at the same place and time.                                                                       |
-| Workplaces        | Handwritten; they come and go. Grouped by name so each gets its own Excel sheet. Similar spellings are merged only after a person confirms.                                       |
-| Jobs              | The user creates a job, uploads one or more files, reviews, exports one Excel file. Many jobs per month. No fixed date ranges.                                                    |
-| Month-end combine | A job can import earlier exported Excel files (plus new scans) and export one combined file. Imported rows are trusted as they are.                                               |
-| Pay and rates     | Not in version 1. Excel shows hours only. Pay columns may be added later.                                                                                                         |
-| Retention         | After the final export is downloaded and confirmed, the job is deleted. Nothing is kept between jobs except an anonymous summary.                                                 |
-| Users             | The owner and a few associates, on laptops. Invite-only accounts.                                                                                                                 |
-| AI                | Ticket images are sent to the Anthropic API. The owner has approved this.                                                                                                         |
-| Budget            | Tens of dollars per month, paid by the agency, after the local proof works.                                                                                                       |
+| Topic             | Decision                                                                                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Input             | Paper tickets, one per worker per shift, filled in by the shift leader. Collected at the office and scanned (sheet-fed scanner PDF preferred; phone photos accepted as JPEG/PNG).        |
+| Ticket            | Plain slip, three per A4 page, photocopiable. **No QR code, no serial number.**                                                                                                          |
+| Ticket fields     | First name, workplace, date, start time, end time, total worked. **No last name** (the owner decided it is not needed). **No break field** (breaks are paid). **No shift leader field.** |
+| Handwriting       | Mainly Hebrew, occasionally English.                                                                                                                                                     |
+| UI language       | English. Hebrew values must display correctly (right-to-left) inside it.                                                                                                                 |
+| Rounding          | None. Minutes are kept exactly as written.                                                                                                                                               |
+| Workers           | No worker list, no IDs, no grouping. Different workers often share a name, even at the same place and time.                                                                              |
+| Workplaces        | Handwritten; they come and go. Grouped by name so each gets its own Excel sheet. Similar spellings are merged only after a person confirms.                                              |
+| Jobs              | The user creates a job, uploads one or more files, reviews, exports one Excel file. Many jobs per month. No fixed date ranges.                                                           |
+| Month-end combine | A job can import earlier exported Excel files (plus new scans) and export one combined file. Imported rows are trusted as they are.                                                      |
+| Pay and rates     | Not in version 1. Excel shows hours only. Pay columns may be added later.                                                                                                                |
+| Retention         | After the final export is downloaded and confirmed, the job is deleted. Nothing is kept between jobs except an anonymous summary.                                                        |
+| Users             | The owner and a few associates, on laptops. Invite-only accounts.                                                                                                                        |
+| AI                | Ticket images are sent to the Anthropic API. The owner has approved this.                                                                                                                |
+| Budget            | Tens of dollars per month, paid by the agency, after the local proof works.                                                                                                              |
 
 ### 1.3 Non-goals (do not build)
 
@@ -71,7 +71,6 @@ A slip a third of an A4 page (210 × 99 mm), three per A4 page, generated once a
 | Field key     | Label (HE / EN)        | Format                        |
 | ------------- | ---------------------- | ----------------------------- |
 | `firstName`   | שם פרטי / First name   | Block letters, 12 boxes       |
-| `lastName`    | שם משפחה / Last name   | Block letters, 14 boxes       |
 | `workplace`   | מקום עבודה / Workplace | Block letters, 18 boxes       |
 | `date`        | תאריך / Date           | `DD/MM/YY`, one digit per box |
 | `startTime`   | שעת התחלה / Start      | `HH:MM`, 24-hour              |
@@ -180,7 +179,7 @@ Trim; collapse spaces; remove punctuation, quotes, geresh/gershayim and niqqud; 
 
 Each ticket is one output row. There is no worker table.
 
-**`POSSIBLE_DUPLICATE`** is raised on both tickets when, within the job, two tickets have the same normalised full name, the same workplace group, the same date, and overlapping times. This covers imported rows too. The review screen shows both tickets side by side with two choices:
+**`POSSIBLE_DUPLICATE`** is raised on both tickets when, within the job, two tickets have the same normalised name (first name; see D9), the same workplace group, the same date, and overlapping times. This covers imported rows too. The review screen shows both tickets side by side with two choices:
 
 - **Keep both — different people.** Both are cleared of the flag.
 - **Exclude one — same ticket twice.** The chosen ticket is excluded with reason "duplicate".
@@ -229,7 +228,7 @@ A final row totals all workplaces (formulas).
 | -------- | ------------------------------------------------------------------- |
 | `row_id` | Hidden column. Stable ID of the ticket row (UUID). Used for import. |
 | Date     | Excel date, displayed `DD/MM/YYYY`                                  |
-| Worker   | First name + last name, exactly as read or corrected                |
+| Worker   | First name, exactly as read or corrected                            |
 | Start    | Excel time, `HH:MM`                                                 |
 | End      | Excel time, `HH:MM`                                                 |
 | Total    | Excel duration, `[h]:mm` — exact minutes, no rounding               |
@@ -285,19 +284,19 @@ The user uploads an earlier export into a job. The importer:
 
 All tables have `id` (UUID), `createdAt`, `updatedAt`. Durations are integer minutes.
 
-| Model             | Key fields                                                                                                                                                                                                                                                                                                                                      |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `User`            | email (unique), passwordHash, role (`admin` / `reviewer`), totpSecret?, disabledAt?                                                                                                                                                                                                                                                             |
-| `Invite`          | email, role, tokenHash, expiresAt, usedAt?                                                                                                                                                                                                                                                                                                      |
-| `Session`         | userId, tokenHash, expiresAt, lastSeenAt                                                                                                                                                                                                                                                                                                        |
-| `Job`             | name, status, createdById, lockedAt?, closedAt?, closedById?, summaryTicketCount?, summaryTotalMinutes?, lastActivityAt                                                                                                                                                                                                                         |
-| `Upload`          | jobId, kind (`scan` / `excel_import`), originalFilename, s3KeyOriginal, sha256, mime, pageCount?, importReport (JSON)?                                                                                                                                                                                                                          |
-| `Ticket`          | jobId, uploadId, source (`scan` / `import`), pageIndex?, s3KeyNormalised?, templateVersion?, firstName?, lastName?, workplaceRaw?, workplaceGroupId?, shiftDate?, startMinutes?, endMinutes?, totalMinutes?, status, verifiedHow?, excludedReason?, excludedById?, importRowId?, importRawValues (JSON)?, version (int, for optimistic locking) |
-| `WorkplaceGroup`  | jobId, displayName, normalisedName, mergedIntoId?                                                                                                                                                                                                                                                                                               |
-| `FieldExtraction` | ticketId, field, pass (`A` / `B`), value?, legible, model, promptVersion                                                                                                                                                                                                                                                                        |
-| `Flag`            | ticketId, field?, code, detail (JSON), relatedTicketId?, resolvedAt?, resolvedById?, resolution?                                                                                                                                                                                                                                                |
-| `AuditEntry`      | jobId?, userId, action, entity, entityId, before (JSON)?, after (JSON)?                                                                                                                                                                                                                                                                         |
-| `Export`          | jobId, s3Key, dataHash, createdById, downloadedAt?                                                                                                                                                                                                                                                                                              |
+| Model             | Key fields                                                                                                                                                                                                                                                                                                                           |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `User`            | email (unique), passwordHash, role (`admin` / `reviewer`), totpSecret?, disabledAt?                                                                                                                                                                                                                                                  |
+| `Invite`          | email, role, tokenHash, expiresAt, usedAt?                                                                                                                                                                                                                                                                                           |
+| `Session`         | userId, tokenHash, expiresAt, lastSeenAt                                                                                                                                                                                                                                                                                             |
+| `Job`             | name, status, createdById, lockedAt?, closedAt?, closedById?, summaryTicketCount?, summaryTotalMinutes?, lastActivityAt                                                                                                                                                                                                              |
+| `Upload`          | jobId, kind (`scan` / `excel_import`), originalFilename, s3KeyOriginal, sha256, mime, pageCount?, importReport (JSON)?                                                                                                                                                                                                               |
+| `Ticket`          | jobId, uploadId, source (`scan` / `import`), pageIndex?, s3KeyNormalised?, templateVersion?, firstName?, workplaceRaw?, workplaceGroupId?, shiftDate?, startMinutes?, endMinutes?, totalMinutes?, status, verifiedHow?, excludedReason?, excludedById?, importRowId?, importRawValues (JSON)?, version (int, for optimistic locking) |
+| `WorkplaceGroup`  | jobId, displayName, normalisedName, mergedIntoId?                                                                                                                                                                                                                                                                                    |
+| `FieldExtraction` | ticketId, field, pass (`A` / `B`), value?, legible, model, promptVersion                                                                                                                                                                                                                                                             |
+| `Flag`            | ticketId, field?, code, detail (JSON), relatedTicketId?, resolvedAt?, resolvedById?, resolution?                                                                                                                                                                                                                                     |
+| `AuditEntry`      | jobId?, userId, action, entity, entityId, before (JSON)?, after (JSON)?                                                                                                                                                                                                                                                              |
+| `Export`          | jobId, s3Key, dataHash, createdById, downloadedAt?                                                                                                                                                                                                                                                                                   |
 
 **Constraints**
 
