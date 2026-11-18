@@ -66,7 +66,7 @@ What was covered:
 
 Four questions went to Liam, each with a recommendation:
 
-1. **Blank boxes and impossible times get their own clear messages.** Liam agreed.
+1. **Blank boxes and impossible times get their own clear messages.** Liam agreed. He also asked for very short shifts to be flagged; anything under 2 hours now goes to a person.
 2. **Night shifts.** For possible duplicates, should a night shift written with two different dates be caught? Liam chose to stay with "same date only". He raised the case of two genuine night shifts on consecutive nights. That led to an explanation that consecutive nights never overlap in time, so they are safe under either option.
 3. **Swapped name order** counts as the same name. Liam agreed.
 4. **Which names to flag.** Liam overruled the original spec: names written in English are fine. Anything else that doesn't make sense in a name (digits, other alphabets, symbols) is flagged.

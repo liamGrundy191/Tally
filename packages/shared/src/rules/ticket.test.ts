@@ -12,7 +12,12 @@ import {
   type RuleSettings,
 } from './ticket.ts';
 
-const settings: RuleSettings = { today: '2026-11-18', maxShiftHours: 16, maxDateAgeDays: 45 };
+const settings: RuleSettings = {
+  today: '2026-11-18',
+  minShiftHours: 2,
+  maxShiftHours: 16,
+  maxDateAgeDays: 45,
+};
 
 const goodValues: RawTicketValues = {
   firstName: 'דוד',
@@ -292,7 +297,23 @@ describe('TIME_MATH_MISMATCH: end − start ≠ total (midnight allowed)', () =>
   });
 });
 
-describe('HOURS_OUT_OF_RANGE: total is 0 or above MAX_SHIFT_HOURS', () => {
+describe('HOURS_OUT_OF_RANGE: total is under MIN_SHIFT_HOURS (2) or above MAX_SHIFT_HOURS (16)', () => {
+  it('flags a total of 1:59 (too short; more often a misreading than a real shift)', () => {
+    expect(check({ startTime: '08:00', endTime: '09:59', totalWorked: '01:59' })).toEqual([
+      'HOURS_OUT_OF_RANGE:totalWorked',
+    ]);
+  });
+
+  it('flags 0:30, which may be a misread 08:30', () => {
+    expect(check({ startTime: '08:00', endTime: '08:30', totalWorked: '00:30' })).toEqual([
+      'HOURS_OUT_OF_RANGE:totalWorked',
+    ]);
+  });
+
+  it('accepts exactly 2:00', () => {
+    expect(check({ startTime: '08:00', endTime: '10:00', totalWorked: '02:00' })).toEqual([]);
+  });
+
   it('flags a total of 0:00', () => {
     expect(check({ startTime: '08:00', endTime: '08:00', totalWorked: '00:00' })).toEqual([
       'HOURS_OUT_OF_RANGE:totalWorked',

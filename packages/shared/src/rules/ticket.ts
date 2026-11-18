@@ -15,12 +15,15 @@ import { parseClock, parseDuration, shiftMinutes } from './time.ts';
 export interface RuleSettings {
   /** Today in the agency's time zone, YYYY-MM-DD (see `todayIn`). */
   today: string;
+  /** MIN_SHIFT_HOURS: a total below this many hours (including 0) is flagged. */
+  minShiftHours: number;
   /** MAX_SHIFT_HOURS: a total above this many hours is flagged. */
   maxShiftHours: number;
   /** MAX_DATE_AGE_DAYS: a date more than this many days before today is flagged. */
   maxDateAgeDays: number;
 }
 
+export const DEFAULT_MIN_SHIFT_HOURS = 2;
 export const DEFAULT_MAX_SHIFT_HOURS = 16;
 export const DEFAULT_MAX_DATE_AGE_DAYS = 45;
 
@@ -171,11 +174,19 @@ export function checkTicketValues(
   }
 
   const worked = total ?? computed;
-  if (worked !== null && (worked === 0 || worked > settings.maxShiftHours * 60)) {
+  // Very short totals are more often a misreading (0:30 for 08:30) than a real shift.
+  if (
+    worked !== null &&
+    (worked < settings.minShiftHours * 60 || worked > settings.maxShiftHours * 60)
+  ) {
     flags.push({
       code: 'HOURS_OUT_OF_RANGE',
       field: total !== null ? 'totalWorked' : undefined,
-      detail: { minutes: worked, maxHours: settings.maxShiftHours },
+      detail: {
+        minutes: worked,
+        minHours: settings.minShiftHours,
+        maxHours: settings.maxShiftHours,
+      },
     });
   }
 
