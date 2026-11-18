@@ -14,7 +14,7 @@ Answer (Liam): ...
 
 ---
 
-## Q1 · T0.1 · API test runner: Jest or Vitest · open
+## Q1 · T0.1 · API test runner: Jest or Vitest · answered
 
 Context: The plan says the API uses "Jest (NestJS default)". The current NestJS (version 12) now ships only as modern ES modules, and its default test runner for new projects is Vitest. Jest cannot load NestJS 12 on Node 22 (it needs Node 24.9 or later).
 
@@ -22,4 +22,4 @@ Options: A) NestJS 12 with Vitest, the same test tool as the rest of the repo. B
 
 Recommendation: A. It follows the reason the plan gave (use the NestJS default), keeps one test tool for the whole repo, and adds no libraries. A test confirms that NestJS dependency injection works under Vitest.
 
-Answer (Liam):
+Answer (Liam): A

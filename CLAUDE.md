@@ -10,8 +10,9 @@ Shift Ticket Processing System: turns scanned paper shift tickets into Excel she
 
 ## Roles
 
-- You write the code.
-- Liam is the overseer. He reviews every pull request, runs the "Liam checks" steps, and merges. He is not expected to write code.
+- You write the code, open the pull request, get CI green, and merge.
+- Liam is the overseer. He is not expected to write code. He does the "Liam checks" steps that need a person (printing, real scans, Excel); merge only after he reports them done. If a task's only Liam check is "CI is green", you can merge without him.
+- Before starting a task, debrief Liam on its goal and your approach (short, not every detail) and wait for his go-ahead. Before a push or merge with substantial changes, tell him what it includes. Small doc fixes need no debrief.
 
 ## How to work
 
@@ -19,7 +20,7 @@ Shift Ticket Processing System: turns scanned paper shift tickets into Excel she
 - Write the task's tests first, then the code. A task is done only when its "Done when" criteria pass.
 - Run `pnpm lint && pnpm typecheck && pnpm test` before opening a pull request. Never open one with failing checks.
 - Pull request description: what was built, how it was tested, anything Liam should look at closely, and the task's "Liam checks" list.
-- Stop after each task and wait for Liam. Do not start the next task in the same session unless he says so.
+- Stop after each task and wait for Liam. Do not start the next task unless he says so.
 
 ## When something is unclear
 

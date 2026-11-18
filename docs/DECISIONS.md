@@ -4,9 +4,9 @@ Decisions made after `docs/PLAN.md` was written, newest last. Each says what was
 
 ---
 
-## D1 · T0.1 · API tests use Vitest, not Jest (pending Q1)
+## D1 · T0.1 · API tests use Vitest, not Jest (Liam chose option A in Q1)
 
-NestJS 12 is ES-modules only and uses Vitest as its default test runner; Jest cannot load it on Node 22. The plan chose Jest because it was the NestJS default, so the API follows the new default. The whole repo now uses Vitest. If Liam picks another option in Q1, this changes.
+NestJS 12 is ES-modules only and uses Vitest as its default test runner; Jest cannot load it on Node 22. The plan chose Jest because it was the NestJS default, so the API follows the new default. The whole repo now uses Vitest.
 
 ## D2 · T0.1 · TypeScript 6, not 7
 
