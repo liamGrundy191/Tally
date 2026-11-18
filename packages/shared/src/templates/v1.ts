@@ -34,8 +34,7 @@ export const FRAME_MM = {
 export const CELL_MM = { width: 8.5, height: 10 } as const;
 export const SEPARATOR_MM = 4;
 
-export type FieldKey =
-  'firstName' | 'lastName' | 'workplace' | 'date' | 'startTime' | 'endTime' | 'totalWorked';
+export type FieldKey = 'firstName' | 'workplace' | 'date' | 'startTime' | 'endTime' | 'totalWorked';
 
 /** Fractions of the marker frame. */
 export interface FieldBox {
@@ -92,10 +91,9 @@ const BOXES_RIGHT_MM = 165;
 
 export const FIELDS: readonly TemplateField[] = [
   field('firstName', 'שם פרטי', 'First name', '_'.repeat(12), BOXES_RIGHT_MM, 17),
-  field('lastName', 'שם משפחה', 'Last name', '_'.repeat(14), BOXES_RIGHT_MM, 29),
-  field('workplace', 'מקום עבודה', 'Workplace', '_'.repeat(18), BOXES_RIGHT_MM, 41),
-  field('date', 'תאריך', 'Date (DD/MM/YY)', 'DD/MM/YY', BOXES_RIGHT_MM, 53),
-  field('startTime', 'שעת התחלה', 'Start', 'HH:MM', BOXES_RIGHT_MM, 72, true),
-  field('endTime', 'שעת סיום', 'End', 'HH:MM', 115, 72, true),
-  field('totalWorked', 'סה״כ שעות', 'Total', 'HH:MM', 65, 72, true),
+  field('workplace', 'מקום עבודה', 'Workplace', '_'.repeat(18), BOXES_RIGHT_MM, 29),
+  field('date', 'תאריך', 'Date (DD/MM/YY)', 'DD/MM/YY', BOXES_RIGHT_MM, 41),
+  field('startTime', 'שעת התחלה', 'Start', 'HH:MM', BOXES_RIGHT_MM, 60, true),
+  field('endTime', 'שעת סיום', 'End', 'HH:MM', 115, 60, true),
+  field('totalWorked', 'סה״כ שעות', 'Total', 'HH:MM', 65, 60, true),
 ];

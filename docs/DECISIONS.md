@@ -35,3 +35,7 @@ No extra tool (such as tsx) is added. `packages/shared` imports its own files wi
 ## D8 · T0.2 · poppler (`pdftoppm`) is a required tool for tests
 
 CI installs `poppler-utils`. On Windows: `winget install oschwartz10612.Poppler`, then add its `Library\bin` folder to PATH. The Docker image will install it in Phase 4, as the plan says.
+
+## D9 · Ticket · No last name on the ticket (owner)
+
+The owner decided the last name is not needed. The ticket has one name field, first name (12 boxes); the rows below it moved up. The worker column in the export shows the first name, and `POSSIBLE_DUPLICATE` compares first names. Two different workers with the same first name at the same place and overlapping hours will now always be asked about ("Keep both"), since there is no surname to tell them apart.

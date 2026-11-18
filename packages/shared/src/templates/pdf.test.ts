@@ -39,7 +39,6 @@ describe('ticket template v1 field map', () => {
     const cells = (key: string) =>
       [...FIELDS.find((f) => f.key === key)!.pattern].filter((c) => c !== '/' && c !== ':').length;
     expect(cells('firstName')).toBe(12);
-    expect(cells('lastName')).toBe(14);
     expect(cells('workplace')).toBe(18);
     expect(FIELDS.find((f) => f.key === 'date')!.pattern).toBe('DD/MM/YY');
     for (const key of ['startTime', 'endTime', 'totalWorked']) {
