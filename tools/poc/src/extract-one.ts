@@ -1,18 +1,22 @@
-// `pnpm extract <image>`: reads one ticket photo or scan with the real model (both passes) and
-// prints what each pass read, the flags the rules raise, and the cost. Needs ANTHROPIC_API_KEY
-// in .env. Costs a few cents per run.
+// `pnpm extract <scan>`: reads every ticket in a scan (PDF, JPEG or PNG) with the real model,
+// both passes, and prints what each pass read, the flags, and the cost. Also saves the
+// straightened tickets, the field crops and the readings to scan-output/<scan name>/.
+// Needs ANTHROPIC_API_KEY in .env. Costs a few cents per ticket.
 import {
   AGENCY_TIME_ZONE,
   DEFAULT_MAX_DATE_AGE_DAYS,
   DEFAULT_MAX_SHIFT_HOURS,
   DEFAULT_MIN_SHIFT_HOURS,
+  FIELD_KEYS,
   TEMPLATE_V1,
   checkExtraction,
   todayIn,
 } from '@tally/shared';
 import { AnthropicExtractor, type ExtractionSuccess } from '@tally/shared/extraction';
-import { readFileSync } from 'node:fs';
-import sharp from 'sharp';
+import { prepareTicket } from '@tally/shared/imaging';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { basename, extname, join } from 'node:path';
+import { scanPages } from './pages.ts';
 
 const DEFAULT_MODEL = 'claude-opus-5-5';
 // shortcut: prices hard-coded for the cost estimate only; update from anthropic.com/pricing.
@@ -24,53 +28,73 @@ const PRICE_PER_MILLION: Record<string, [input: number, output: number]> = {
 
 const path = process.argv[2];
 if (!path) {
-  console.error('Usage: pnpm extract <ticket image: .jpg or .png>');
+  console.error('Usage: pnpm extract <scan: .pdf, .jpg or .png>');
   process.exit(1);
 }
 const model = process.env.EXTRACTOR_MODEL || DEFAULT_MODEL;
-
-// shortcut: whole image only, no straightening or field crops; T0.5 adds those.
-const data = await sharp(readFileSync(path))
-  .rotate() // apply the phone's rotation
-  .greyscale()
-  .resize({ width: 2000, height: 2000, fit: 'inside', withoutEnlargement: true })
-  .jpeg({ quality: 90 })
-  .toBuffer();
-
 const extractor = new AnthropicExtractor({ model });
-const input = { id: path, image: { data, mediaType: 'image/jpeg' as const } };
-
-let a: ExtractionSuccess;
-let b: ExtractionSuccess;
-try {
-  a = await extractor.extract(input, TEMPLATE_V1, 'A');
-  b = await extractor.extract(input, TEMPLATE_V1, 'B');
-} catch (error) {
-  const status = (error as { status?: number }).status;
-  if (status === 401) console.error('The API key was refused. Check ANTHROPIC_API_KEY in .env.');
-  else console.error(`Reading failed: ${String(error)}`);
-  process.exit(1);
-}
-
-const { flags } = checkExtraction(a.result, b.result, {
+const outRoot = join('scan-output', basename(path, extname(path)));
+const settings = {
   today: todayIn(AGENCY_TIME_ZONE),
   minShiftHours: DEFAULT_MIN_SHIFT_HOURS,
   maxShiftHours: DEFAULT_MAX_SHIFT_HOURS,
   maxDateAgeDays: DEFAULT_MAX_DATE_AGE_DAYS,
-});
+};
 
-console.log(`Model: ${a.model} (pass A), ${b.model} (pass B). Prompts ${a.promptVersion}.`);
-console.log('\nPass A read:', JSON.stringify(a.result, null, 2));
-console.log('\nPass B read:', JSON.stringify(b.result, null, 2));
-console.log(
-  '\nFlags:',
-  flags.length ? flags.map((f) => `${f.code}${f.field ? ` (${f.field})` : ''}`).join(', ') : 'none',
-);
+const report: string[] = [`Model: ${model}`];
+let inputTokens = 0;
+let outputTokens = 0;
+const pages = await scanPages(path);
 
-const inputTokens = a.usage.inputTokens + b.usage.inputTokens;
-const outputTokens = a.usage.outputTokens + b.usage.outputTokens;
+for (const [i, page] of pages.entries()) {
+  const prepared = await prepareTicket(page, TEMPLATE_V1);
+  const dir = join(outRoot, `page-${i + 1}`);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, 'ticket.jpg'), prepared.ticket.data);
+  for (const [field, crop] of Object.entries(prepared.crops ?? {}))
+    writeFileSync(join(dir, `${field}.jpg`), crop.data);
+
+  const input = { id: `${path}#${i + 1}`, image: prepared.ticket, crops: prepared.crops };
+  let a: ExtractionSuccess;
+  let b: ExtractionSuccess;
+  try {
+    a = await extractor.extract(input, TEMPLATE_V1, 'A');
+    b = await extractor.extract(input, TEMPLATE_V1, 'B');
+  } catch (error) {
+    const status = (error as { status?: number }).status;
+    console.error(
+      status === 401
+        ? 'The API key was refused. Check ANTHROPIC_API_KEY in .env.'
+        : `Page ${i + 1}: reading failed: ${String(error)}`,
+    );
+    if (status === 401) process.exit(1);
+    continue;
+  }
+  inputTokens += a.usage.inputTokens + b.usage.inputTokens;
+  outputTokens += a.usage.outputTokens + b.usage.outputTokens;
+
+  const { flags } = checkExtraction(a.result, b.result, settings);
+  const show = (r: ExtractionSuccess, k: (typeof FIELD_KEYS)[number]) => {
+    const f = r.result.fields[k];
+    return f.legible ? (f.value ?? '(empty)') : '?';
+  };
+  const lines = [
+    `\n=== Ticket ${i + 1} (markers ${prepared.markersFound ? 'found' : 'NOT found'})`,
+    ...FIELD_KEYS.map(
+      (k) => `${k.padEnd(12)} read 1: ${show(a, k).padEnd(14)} read 2: ${show(b, k)}`,
+    ),
+    `crossed out: ${a.result.voided || b.result.voided ? 'yes' : 'no'}; overwritten: ${[...new Set([...a.result.overwrittenFields, ...b.result.overwrittenFields])].join(', ') || 'none'}`,
+    `flags: ${[...prepared.flags, ...flags].map((f) => `${f.code}${f.field ? ` (${f.field})` : ''}`).join(', ') || 'none'}`,
+  ];
+  console.log(lines.join('\n'));
+  report.push(...lines, `full answers: ${JSON.stringify({ readA: a.result, readB: b.result })}`);
+}
+
 const price = PRICE_PER_MILLION[model];
 const cost = price
   ? ` ≈ $${((inputTokens * price[0] + outputTokens * price[1]) / 1e6).toFixed(4)}`
   : '';
-console.log(`Tokens: ${inputTokens} in, ${outputTokens} out${cost} for this ticket.`);
+const total = `\nTokens: ${inputTokens} in, ${outputTokens} out${cost} for ${pages.length} ticket(s).`;
+console.log(total);
+writeFileSync(join(outRoot, 'readings.txt'), [...report, total].join('\n') + '\n');
+console.log(`Saved to ${outRoot}/ (readings.txt, ticket and field images).`);
