@@ -97,3 +97,10 @@ export const FIELDS: readonly TemplateField[] = [
   field('endTime', 'שעת סיום', 'End', 'HH:MM', 115, 53, true),
   field('totalWorked', 'סה״כ שעות', 'Total', 'HH:MM', 65, 53, true),
 ];
+
+export interface TicketTemplate {
+  version: string;
+  fields: readonly TemplateField[];
+}
+
+export const TEMPLATE_V1: TicketTemplate = { version: TEMPLATE_VERSION, fields: FIELDS };

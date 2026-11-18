@@ -75,3 +75,13 @@ Four questions went to Liam, each with a recommendation:
 To prove the tests catch real mistakes, five bugs were planted on purpose: an off-by-one at midnight, an off-by-one on the 45-day limit, Hebrew final letters not unified, a crossed-out ticket only flagged if both AI readings agreed, and back-to-back shifts counted as overlapping. Every one was caught.
 
 The rules' known limits are written down rather than hidden. If both AI readings agree on the same wrong name, nothing in the rules can tell. That's why every ticket is reviewed by a person until real use shows it's safe to stop.
+
+### 6. Reading tickets with AI (T0.4)
+
+The step that sends a ticket image to the AI and gets back what it read. It is built so the AI is held to a strict answer form generated from the same rules the checks use, and so that "I can't read this" is the easy answer.
+
+- **Two independent readings with different wording.** Each ticket is read twice from two separately worded instructions, so one phrasing's blind spot is less likely to repeat. The instructions are plain English files that Liam reviews, and they are versioned: changing them means a new version, so any reading can be traced to the exact instructions behind it.
+- **Handwriting is data, never instructions.** The instructions tell the AI that anything written on a ticket is text to copy. Someone writing "ignore your rules" on a ticket has no effect.
+- **A fake reader for testing.** All automated tests use prepared answers instead of the real AI, so they cost nothing and give the same result every time. A stand-in for the AI service checks the real reader's handling of refusals, cut-off answers and malformed answers, again without calling the API.
+- **Cost and ownership.** Liam asked whether to use his own API key or a company account. Decision: his key for development with invented data, and an agency-owned account before any real worker data is processed, since the agency is the one sending its workers' names to the AI provider and should hold the account and the bills.
+- **A deliberate deviation from the vendor's default.** Anthropic recommends an automatic fallback to another model when a request is declined. We chose to treat a decline as a failed reading that goes to a person, keeping one reader for every ticket.

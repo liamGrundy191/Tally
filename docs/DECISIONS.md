@@ -75,3 +75,22 @@ Liam asked for short shifts to be flagged. `HOURS_OUT_OF_RANGE` now covers total
 ## D18 · Ticket · Four slips per A4 page (Liam)
 
 Removing the last name freed space, so Liam asked for four slips per page if they fit. Each slip is now a quarter of an A4 page (210 × 74.25 mm). To keep every box inside the corner-marker frame, boxes are 8.5 × 9 mm (were 10 mm tall) and the rows sit closer together. This replaces the slip size in D5.
+
+## D19 · T0.4 · The reader lives in the shared package, server-side only
+
+`TicketExtractor`, `AnthropicExtractor` and `FakeExtractor` are in `packages/shared/src/extraction`, imported as `@tally/shared/extraction`, so the Phase 0 runner and the worker use the same code. It is not exported from the main entry point, because it reads prompt files from disk and must never end up in the web app. Prompts are in `packages/shared/prompts/v1/`; a prompt change means a new `v2` folder, never an edit to `v1`, so every stored reading can be traced to the exact prompt that produced it.
+
+## D20 · T0.4 · Model and answer format
+
+- **Model:** `EXTRACTOR_MODEL` defaults to `claude-opus-5-5` (Anthropic's current default model) at effort `medium`. T0.6 measures accuracy and cost per ticket; a cheaper model is Liam's decision after that.
+- **Answer format:** the model is held to the same schema the rules use, so a reply in any other shape is impossible or rejected.
+- **What counts as a failed attempt:** an answer that does not validate, is cut off, or is a refusal. API errors (rate limits, outages) are passed on unchanged for the caller to retry.
+- **The real model is recorded:** each reading records the model that actually answered.
+
+## D21 · T0.4 · No automatic fallback to another model on a refusal
+
+Anthropic recommends letting a declined request fall back to another model automatically. Here, a refused ticket is a failed attempt, and after retries it goes to a person (`EXTRACTION_ERROR`). This keeps one reader for every ticket and adds no beta feature. A refusal on a shift ticket should be very rare; T0.6 will show if it happens.
+
+## D22 · T0.4 · `pnpm extract <image>` for one real reading
+
+Shrinks the image (phone rotation applied, greyscale, longest side 2000 px), runs both passes on the whole ticket, and prints both readings, the flags and the cost. It does not straighten or crop yet (T0.5). It reads the API key from a local `.env`, which is never committed. TypeScript's `erasableSyntaxOnly` is on in `packages/shared` and `tools/poc`, so code stays runnable by Node directly.
