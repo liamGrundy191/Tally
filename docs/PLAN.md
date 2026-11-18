@@ -2,7 +2,7 @@
 
 Version 2 · 18 Nov 2026 · Owner: Liam
 
-This is the complete specification. It is written for Claude Code, which writes most of the code. Liam oversees: he reviews each pull request, runs the checks listed for it, and merges. Read `CLAUDE.md` for the working rules, then this file top to bottom before starting any task.
+This is the complete specification. It is written for Claude Code, which writes most of the code. Claude Code also opens and merges the pull requests. Liam oversees and runs the checks that need a person. Read `CLAUDE.md` for the working rules, then this file top to bottom before starting any task.
 
 ---
 
@@ -102,7 +102,7 @@ Three runtime processes from one TypeScript monorepo: the web app, the API, and 
 | Ticket PDF | pdf-lib with an embedded Hebrew font (e.g. Noto Sans Hebrew)                               |
 | Excel      | exceljs                                                                                    |
 | Extraction | Anthropic API, vision-capable model, behind a `TicketExtractor` interface                  |
-| Tests      | Vitest (shared, web), Jest (NestJS default), Playwright for one end-to-end flow            |
+| Tests      | Vitest (shared, web, API), Playwright for one end-to-end flow                              |
 
 **Repository layout**
 
@@ -424,12 +424,12 @@ Worker concurrency defaults to 4. Every job has a timeout. Related writes run in
 
 ## 13. Task list
 
-Work one task at a time, in order. Each task is about one pull request. **Done when** is the gate. **Liam checks** is what the reviewer does by hand. Tasks marked **⚠ needs Liam's eyes** are where mistakes are likely; explain your choices in the pull request.
+Work one task at a time, in order. Each task is about one pull request. **Done when** is the gate. **Liam checks** is what Liam does by hand. Tasks marked **⚠ needs Liam's eyes** are where mistakes are likely; explain your choices in the pull request.
 
 ### Phase 0 — Ticket and proof of reading (no UI, no database)
 
 **T0.1 Repository scaffold**
-pnpm monorepo with `apps/web`, `apps/api`, `packages/shared`, `tools/poc`; TypeScript strict; ESLint and Prettier; Vitest/Jest set up; GitHub Actions running lint, typecheck and tests; `.env.example`; `docs/DECISIONS.md` and `docs/QUESTIONS.md`.
+pnpm monorepo with `apps/web`, `apps/api`, `packages/shared`, `tools/poc`; TypeScript strict; ESLint and Prettier; Vitest set up; GitHub Actions running lint, typecheck and tests; `.env.example`; `docs/DECISIONS.md` and `docs/QUESTIONS.md`.
 Done when: `pnpm lint && pnpm typecheck && pnpm test` pass locally and in CI.
 Liam checks: CI is green on the pull request.
 
