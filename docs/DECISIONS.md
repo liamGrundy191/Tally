@@ -71,3 +71,7 @@ Both readings agreeing on the same wrong value is caught only when it breaks a r
 ## D17 · T0.3 · Shifts under 2 hours are flagged (Liam)
 
 Liam asked for short shifts to be flagged. `HOURS_OUT_OF_RANGE` now covers totals under `MIN_SHIFT_HOURS` (default 2) as well as 0 and totals over `MAX_SHIFT_HOURS`. Exactly 2:00 is not flagged. A very short total is more often a misreading (0:30 for 08:30) than a real shift.
+
+## D18 · Ticket · Four slips per A4 page (Liam)
+
+Removing the last name freed space, so Liam asked for four slips per page if they fit. Each slip is now a quarter of an A4 page (210 × 74.25 mm). To keep every box inside the corner-marker frame, boxes are 8.5 × 9 mm (were 10 mm tall) and the rows sit closer together. This replaces the slip size in D5.

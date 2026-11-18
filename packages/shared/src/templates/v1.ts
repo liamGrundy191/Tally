@@ -9,8 +9,8 @@ import type { FieldKey } from '../rules/schemas.ts';
 
 export const TEMPLATE_VERSION = 'v1';
 
-/** One slip: a third of an A4 portrait page, so three print on each page. */
-export const SLIP_MM = { width: 210, height: 99 } as const;
+/** One slip: a quarter of an A4 portrait page, so four print on each page. */
+export const SLIP_MM = { width: 210, height: 297 / 4 } as const;
 
 /** Solid black corner squares, inset from the slip edge to stay clear of printer margins. */
 export const MARKER_MM = { size: 8, inset: 6 } as const;
@@ -33,7 +33,7 @@ export const FRAME_MM = {
 } as const;
 
 /** One handwritten character box, and the narrow slot for a printed ':' or '/'. */
-export const CELL_MM = { width: 8.5, height: 10 } as const;
+export const CELL_MM = { width: 8.5, height: 9 } as const;
 export const SEPARATOR_MM = 4;
 
 /** Fractions of the marker frame. */
@@ -90,10 +90,10 @@ function field(
 const BOXES_RIGHT_MM = 165;
 
 export const FIELDS: readonly TemplateField[] = [
-  field('firstName', 'שם פרטי', 'First name', '_'.repeat(12), BOXES_RIGHT_MM, 17),
-  field('workplace', 'מקום עבודה', 'Workplace', '_'.repeat(18), BOXES_RIGHT_MM, 29),
-  field('date', 'תאריך', 'Date (DD/MM/YY)', 'DD/MM/YY', BOXES_RIGHT_MM, 41),
-  field('startTime', 'שעת התחלה', 'Start', 'HH:MM', BOXES_RIGHT_MM, 60, true),
-  field('endTime', 'שעת סיום', 'End', 'HH:MM', 115, 60, true),
-  field('totalWorked', 'סה״כ שעות', 'Total', 'HH:MM', 65, 60, true),
+  field('firstName', 'שם פרטי', 'First name', '_'.repeat(12), BOXES_RIGHT_MM, 15),
+  field('workplace', 'מקום עבודה', 'Workplace', '_'.repeat(18), BOXES_RIGHT_MM, 25.5),
+  field('date', 'תאריך', 'Date (DD/MM/YY)', 'DD/MM/YY', BOXES_RIGHT_MM, 36),
+  field('startTime', 'שעת התחלה', 'Start', 'HH:MM', BOXES_RIGHT_MM, 53, true),
+  field('endTime', 'שעת סיום', 'End', 'HH:MM', 115, 53, true),
+  field('totalWorked', 'סה״כ שעות', 'Total', 'HH:MM', 65, 53, true),
 ];
