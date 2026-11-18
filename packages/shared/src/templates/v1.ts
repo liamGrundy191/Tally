@@ -5,6 +5,8 @@
 // finds on a scan, so crops computed from these fractions survive scaling and skew.
 // The PDF generator and the cropping step both read this file, so they cannot drift apart.
 
+import type { FieldKey } from '../rules/schemas.ts';
+
 export const TEMPLATE_VERSION = 'v1';
 
 /** One slip: a third of an A4 portrait page, so three print on each page. */
@@ -33,8 +35,6 @@ export const FRAME_MM = {
 /** One handwritten character box, and the narrow slot for a printed ':' or '/'. */
 export const CELL_MM = { width: 8.5, height: 10 } as const;
 export const SEPARATOR_MM = 4;
-
-export type FieldKey = 'firstName' | 'workplace' | 'date' | 'startTime' | 'endTime' | 'totalWorked';
 
 /** Fractions of the marker frame. */
 export interface FieldBox {

@@ -20,6 +20,7 @@ Shift Ticket Processing System: turns scanned paper shift tickets into Excel she
 - Write the task's tests first, then the code. A task is done only when its "Done when" criteria pass.
 - Run `pnpm lint && pnpm typecheck && pnpm test` before opening a pull request. Never open one with failing checks.
 - Pull request description: what was built, how it was tested, anything Liam should look at closely, and the task's "Liam checks" list.
+- After each task, add its major decisions and discussions to `docs/PROGRESSION.md` (written for future employers: what and why, not code detail).
 - Stop after each task and wait for Liam. Do not start the next task unless he says so.
 
 ## When something is unclear
