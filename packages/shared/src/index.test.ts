@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TEMPLATE_VERSION } from './index.js';
+import { TEMPLATE_VERSION } from './index.ts';
 
 describe('shared package', () => {
   it('exposes the current ticket template version', () => {
