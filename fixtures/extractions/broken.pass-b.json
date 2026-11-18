@@ -1,0 +1,12 @@
+{
+  "fields": {
+    "firstName": { "value": "יעל", "legible": true },
+    "workplace": { "value": "סופר-פארם", "legible": true },
+    "date": { "value": "10/11/26", "legible": true },
+    "startTime": { "value": "8:00", "legible": true },
+    "endTime": { "value": "16:30", "legible": true },
+    "totalWorked": { "value": "08:30", "legible": true }
+  },
+  "voided": false,
+  "overwrittenFields": []
+}

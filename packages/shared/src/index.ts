@@ -1,4 +1,4 @@
-export { TEMPLATE_VERSION } from './templates/v1.ts';
+export { TEMPLATE_V1, TEMPLATE_VERSION, type TicketTemplate } from './templates/v1.ts';
 export * from './rules/schemas.ts';
 export * from './rules/time.ts';
 export * from './rules/date.ts';

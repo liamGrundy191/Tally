@@ -49,6 +49,7 @@ pnpm seed:admin                                   # create first admin
 pnpm lint && pnpm typecheck && pnpm test          # before every PR
 pnpm format                                       # fix formatting (Prettier)
 pnpm ticket:pdf                                   # printable ticket
+pnpm extract <image>                              # read one ticket with the real model (costs cents)
 pnpm poc --input <folder> --truth <truth.csv>     # Phase 0 runner
 ```
 
