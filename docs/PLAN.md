@@ -140,22 +140,24 @@ Each step writes its result before the next starts and checks for its own saved 
 
 ### 4.1 Flags
 
-| Code                                                | Raised when                                                          | Shown to the user as                                        |
-| --------------------------------------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `PASS_DISAGREEMENT`                                 | The two passes read a field differently                              | "The two readings disagree: 08:30 and 06:30"                |
-| `FIELD_UNREADABLE`                                  | Either pass marked a field not legible                               | "Could not read the end time"                               |
-| `CORRECTION_MARKS`                                  | Overwritten characters reported                                      | "The total looks overwritten"                               |
-| `VOIDED_TICKET`                                     | The ticket is crossed out                                            | "This ticket looks crossed out. Exclude it?"                |
-| `TIME_MATH_MISMATCH`                                | `end − start ≠ total` (midnight allowed)                             | "Start and end give 7:30, but total says 8:30"              |
-| `HOURS_OUT_OF_RANGE`                                | Total is 0 or above `MAX_SHIFT_HOURS` (default 16)                   | "Total of 19:00 is unusually long"                          |
-| `DATE_IN_FUTURE`                                    | Date is after today                                                  | "The date is in the future"                                 |
-| `DATE_TOO_OLD`                                      | Date is more than `MAX_DATE_AGE_DAYS` (default 45) before today      | "The date is more than 45 days ago"                         |
-| `DATE_INVALID`                                      | Not a real calendar date                                             | "31/02 is not a real date"                                  |
-| `SCRIPT_UNEXPECTED`                                 | A name is in Latin letters (Hebrew expected)                         | "Name written in English — check the reading"               |
-| `MARKERS_NOT_FOUND` / `IMAGE_BLURRY` / `IMAGE_DARK` | Pre-check failed                                                     | "The scan is blurry"                                        |
-| `WORKPLACE_SIMILAR`                                 | The workplace is similar to, but not the same as, another in the job | "Is 'סופר-פארם' the same place as 'סופר פארם'?"             |
-| `POSSIBLE_DUPLICATE`                                | See 5.2                                                              | "Same name, place, date and overlapping times as ticket 14" |
-| `EXTRACTION_ERROR`                                  | Extractor failed after retries                                       | "Could not read this ticket. Please type it in."            |
+| Code                                                | Raised when                                                                                                                    | Shown to the user as                                        |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| `PASS_DISAGREEMENT`                                 | The two passes read a field differently                                                                                        | "The two readings disagree: 08:30 and 06:30"                |
+| `FIELD_UNREADABLE`                                  | Either pass marked a field not legible                                                                                         | "Could not read the end time"                               |
+| `FIELD_EMPTY`                                       | A field is blank on the paper (or only a dash or dot)                                                                          | "The end time is empty"                                     |
+| `CORRECTION_MARKS`                                  | Overwritten characters reported                                                                                                | "The total looks overwritten"                               |
+| `VOIDED_TICKET`                                     | The ticket is crossed out                                                                                                      | "This ticket looks crossed out. Exclude it?"                |
+| `TIME_INVALID`                                      | A start, end or total that is not a real time (25:00, 08:75, "8.5", "8")                                                       | "25:70 is not a real time"                                  |
+| `TIME_MATH_MISMATCH`                                | `end − start ≠ total` (midnight allowed)                                                                                       | "Start and end give 7:30, but total says 8:30"              |
+| `HOURS_OUT_OF_RANGE`                                | Total is 0 or above `MAX_SHIFT_HOURS` (default 16)                                                                             | "Total of 19:00 is unusually long"                          |
+| `DATE_IN_FUTURE`                                    | Date is after today                                                                                                            | "The date is in the future"                                 |
+| `DATE_TOO_OLD`                                      | Date is more than `MAX_DATE_AGE_DAYS` (default 45) before today                                                                | "The date is more than 45 days ago"                         |
+| `DATE_INVALID`                                      | Not a real calendar date                                                                                                       | "31/02 is not a real date"                                  |
+| `SCRIPT_UNEXPECTED`                                 | The name has characters that are not Hebrew or English letters (digits, other alphabets, symbols), or mixes Hebrew and English | "The name contains a digit — check the reading"             |
+| `MARKERS_NOT_FOUND` / `IMAGE_BLURRY` / `IMAGE_DARK` | Pre-check failed                                                                                                               | "The scan is blurry"                                        |
+| `WORKPLACE_SIMILAR`                                 | The workplace is similar to, but not the same as, another in the job                                                           | "Is 'סופר-פארם' the same place as 'סופר פארם'?"             |
+| `POSSIBLE_DUPLICATE`                                | See 5.2                                                                                                                        | "Same name, place, date and overlapping times as ticket 14" |
+| `EXTRACTION_ERROR`                                  | Extractor failed after retries                                                                                                 | "Could not read this ticket. Please type it in."            |
 
 A flag is resolved only by a person: correcting the value, confirming it ("the paper really says this", logged), or excluding the ticket with a reason. Saving re-runs all rule checks on the saved values.
 
@@ -179,7 +181,7 @@ Trim; collapse spaces; remove punctuation, quotes, geresh/gershayim and niqqud; 
 
 Each ticket is one output row. There is no worker table.
 
-**`POSSIBLE_DUPLICATE`** is raised on both tickets when, within the job, two tickets have the same normalised name (first name; see D9), the same workplace group, the same date, and overlapping times. This covers imported rows too. The review screen shows both tickets side by side with two choices:
+**`POSSIBLE_DUPLICATE`** is raised on both tickets when, within the job, two tickets have matching names (same words after normalisation, in any order, or all words of one inside the other, e.g. "דוד" / "דוד כהן"; see D9 and D11), the same workplace group, the same date, and overlapping times (back-to-back shifts do not overlap; unknown times count as overlapping). This covers imported rows too. The review screen shows both tickets side by side with two choices:
 
 - **Keep both — different people.** Both are cleared of the flag.
 - **Exclude one — same ticket twice.** The chosen ticket is excluded with reason "duplicate".

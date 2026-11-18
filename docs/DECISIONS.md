@@ -39,3 +39,31 @@ CI installs `poppler-utils`. On Windows: `winget install oschwartz10612.Poppler`
 ## D9 · Ticket · No last name on the ticket (owner)
 
 The owner decided the last name is not needed. The ticket has one name field, first name (12 boxes); the rows below it moved up. The worker column in the export shows the first name, and `POSSIBLE_DUPLICATE` compares first names. Two different workers with the same first name at the same place and overlapping hours will now always be asked about ("Keep both"), since there is no surname to tell them apart.
+
+## D10 · T0.3 · Two new flags: FIELD_EMPTY and TIME_INVALID (Liam)
+
+A blank box gets "The end time is empty" rather than "Could not read". A time that cannot exist (25:00, 08:75, "8.5" written as decimal hours, "8" with no minutes) gets `TIME_INVALID`. A name or workplace of only punctuation ("-") counts as empty. A field already flagged unreadable or disputed is not flagged empty as well.
+
+## D11 · T0.3 · Duplicates: same date only; names match in any order or with an extra word (Liam)
+
+Liam chose same date only: a night shift entered twice with two different dates is not caught. Consecutive night shifts never overlap, so they are never flagged either way. Names match if they have the same words in any order ("דוד כהן" / "כהן דוד", Liam: yes), or if every word of one appears in the other ("דוד" / "דוד כהן", since the ticket has one name field). Back-to-back shifts (16:00 end, 16:00 start) do not overlap. If either ticket's times are unknown, it is asked about.
+
+## D12 · T0.3 · Names: Hebrew and English are both fine (Liam)
+
+Changes plan 4.1: an English name is no longer flagged. `SCRIPT_UNEXPECTED` is raised for anything else in a name: digits, other alphabets (Arabic, Russian), symbols, or Hebrew and English mixed in one name. Workplaces are not checked, since brand names may contain anything.
+
+## D13 · T0.3 · How times are read
+
+`HH:MM`, `H:MM`, `HHMM`, `HMM` and `HH.MM` are accepted; minutes must be two digits, so "8.5" and "8" are flagged, not guessed. "24:00" is accepted as an end time and means midnight (stored as 0); as a start time it is flagged. The two readings are compared by meaning: "8:30" and "08:30" agree.
+
+## D14 · T0.3 · Dates are DD/MM/YY, checked in Israel time
+
+Dates are day first, as printed on the ticket. Separators `/ . -` or none are accepted, and four-digit years from 1900 to 2099. "Today" for the future and too-old checks is the date in Asia/Jerusalem, not the server's clock (a server in UTC would think 01:00 in Israel is still yesterday). A date written month-first is caught only when it is impossible (11/18) or out of range; 05/11 versus 11/05 cannot be told apart by rules.
+
+## D15 · T0.3 · Hours range uses start and end when the total is missing
+
+`HOURS_OUT_OF_RANGE` checks the written total. If the total is missing, it checks end − start instead, so a 23-hour shift is still flagged. The missing total itself is flagged and is never filled in from start and end.
+
+## D16 · T0.3 · What rules cannot catch (known limits)
+
+Both readings agreeing on the same wrong value is caught only when it breaks a rule: a misread time usually breaks end − start = total, but a misread name, workplace or a date still inside the 45-day window does not. `REVIEW_EVERYTHING=true` covers this until real use shows otherwise; the Phase 0 runner measures it. On the night clocks change, the arithmetic uses clock time, so a leader who writes the real hours worked gets `TIME_MATH_MISMATCH` and a person confirms.
