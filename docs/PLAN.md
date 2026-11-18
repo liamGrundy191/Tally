@@ -32,7 +32,7 @@ This system turns scanned tickets into those Excel sheets. The AI reads the tick
 | Topic             | Decision                                                                                                                                                                          |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Input             | Paper tickets, one per worker per shift, filled in by the shift leader. Collected at the office and scanned (sheet-fed scanner PDF preferred; phone photos accepted as JPEG/PNG). |
-| Ticket            | Plain A5 slip, photocopiable. **No QR code, no serial number.**                                                                                                                   |
+| Ticket            | Plain slip, three per A4 page, photocopiable. **No QR code, no serial number.**                                                                                                   |
 | Ticket fields     | First name, last name, workplace, date, start time, end time, total worked. **No break field** (breaks are paid). **No shift leader field.**                                      |
 | Handwriting       | Mainly Hebrew, occasionally English.                                                                                                                                              |
 | UI language       | English. Hebrew values must display correctly (right-to-left) inside it.                                                                                                          |
@@ -55,7 +55,7 @@ Worker registry or worker totals · pay, rates, overtime, tax, payslips · invoi
 
 ## 2. The paper ticket
 
-An A5 slip, two per A4 page, generated once as a PDF and then printed or photocopied anywhere.
+A slip a third of an A4 page (210 × 99 mm), three per A4 page, generated once as a PDF and then printed or photocopied anywhere.
 
 **Printed elements**
 
@@ -65,7 +65,6 @@ An A5 slip, two per A4 page, generated once as a PDF and then printed or photoco
 - Character boxes in a light colour (pale blue, e.g. `#B8D4F0`), so box lines do not merge with ink.
 - `:` in times and `/` in dates printed in place, so only digits are handwritten.
 - A filled-in example strip at the top: a name in block letters and a time written `08:30`.
-- Rules: "Black pen only", "No overwriting — cross out the whole ticket with a large X and use a new one", "Date = the day the shift started".
 
 **Handwritten fields**
 
@@ -434,7 +433,7 @@ Done when: `pnpm lint && pnpm typecheck && pnpm test` pass locally and in CI.
 Liam checks: CI is green on the pull request.
 
 **T0.2 Ticket template and PDF generator** ⚠ needs Liam's eyes
-`packages/shared/src/templates/v1.ts` field map; `pnpm ticket:pdf` writes `tickets-v1.pdf` (A4, two A5 slips) as specified in section 2.
+`packages/shared/src/templates/v1.ts` field map; `pnpm ticket:pdf` writes `tickets-v1.pdf` (A4, three slips) as specified in section 2.
 Done when: a test renders the PDF, rasterises it, and confirms the four markers are found where the field map says.
 Liam checks: print it; Hebrew labels read correctly right-to-left; boxes are large enough to write in; it survives a photocopy.
 
@@ -545,6 +544,5 @@ Phase 4 gate: the pilot output matches the manual count, or every difference is 
 ## 14. Open items
 
 - Pay and rate columns: rules unknown; not in version 1.
-- Whether A5 is the right ticket size for shift leaders.
 - Whether the worker should also sign the ticket.
 - Exact Excel styling: confirm with the associates after T3.1.
