@@ -98,9 +98,9 @@ describe('ticket PDF', () => {
     expect(Math.abs(grey.height - px(A4_MM.height))).toBeLessThanOrEqual(1);
   });
 
-  it('prints all four corner markers on all three slips exactly where the field map says', () => {
+  it('prints all four corner markers on all four slips exactly where the field map says', () => {
     const half = MARKER_MM.size / 2;
-    expect(SLIPS_PER_PAGE).toBe(3);
+    expect(SLIPS_PER_PAGE).toBe(4);
     for (let slip = 0; slip < SLIPS_PER_PAGE; slip++) {
       const slipTop = slip * SLIP_MM.height;
       for (const [name, c] of Object.entries(MARKER_CENTRES_MM)) {

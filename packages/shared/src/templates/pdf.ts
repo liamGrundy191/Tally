@@ -131,7 +131,7 @@ function drawSlip(page: PDFPage, fonts: Fonts, slipTopMm: number) {
   );
 
   // Example strip: a name in block letters (first letter in the rightmost box) and a time.
-  const ex = { cellW: 6, cellH: 6.5, sepW: 3, y: 7 };
+  const ex = { cellW: 6, cellH: 6.5, sepW: 3, y: 6.5 };
   text(EXAMPLE.labelHe, 9, 186, 10.5, 'right');
   text(EXAMPLE.labelEn, 6.5, 186, 13.5, 'right', SECONDARY);
   const name = [...EXAMPLE.name].reverse().join('');
@@ -156,8 +156,8 @@ function drawSlip(page: PDFPage, fonts: Fonts, slipTopMm: number) {
       text(f.labelHe, 10, centre, y - 4.5, 'center');
       text(f.labelEn, 7, centre, y - 1.3, 'center', SECONDARY);
     } else {
-      text(f.labelHe, 10, LABEL_RIGHT_MM, y + 4.5, 'right');
-      text(f.labelEn, 7, LABEL_RIGHT_MM, y + 8.5, 'right', SECONDARY);
+      text(f.labelHe, 10, LABEL_RIGHT_MM, y + 4, 'right');
+      text(f.labelEn, 7, LABEL_RIGHT_MM, y + 7.5, 'right', SECONDARY);
     }
   }
 }

@@ -50,6 +50,7 @@ The ticket design and a generator for the printable PDF. Four solid black corner
 - **Testing a printed layout.** The test turns the PDF into an image and checks every corner square is within half a millimetre of where the field map says. A first version of this test still passed when the squares were moved 1 mm on purpose, so it was tightened until it caught that.
 - **Feedback from Liam:** the first version (two A5 tickets per page, with rules printed at the bottom) was too large. It became three per A4 page, without the rules. Box sizes stayed the same, so writing space didn't shrink.
 - **Feedback from the agency owner:** the last name isn't needed. The field was removed, and the effects were followed through: duplicate detection and the Excel worker column now work from the first name alone.
+- **Using the freed space:** with one row fewer, four tickets fit on a page. The boxes lost 1 mm of height so every box still sits inside the four corner squares, which the scanning step depends on.
 
 ### 5. The checking rules (T0.3)
 
