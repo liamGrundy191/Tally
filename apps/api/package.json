@@ -1,0 +1,22 @@
+{
+  "name": "@tally/api",
+  "private": true,
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run --test-timeout=20000"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.5.1",
+    "@nestjs/core": "12.5.1",
+    "@nestjs/platform-express": "12.5.1",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "12.5.1",
+    "@types/node": "26.6.6",
+    "typescript": "6.0.3",
+    "vitest": "5.1.1"
+  },
+  "type": "module"
+}
