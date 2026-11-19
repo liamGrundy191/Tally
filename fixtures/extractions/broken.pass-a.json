@@ -1,6 +1,10 @@
 {
   "fields": {
-    "firstName": { "value": "יעל", "legible": true }
+    "firstName": {
+      "value": "יעל",
+      "legible": true,
+      "suggestion": null
+    }
   },
   "voided": false
 }

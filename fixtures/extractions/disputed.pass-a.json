@@ -1,12 +1,37 @@
 {
   "fields": {
-    "firstName": { "value": "עומר", "legible": true },
-    "workplace": { "value": "שופרסל", "legible": true },
-    "date": { "value": "12/11/26", "legible": true },
-    "startTime": { "value": "22:00", "legible": true },
-    "endTime": { "value": "06:00", "legible": true },
-    "totalWorked": { "value": "08:30", "legible": true }
+    "firstName": {
+      "value": "עומר",
+      "legible": true,
+      "suggestion": null
+    },
+    "workplace": {
+      "value": "שופרסל",
+      "legible": true,
+      "suggestion": null
+    },
+    "date": {
+      "value": "12/11/26",
+      "legible": true,
+      "suggestion": null
+    },
+    "startTime": {
+      "value": "22:00",
+      "legible": true,
+      "suggestion": null
+    },
+    "endTime": {
+      "value": "06:00",
+      "legible": true,
+      "suggestion": null
+    },
+    "totalWorked": {
+      "value": "08:30",
+      "legible": true,
+      "suggestion": null
+    }
   },
   "voided": false,
-  "overwrittenFields": ["totalWorked"]
+  "overwrittenFields": ["totalWorked"],
+  "workplaceMatch": null
 }

@@ -7,6 +7,8 @@ import {
   ExtractionError,
   type ExtractionInput,
   FakeExtractor,
+  PROMPT_VERSION,
+  validateAnswer,
   answerFormat,
   buildRequest,
   loadPrompt,
@@ -30,7 +32,7 @@ describe('FakeExtractor (reads prepared answers; tests never call the real API)'
     expect(a.result.fields.workplace.value).toBe('סופר פארם');
     expect(b.result.fields.workplace.value).toBe('סופר-פארם');
     expect(a.model).toBe('fake');
-    expect(a.promptVersion).toBe('v1');
+    expect(a.promptVersion).toBe(PROMPT_VERSION);
   });
 
   it('treats an answer in the wrong format as a failed attempt', async () => {
@@ -83,6 +85,8 @@ describe('the two prompts', () => {
     expect(prompt).toContain('`overwrittenFields`'); // overwritten characters
     expect(prompt).toMatch(/instruction/i); // handwriting is data, not instructions
     expect(prompt).toContain('דנה'); // the printed example is not a value
+    expect(prompt).toContain('`suggestion`'); // best guess for unclear boxes, never the value
+    expect(prompt).toContain('`workplaceMatch`'); // only an exact list entry, or null
   });
 
   it('are worded differently, so the two readings are independent', () => {
@@ -150,6 +154,44 @@ describe('the request sent to the model', () => {
   });
 });
 
+describe('the workplace list', () => {
+  const list = ['משק ברזלי', 'הסנה הבוער'];
+  const answer = (match: string | null) => ({
+    fields: Object.fromEntries(
+      TEMPLATE_V1.fields.map((f) => [f.key, { value: null, legible: false, suggestion: null }]),
+    ),
+    voided: false,
+    overwrittenFields: [],
+    workplaceMatch: match,
+  });
+
+  it('is sent with the request, one entry per line', () => {
+    const req = buildRequest(input('t1', { knownWorkplaces: list }), TEMPLATE_V1, 'A', 'm');
+    const text = (req.messages[0]!.content as Anthropic.ContentBlockParam[]).find(
+      (b) => b.type === 'text',
+    ) as Anthropic.TextBlockParam;
+    expect(text.text).toContain(['- משק ברזלי', '- הסנה הבוער'].join(String.fromCharCode(10)));
+  });
+
+  it('limits the answer format to the list entries or null', () => {
+    const schema = JSON.stringify(answerFormat(list).schema);
+    expect(schema).toContain('"enum":["משק ברזלי","הסנה הבוער"]');
+  });
+
+  it('accepts an exact list entry or null', () => {
+    expect(validateAnswer(answer('משק ברזלי'), list).workplaceMatch).toBe('משק ברזלי');
+    expect(validateAnswer(answer(null), list).workplaceMatch).toBeNull();
+  });
+
+  it('rejects a workplace match that is not on the list (a failed attempt)', () => {
+    expect(() => validateAnswer(answer('משק ברזל'), list)).toThrow(ExtractionError);
+  });
+
+  it('rejects any workplace match when no list was given', () => {
+    expect(() => validateAnswer(answer('משק ברזלי'))).toThrow(ExtractionError);
+  });
+});
+
 /** A stand-in for the Anthropic client that returns a canned response. */
 function clientReturning(response: Partial<Anthropic.Message> & { parsed_output?: unknown }) {
   const calls: unknown[] = [];
@@ -172,10 +214,11 @@ function clientReturning(response: Partial<Anthropic.Message> & { parsed_output?
 describe('AnthropicExtractor (with a stand-in client, no network)', () => {
   const good = {
     fields: Object.fromEntries(
-      TEMPLATE_V1.fields.map((f) => [f.key, { value: null, legible: true }]),
+      TEMPLATE_V1.fields.map((f) => [f.key, { value: null, legible: true, suggestion: null }]),
     ),
     voided: false,
     overwrittenFields: [],
+    workplaceMatch: null,
   };
 
   it('returns the validated answer, the model that answered, and token usage', async () => {

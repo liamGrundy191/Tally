@@ -17,6 +17,7 @@ import { prepareTicket } from '@tally/shared/imaging';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import { scanPages } from './pages.ts';
+import { loadWorkplaces } from './workplaces.ts';
 
 const DEFAULT_MODEL = 'claude-opus-5-5';
 // shortcut: prices hard-coded for the cost estimate only; update from anthropic.com/pricing.
@@ -41,7 +42,14 @@ const settings = {
   maxDateAgeDays: DEFAULT_MAX_DATE_AGE_DAYS,
 };
 
-const report: string[] = [`Model: ${model}`];
+const knownWorkplaces = loadWorkplaces();
+const report: string[] = [
+  `Model: ${model}`,
+  knownWorkplaces.length > 0
+    ? `Using ${knownWorkplaces.length} known workplaces from workplaces.txt.`
+    : 'No workplaces.txt: reading workplaces without a list.',
+];
+for (const line of report) console.log(line);
 let inputTokens = 0;
 let outputTokens = 0;
 const pages = await scanPages(path);
@@ -54,7 +62,12 @@ for (const [i, page] of pages.entries()) {
   for (const [field, crop] of Object.entries(prepared.crops ?? {}))
     writeFileSync(join(dir, `${field}.jpg`), crop.data);
 
-  const input = { id: `${path}#${i + 1}`, image: prepared.ticket, crops: prepared.crops };
+  const input = {
+    id: `${path}#${i + 1}`,
+    image: prepared.ticket,
+    crops: prepared.crops,
+    knownWorkplaces,
+  };
   let a: ExtractionSuccess;
   let b: ExtractionSuccess;
   try {
@@ -73,16 +86,36 @@ for (const [i, page] of pages.entries()) {
   inputTokens += a.usage.inputTokens + b.usage.inputTokens;
   outputTokens += a.usage.outputTokens + b.usage.outputTokens;
 
-  const { flags } = checkExtraction(a.result, b.result, settings);
+  const { flags, suggestions, fields, workplaceFromList } = checkExtraction(
+    a.result,
+    b.result,
+    settings,
+    {
+      knownWorkplaces,
+    },
+  );
   const show = (r: ExtractionSuccess, k: (typeof FIELD_KEYS)[number]) => {
     const f = r.result.fields[k];
-    return f.legible ? (f.value ?? '(empty)') : '?';
+    return f.legible ? (f.value ?? '(empty)') : f.suggestion ? `? (guess ${f.suggestion})` : '?';
   };
   const lines = [
     `\n=== Ticket ${i + 1} (markers ${prepared.markersFound ? 'found' : 'NOT found'})`,
     ...FIELD_KEYS.map(
-      (k) => `${k.padEnd(12)} read 1: ${show(a, k).padEnd(14)} read 2: ${show(b, k)}`,
+      (k) => `${k.padEnd(12)} read 1: ${show(a, k).padEnd(24)} read 2: ${show(b, k)}`,
     ),
+    ...(knownWorkplaces.length > 0
+      ? [
+          `list match   read 1: ${(a.result.workplaceMatch ?? 'none').padEnd(24)} read 2: ${b.result.workplaceMatch ?? 'none'}${workplaceFromList ? '  → accepted' : ''}`,
+        ]
+      : []),
+    `result: ${(['firstName', 'workplace'] as const)
+      .map((k) => {
+        const value = fields[k];
+        const guess = value ?? suggestions[k];
+        if (!flags.some((f) => f.field === k)) return `${k}=${value ?? '(empty)'} (accepted)`;
+        return `${k}=${guess ? `person confirms "${guess}"` : 'person types it'}`;
+      })
+      .join(', ')}`,
     `crossed out: ${a.result.voided || b.result.voided ? 'yes' : 'no'}; overwritten: ${[...new Set([...a.result.overwrittenFields, ...b.result.overwrittenFields])].join(', ') || 'none'}`,
     `flags: ${[...prepared.flags, ...flags].map((f) => `${f.code}${f.field ? ` (${f.field})` : ''}`).join(', ') || 'none'}`,
   ];

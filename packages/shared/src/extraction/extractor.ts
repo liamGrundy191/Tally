@@ -2,11 +2,11 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { readFileSync } from 'node:fs';
-import { type ExtractionResult, ExtractionResultSchema, type FieldKey } from '../rules/schemas.ts';
+import { type ExtractionResult, type FieldKey, extractionResultSchema } from '../rules/schemas.ts';
 import type { TemplateField, TicketTemplate } from '../templates/v1.ts';
 
 /** Bump when a prompt file changes, and add a new prompts/vN folder; never edit an old version. */
-export const PROMPT_VERSION = 'v1';
+export const PROMPT_VERSION = 'v2';
 
 export type ExtractionPass = 'A' | 'B';
 
@@ -22,6 +22,8 @@ export interface ExtractionInput {
   image: TicketImage;
   /** One crop per field, when the corner markers were found. Only pass B uses them. */
   crops?: Partial<Record<FieldKey, TicketImage>>;
+  /** The agency's workplaces; the model may only name one of these as `workplaceMatch`. */
+  knownWorkplaces?: readonly string[];
 }
 
 export interface ExtractionSuccess {
@@ -66,7 +68,8 @@ export function loadPrompt(pass: ExtractionPass): string {
 }
 
 /** The answer format the model is held to, generated from the same schema the rules use. */
-export const answerFormat = () => zodOutputFormat(ExtractionResultSchema);
+export const answerFormat = (knownWorkplaces: readonly string[] = []) =>
+  zodOutputFormat(extractionResultSchema(knownWorkplaces));
 
 function describeField(f: TemplateField): string {
   const boxes = [...f.pattern].filter((c) => c !== '/' && c !== ':').length;
@@ -86,7 +89,18 @@ export function buildRequest(
   pass: ExtractionPass,
   model: string,
 ) {
-  const fieldList = `Ticket template ${template.version}. Fields:\n${template.fields.map(describeField).join('\n')}`;
+  const workplaces = input.knownWorkplaces ?? [];
+  const fieldList = [
+    `Ticket template ${template.version}. Fields:`,
+    ...template.fields.map(describeField),
+    '',
+    ...(workplaces.length > 0
+      ? [
+          'Known workplaces (for workplaceMatch, copy one exactly or use null):',
+          ...workplaces.map((w) => `- ${w}`),
+        ]
+      : ['No list of known workplaces is given: workplaceMatch must be null.']),
+  ].join('\n');
   const useCrops =
     pass === 'B' && input.crops !== undefined && template.fields.every((f) => input.crops![f.key]);
 
@@ -108,13 +122,16 @@ export function buildRequest(
     max_tokens: 16000,
     system: loadPrompt(pass),
     messages: [{ role: 'user' as const, content }],
-    output_config: { effort: 'medium' as const, format: answerFormat() },
+    output_config: { effort: 'medium' as const, format: answerFormat(workplaces) },
   };
 }
 
 /** Validates an answer against the schema; anything else is a failed attempt. */
-export function validateAnswer(answer: unknown): ExtractionResult {
-  const parsed = ExtractionResultSchema.safeParse(answer);
+export function validateAnswer(
+  answer: unknown,
+  knownWorkplaces: readonly string[] = [],
+): ExtractionResult {
+  const parsed = extractionResultSchema(knownWorkplaces).safeParse(answer);
   if (!parsed.success) {
     throw new ExtractionError(
       'invalid_output',

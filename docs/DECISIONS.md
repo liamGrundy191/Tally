@@ -105,3 +105,18 @@ Shrinks the image (phone rotation applied, greyscale, longest side 2000 px), run
 - **Without markers.** When no markers are found, the whole normalised page is read and the ticket is flagged `MARKERS_NOT_FOUND`.
 - **Commands.** `pnpm crops <scan>` saves the straightened ticket and crops to `scan-output/` (not committed) for checking by eye. `pnpm extract` now uses the same preparation and accepts multi-page PDFs.
 - **Result on Liam's four tickets.** Every ticket was straightened correctly, but reading was about the same as before. The strict "any doubt means unreadable" instruction, not image quality, is what blocks cursive names and workplaces. That led to D24 and D25.
+
+## D24 · Prompts v2 · Best-guess suggestions for unclear fields (Liam)
+
+Changes plan principle 2. The extractor still returns `legible: false` whenever any character is uncertain, but it now also gives its best reading of the whole field as `suggestion`. A suggestion is never used as a value: the field stays flagged, and the reviewer sees the guess pre-filled and confirms or corrects it. When both readings suggest the same thing, that is the suggestion; when they differ, there is no suggestion and the reviewer sees both. Reason: on Liam's test tickets the AI marked every cursive name unreadable, which would mean a person typing almost every name.
+
+## D25 · Prompts v2 · The agency's workplace list (Liam, with the agency owner)
+
+- **The list.** The extractor receives the agency's workplaces and must name one entry exactly as `workplaceMatch`, or null. The answer format only allows list entries, so it cannot invent one.
+- **When the workplace is accepted.** Both readings name the same entry, and every reading of the handwriting (value or suggestion) resembles it: at most max(2, 30% of the entry's length) letters different after name normalisation. The workplace is then set to the list entry, with no workplace reading flag. A crossed-out or overwritten workplace stays flagged.
+- **When it is flagged.** Different entries; only one reading matching; no readable handwriting to compare; or handwriting that does not resemble the entry, so an entry is never forced onto the writing.
+- **Two similar entries.** If the handwriting also resembles a second entry (for example בית נוי and בית נוף), the workplace is not accepted even when both readings agree: `WORKPLACE_AMBIGUOUS` asks a person, with the matched entry suggested. Liam found this gap: two readings can make the same mistake.
+- **Not on the list.** When neither reading matches any entry, `WORKPLACE_NOT_ON_LIST` asks whether it is a new workplace.
+- **Where the list lives.** For now, `workplaces.txt` (one per line, kept off GitHub as it lists the agency's clients); later, an "upload Excel" screen in the app. No nicknames per entry yet.
+- **Names stay unmatched.** There is no list for names: a worker register is a rejected idea.
+- **Versioning.** Prompts are now `v2`. The `v1` files are kept for the record but no longer match the answer format.
