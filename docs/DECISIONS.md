@@ -191,3 +191,19 @@ Liam asked for the new ticket (D32) to be checked. All tests passed, but the tes
 - **Filled-in tickets came out upside down.** The way up was decided by comparing the printed labels with the opposite side of the ticket. Dense handwriting there outweighed the labels, so every simulated filled ticket was turned 180°, with no warning. The cut-out boxes would then have shown the wrong fields. The way up now comes from the printed example strip (דנה, 08:30): turned 180° it would sit below the time boxes, where nothing is ever written. A test with heavy writing at four angles guards it.
 - **A scribbled-out correction hid the markers.** Blacking out two boxes makes a solid patch four times a 6 mm marker's area, and the marker search ignored marks under a third of the largest. It now tries again without the one or two largest patches. The four markers must still match each other in size, so a scribble can never stand in for one. One covered marker is still flagged.
 - **Old printouts are refused.** Scans of the previous layout raise `MARKERS_NOT_FOUND` instead of being cut up wrongly.
+
+## D34 · Phase 0 · A realistic big test, read in batch mode (Liam)
+
+- **Tickets are checked by a person when they are collected.** The product is not meant to accept anything a user uploads. So the big test (H0) uses realistic tickets: no fully crossed-out tickets, and everything scanned, no phone photos. The system still flags crossed-out tickets and still accepts photos, as a safety net, but they are not tested on purpose. Testing and checking stay as careful as before.
+- **Names list.** For the big test, Liam brings the first names of the last six months' workers. Workers missing from it are normal and are not flagged.
+- **Batch mode in the runner.** `pnpm poc --batch` sends each round of readings (passes A and B for every ticket, then pass C, then the second look at names) as one request to Anthropic's batch service, at half the price. Each round usually takes under an hour. The same prompts, answer format and checks are used, so results should match immediate mode. Stopping the program cancels a running batch. Built ahead of the user-facing speed choice in D26.
+
+## D35 · Phase 0 · Opus at high effort; Sonnet and max effort rejected (Liam)
+
+Measured on Liam's 12 real tickets in batch mode, then on the two hardest of them:
+
+- **Sonnet 5.5 rejected.** It was as safe as Opus (nothing wrong accepted) but marked almost every box unsure: 66 of 72 boxes went to a person, against 25 with Opus. It also guessed names from the names list that were wrong. It costs a third as much, but the extra checking would cost far more than it saves. It is not offered as an option.
+- **High effort is the default.** On the hardest ticket, three wrong time guesses at medium became three right guesses at high, for about 10% more (8.1 cents a ticket in batch mode, against 7.4). The setting is `EXTRACTOR_EFFORT`. Using high only for the third read was considered; nearly every ticket needs a third read because of names, so it would save almost nothing.
+- **Max effort rejected.** On hard tickets it thought until it ran out of answer space (16,000 tokens) and returned nothing, at about five times the cost. Raising the limit would make each ticket cost dollars, and the ticket it failed on was not readable at high effort either.
+- **Failed answers are counted in the cost.** The max test showed a cut-off answer reported as free. It is billed in full, so it now counts toward the report and the spending stop.
+- **Measured on very few tickets.** The big test (H0) confirms the cost and the benefit.

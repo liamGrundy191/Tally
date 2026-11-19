@@ -1,6 +1,7 @@
 // `pnpm poc --input <folder> --truth <truth.csv>` (T0.6): reads every ticket in a folder of scans
 // with the full process, grades it against truth.csv, and writes a report and a mistakes file.
 // Without --yes it only checks the files and shows the estimated cost: it spends nothing.
+// --batch reads through Anthropic's batch service at half the price, but slower (D34).
 // `--template` writes an empty truth.csv for the folder instead. EXTRACTOR=fake uses fixtures.
 import {
   AGENCY_TIME_ZONE,
@@ -14,7 +15,11 @@ import {
   todayIn,
 } from '@tally/shared';
 import {
+  AnthropicBatchExtractor,
   AnthropicExtractor,
+  DEFAULT_EFFORT,
+  EFFORTS,
+  type Effort,
   type BatchItem,
   FakeExtractor,
   type TicketExtractor,
@@ -25,7 +30,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { pathToFileURL } from 'node:url';
-import { MEASURED_USD_PER_TICKET, costUsd } from './cost.ts';
+import { EFFORT_COST_GUESS, costUsd, estimateUsdPerTicket } from './cost.ts';
 import { toCsv } from './csv.ts';
 import { type GradedTicket, type Report, grade } from './grade.ts';
 import { loadList } from './lists.ts';
@@ -76,6 +81,8 @@ export interface RunOptions {
   onRead?: Parameters<typeof readBatch>[1]['onRead'];
   canSpend?: () => boolean;
   onTicketDone?: (done: number, total: number) => void;
+  /** Tickets read at once; batch mode reads them all together. */
+  concurrency?: number;
 }
 
 /** Reads the whole folder as one batch, then grades it. */
@@ -180,6 +187,7 @@ async function main() {
       truth: { type: 'string' },
       template: { type: 'boolean', default: false },
       yes: { type: 'boolean', default: false },
+      batch: { type: 'boolean', default: false },
     },
   });
   if (!args.input) {
@@ -233,14 +241,26 @@ async function main() {
 
   const fake = process.env.EXTRACTOR === 'fake';
   const model = process.env.EXTRACTOR_MODEL || 'claude-opus-5-5';
-  const perTicket = fake ? 0 : MEASURED_USD_PER_TICKET[model];
+  const effort = (process.env.EXTRACTOR_EFFORT || DEFAULT_EFFORT) as Effort;
+  if (!EFFORTS.includes(effort)) {
+    console.error(`EXTRACTOR_EFFORT must be one of ${EFFORTS.join(', ')}; got "${effort}".`);
+    process.exit(1);
+  }
+  // Batch mode costs half (D34): every price below is halved with it.
+  const priceFactor = args.batch ? 0.5 : 1;
+  const known = estimateUsdPerTicket(model);
+  const perTicket = fake
+    ? 0
+    : known === null
+      ? undefined
+      : known * priceFactor * EFFORT_COST_GUESS[effort]!;
   const estimate = perTicket === undefined ? null : perTicket * tickets.length;
   // Stop starting new tickets at 1.5 times the estimate, so a surprise can't drain the budget.
   const cap = estimate === null ? null : Math.max(0.5, estimate * 1.5);
   console.log(
     fake
       ? 'Reader: fake (fixtures), free.'
-      : `Reader: ${model}. Estimated cost: ${estimate === null ? 'unknown for this model' : `about $${estimate.toFixed(2)} ($${perTicket!.toFixed(2)} per ticket); it stops at $${cap!.toFixed(2)}`}.`,
+      : `Reader: ${model}, effort ${effort}${args.batch ? ', batch mode (half price; each round usually within an hour, at most 24 hours)' : ''}. Estimated cost: ${estimate === null ? 'unknown for this model' : `about $${estimate.toFixed(2)} ($${perTicket!.toFixed(2)} per ticket); it stops at $${cap!.toFixed(2)}`}.`,
   );
   if (!fake && !args.yes) {
     console.log(
@@ -248,12 +268,39 @@ async function main() {
     );
     return;
   }
+  if (cap === null) {
+    // Without a price there is no spending stop, so nothing is read.
+    console.error(`No price is known for ${model}; add it to tools/poc/src/cost.ts first.`);
+    process.exit(1);
+  }
 
+  const batchReader =
+    !fake && args.batch
+      ? new AnthropicBatchExtractor({
+          model,
+          effort,
+          onStatus: (s) =>
+            console.log(
+              s.state === 'sent'
+                ? `\nBatch ${s.batchId}: sent ${s.requests} request(s). Waiting; leave this window open.`
+                : s.state === 'ended'
+                  ? `Batch ${s.batchId}: finished.`
+                  : `Batch ${s.batchId}: ${s.done} of ${s.requests} done …`,
+            ),
+        })
+      : null;
+  if (batchReader) {
+    // Stopping the program must not leave a batch running (and costing) in the background.
+    process.once('SIGINT', () => {
+      console.log('\nStopping: cancelling the running batch …');
+      void batchReader.cancelAll().finally(() => process.exit(130));
+    });
+  }
   const extractor: TicketExtractor = fake
     ? new FakeExtractor(new URL('../../../fixtures/extractions/', import.meta.url))
-    : new AnthropicExtractor({ model });
+    : (batchReader ?? new AnthropicExtractor({ model, effort }));
   const usage = { input: 0, output: 0 };
-  const spent = () => costUsd(model, usage.input, usage.output) ?? 0;
+  const spent = () => (costUsd(model, usage.input, usage.output) ?? 0) * priceFactor;
   const { report, graded } = await runPoc(tickets, truth.rows, {
     extractor,
     settings: {
@@ -268,14 +315,15 @@ async function main() {
       usage.input += u.inputTokens;
       usage.output += u.outputTokens;
     },
-    canSpend: () => cap === null || spent() < cap,
+    canSpend: () => spent() < cap,
     onTicketDone: (done, total) => process.stdout.write(`\rRead ${done} of ${total} …`),
+    concurrency: batchReader ? tickets.length : 4,
   });
   process.stdout.write('\n');
 
   const cost = fake
     ? 'Cost: $0 (fake reader).'
-    : `Cost: about $${spent().toFixed(2)} for ${tickets.length} ticket(s) ($${(spent() / Math.max(1, tickets.length)).toFixed(3)} per ticket).`;
+    : `Cost${args.batch ? ' (batch, half price)' : ''}: about $${spent().toFixed(2)} for ${tickets.length} ticket(s) ($${(spent() / Math.max(1, tickets.length)).toFixed(3)} per ticket).`;
   const text = formatReport(report, cost);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const out = join('scan-output', `poc-${stamp}`);

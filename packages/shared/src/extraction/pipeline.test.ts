@@ -105,6 +105,19 @@ describe('reading a batch', () => {
     ]);
   });
 
+  it('counts the cost of a failed answer (a cut-off answer is still billed)', async () => {
+    const cutOff = Object.assign(new Error('The answer was cut off.'), {
+      usage: { inputTokens: 5000, outputTokens: 16000 },
+    });
+    const x = new ScriptedExtractor({ 't1:A': [cutOff], 't1:B': [answer()] });
+    const seen: number[] = [];
+    const [t] = await run(x, [item('t1')], {
+      onRead: (_p: string, u: { outputTokens: number }) => seen.push(u.outputTokens),
+    });
+    expect(t!.checked).toBeNull();
+    expect(seen.sort()).toEqual([1, 16000]);
+  });
+
   it('records a failed reading without stopping the other tickets', async () => {
     const x = new ScriptedExtractor({
       't1:A': [new Error('Connection error')],

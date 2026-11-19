@@ -3,3 +3,4 @@ export * from './extractor.ts';
 export { AnthropicExtractor } from './anthropic.ts';
 export { FakeExtractor } from './fake.ts';
 export * from './pipeline.ts';
+export { AnthropicBatchExtractor, type BatchStatus } from './batch.ts';

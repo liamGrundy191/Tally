@@ -148,6 +148,13 @@ describe('the request sent to the model', () => {
     expect(content.filter((b) => b.type === 'image')).toHaveLength(1);
   });
 
+  it('asks for high effort unless told otherwise', () => {
+    expect(buildRequest(input('t1'), TEMPLATE_V1, 'A', 'm').output_config.effort).toBe('high');
+    expect(buildRequest(input('t1'), TEMPLATE_V1, 'A', 'm', 'medium').output_config.effort).toBe(
+      'medium',
+    );
+  });
+
   it('forces the answer format: every object closed and every property required', () => {
     const walk = (node: unknown): void => {
       if (!node || typeof node !== 'object') return;
@@ -270,8 +277,18 @@ describe('AnthropicExtractor (with a stand-in client, no network)', () => {
     expect(out.usage).toEqual({ inputTokens: 1800, outputTokens: 400 });
     expect(calls[0]).toMatchObject({
       model: 'claude-opus-5-5',
-      output_config: { format: { type: 'json_schema' } },
+      output_config: { effort: 'high', format: { type: 'json_schema' } },
     });
+  });
+
+  it('sends the chosen effort', async () => {
+    const { client, calls } = clientReturning({ parsed_output: good });
+    await new AnthropicExtractor({ model: 'm', client, effort: 'xhigh' }).extract(
+      input('t1'),
+      TEMPLATE_V1,
+      'A',
+    );
+    expect(calls[0]).toMatchObject({ output_config: { effort: 'xhigh' } });
   });
 
   it.each([
