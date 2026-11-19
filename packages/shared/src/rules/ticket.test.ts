@@ -670,6 +670,60 @@ describe('known names list (D28)', () => {
   });
 });
 
+describe('a total confirmed by the times (D30, risky)', () => {
+  const unsureTotal = (guess: string | null) =>
+    pass(
+      { totalWorked: null },
+      { unreadable: ['totalWorked'], suggestions: { totalWorked: guess } },
+    );
+
+  it('accepts an unclear total when both passes offer what end minus start gives', () => {
+    const r = checkExtraction(pass(), unsureTotal('8:30'), settings);
+    expect(r.flags).toEqual([]);
+    expect(r.fields.totalMinutes).toBe(510);
+    expect(r.totalFromMath).toBe(true);
+  });
+
+  it('works across midnight', () => {
+    const night = { startTime: '22:00', endTime: '06:00', totalWorked: null };
+    const r = checkExtraction(
+      pass(night, { unreadable: ['totalWorked'], suggestions: { totalWorked: '08:00' } }),
+      pass(night, { unreadable: ['totalWorked'], suggestions: { totalWorked: '8:00' } }),
+      settings,
+    );
+    expect(r.totalFromMath).toBe(true);
+  });
+
+  it('does not when only one pass offers a total', () => {
+    const r = checkExtraction(unsureTotal('08:30'), unsureTotal(null), settings);
+    expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:totalWorked']);
+    expect(r.totalFromMath).toBe(false);
+  });
+
+  it('does not when the guess does not match the times', () => {
+    const r = checkExtraction(unsureTotal('08:00'), unsureTotal('08:00'), settings);
+    expect(codes(r.flags)).toContain('FIELD_UNREADABLE:totalWorked');
+    expect(r.totalFromMath).toBe(false);
+  });
+
+  it('does not when a time is unclear, or the total looks corrected', () => {
+    const unsureEnd = pass(
+      { totalWorked: null },
+      { unreadable: ['totalWorked', 'endTime'], suggestions: { totalWorked: '08:30' } },
+    );
+    expect(checkExtraction(unsureEnd, unsureTotal('08:30'), settings).totalFromMath).toBe(false);
+    const corrected = pass(
+      { totalWorked: null },
+      {
+        unreadable: ['totalWorked'],
+        suggestions: { totalWorked: '08:30' },
+        overwritten: ['totalWorked'],
+      },
+    );
+    expect(checkExtraction(corrected, unsureTotal('08:30'), settings).totalFromMath).toBe(false);
+  });
+});
+
 describe('third read (pass C, D27)', () => {
   const unreadable = (suggestion: string | null) =>
     pass(

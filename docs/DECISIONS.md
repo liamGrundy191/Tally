@@ -2,6 +2,8 @@
 
 Decisions made after `docs/PLAN.md` was written, newest last. Each says what was decided, why, and where it came from.
 
+**Risky decisions** bend a core rule on purpose. They are marked ⚠ RISKY and must be re-checked against real results before go-live: D30.
+
 ---
 
 ## D1 · T0.1 · API tests use Vitest, not Jest (Liam chose option A in Q1)
@@ -146,3 +148,15 @@ Names were the weakest field on Liam's tickets. The name decides who gets paid, 
 
 - **Read 2.** It used to see only the cut-out boxes. On its own, a cut-out of the cursive name מוסא was read as the English "KOIN": cursive א, ס, ו, מ look like K, O, I, N, and reading them left to right reverses the word. Read 2 now gets the whole ticket for context, then each box enlarged. Its different wording keeps it independent from read 1. All prompts now warn that cursive Hebrew can look like Latin letters.
 - **Look-alikes.** For names, only entries one letter apart count as look-alikes (two for names of 8 letters or more); two letters apart blocked clearly different short names such as הבן and הדס. Workplaces keep the stricter test, at Liam's request, because the list is short and two-letter pairs exist on it.
+
+## D30 · ⚠ RISKY · An unclear total can be accepted when the times confirm it (Liam)
+
+**The rule it bends:** "a guess is never a value" (plan principle 2, D24). This is the only exception.
+
+**The rule.** The total worked is accepted without a person only when all of these hold: start and end were both read with certainty by both passes and raised no flag; the total's only flag is "unreadable" (not a disagreement, not corrected, ticket not crossed out); and both passes offer a total equal to end minus start. The ticket records `totalFromMath`, so the reviewer and the audit can see the total came from this rule.
+
+**Why it is acceptable.** The total is the one field that can be checked against two others. Two independent guesses that agree with two certain times are stronger evidence than many accepted readings.
+
+**What could go wrong.** If a shift leader wrote a wrong total, and both readings misread it as exactly the "right" one, the wrong total would be silently corrected to match the times. Hours would then follow the times, not what was written. This is unlikely but possible.
+
+**Re-check before go-live.** In the Phase 0 set, count how often this rule fires and whether any total it accepted differs from the truth. If any does, remove the rule.

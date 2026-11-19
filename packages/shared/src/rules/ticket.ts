@@ -340,6 +340,29 @@ export function checkTicketValues(
  * Step 6 for a scanned ticket: reconcile both passes, then run the rule checks. A field already
  * flagged as unreadable or disputed is not flagged again as empty.
  */
+/**
+ * RISKY DECISION (D30): the one place a guess can become a value. An unclear total is accepted
+ * when start and end were both read with certainty, nothing else is wrong with the total, and
+ * both passes offer the same total that end minus start gives. Returns that total, or null.
+ */
+function totalConfirmedByMath(
+  a: ExtractionResult,
+  b: ExtractionResult,
+  r: ReturnType<typeof reconcilePasses>,
+): string | null {
+  const on = (field: FieldKey) => r.flags.filter((f) => f.field === field);
+  const total = on('totalWorked');
+  if (total.length !== 1 || total[0]!.code !== 'FIELD_UNREADABLE') return null;
+  if (on('startTime').length > 0 || on('endTime').length > 0) return null;
+  if (r.flags.some((f) => f.code === 'VOIDED_TICKET')) return null;
+  const start = parseClock(r.values.startTime ?? '');
+  const end = parseClock(r.values.endTime ?? '', { allow24: true });
+  if (start === null || end === null) return null;
+  const offers = [offered(a.fields.totalWorked), offered(b.fields.totalWorked)];
+  const expected = shiftMinutes(start, end);
+  return offers.every((o) => !isBlank(o) && parseDuration(o!) === expected) ? offers[0]! : null;
+}
+
 export function checkExtraction(
   a: ExtractionResult,
   b: ExtractionResult,
@@ -347,6 +370,12 @@ export function checkExtraction(
   opts: ReconcileOptions = {},
 ) {
   const reconciled = reconcilePasses(a, b, opts);
+  const byMath = totalConfirmedByMath(a, b, reconciled);
+  if (byMath !== null) {
+    reconciled.values.totalWorked = byMath;
+    reconciled.flags = reconciled.flags.filter((f) => f.field !== 'totalWorked');
+    delete reconciled.suggestions.totalWorked;
+  }
   const checked = checkTicketValues(reconciled.values, settings);
   const disputed = new Set(
     reconciled.flags
@@ -363,6 +392,8 @@ export function checkExtraction(
     suggestions: reconciled.suggestions,
     workplaceFromList: reconciled.workplaceFromList,
     nameFromList: reconciled.nameFromList,
+    /** The total was a guess accepted because the times confirm it (D30); shown to reviewers. */
+    totalFromMath: byMath !== null,
     flags,
   };
 }
