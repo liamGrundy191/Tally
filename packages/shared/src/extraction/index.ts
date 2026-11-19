@@ -2,3 +2,4 @@
 export * from './extractor.ts';
 export { AnthropicExtractor } from './anthropic.ts';
 export { FakeExtractor } from './fake.ts';
+export * from './pipeline.ts';

@@ -200,6 +200,12 @@ describe('the workplace list', () => {
     expect(() => validateAnswer(answer('משק ברזל'), { workplaces: list })).toThrow(ExtractionError);
   });
 
+  it('names the broken part of an answer without repeating the lists', () => {
+    expect(() => validateAnswer(answer('משק ברזל'), { workplaces: list })).toThrow(
+      /^Answer does not match the format at: workplaceMatch$/,
+    );
+  });
+
   it('sends the names list too, and limits nameMatch to it', () => {
     const req = buildRequest(
       input('t1', { knownNames: ['זכריה', 'מוברטו'] }),

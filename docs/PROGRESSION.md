@@ -133,3 +133,13 @@ Workplaces were solved by the list; names remained the weakest field. Liam and C
 **Liam's challenge on "KOIN".** One reading kept returning the English word "KOIN" for a Hebrew name. Liam found it suspicious and asked why that reading saw only the cut-out boxes. The cause: in cursive, א, ס, ו and מ look like K, O, I and N, and read left to right the Hebrew name מוסא becomes "KOIN". On its own, a cut-out box gives no hint that the ticket is in Hebrew. That reading now sees the whole ticket as well as the enlarged boxes, and every instruction warns about Hebrew that looks like English. The same test also showed the look-alike check was too strict for short names, and it was tightened for names only.
 
 **Result.** On the next run, three of the four names were accepted correctly, including the "KOIN" one. The fourth was correctly held back because a planted look-alike was on the list. Three of four workplaces were accepted, and the fourth was shown to a person because it looked corrected on paper. Nothing wrong was accepted. The cost was about 15 cents a ticket, including the third read.
+
+### 11. The grading program (T0.6)
+
+Until now, results were judged by eye on four tickets. Liam was wary of this step, so it was built with extra care. The program reads a folder of real scans with the full process, compares every box with what is really written, and reports the one number that matters most: wrong values that got through without a flag.
+
+- **One process, not two.** The step-by-step reading process moved out of the test script into the shared core. The grading program, the test script and the future app now run the same code, so what is measured is what will ship.
+- **Strict grading.** A wrong value only counts as caught if its own box was flagged. A general "blurry scan" warning does not excuse it. A missed crossed-out ticket counts as a failure.
+- **Testing the tests.** Bugs were planted on purpose in the grading and the reading process to check that the tests notice. One planted bug went unnoticed, and that test was strengthened. A tool quirk was also caught: it silently broke the marker Excel needs to show Hebrew, while every test still passed, so a test now checks the actual bytes of the file.
+- **Privacy.** A failed reading's error message used to repeat the whole client and names lists. It now names only the broken part.
+- **No surprise costs.** By default the program only checks the files and estimates the cost. It reads only with `--yes`, and stops by itself if spending runs past the estimate.

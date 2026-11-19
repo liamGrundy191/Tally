@@ -148,9 +148,11 @@ export function buildRequest(
 export function validateAnswer(answer: unknown, lists: KnownLists = {}): ExtractionResult {
   const parsed = extractionResultSchema(lists).safeParse(answer);
   if (!parsed.success) {
+    // Name the broken parts only: the full message repeats both lists, which can be long.
+    const where = [...new Set(parsed.error.issues.map((i) => i.path.join('.') || '(root)'))];
     throw new ExtractionError(
       'invalid_output',
-      `Answer does not match the format: ${parsed.error.message}`,
+      `Answer does not match the format at: ${where.join(', ')}`,
     );
   }
   return parsed.data;

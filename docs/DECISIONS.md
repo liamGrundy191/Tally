@@ -160,3 +160,14 @@ Names were the weakest field on Liam's tickets. The name decides who gets paid, 
 **What could go wrong.** If a shift leader wrote a wrong total, and both readings misread it as exactly the "right" one, the wrong total would be silently corrected to match the times. Hours would then follow the times, not what was written. This is unlikely but possible.
 
 **Re-check before go-live.** In the Phase 0 set, count how often this rule fires and whether any total it accepted differs from the truth. If any does, remove the rule.
+
+## D31 · T0.6 · How the Phase 0 runner grades
+
+- **The dangerous case** is a wrong value with no flag on its own box. A flag on the whole ticket (blurry scan, missing markers) does not count, because a reviewer cannot be expected to recheck every box of a blurry ticket. The one exception is the times: "the times do not add up" or "hours out of range" sends the reviewer to start, end and total together, so it covers all three.
+- **A missed crossed-out ticket** counts against the G0 gate, like a wrong date or time, because its hours would be paid.
+- **What the reviewer finds filled in** is the guess, or the value when no reading was in doubt (for example a corrected box). A box where the two readings disagreed, and no guess is agreed, counts as "no guess", even though one reading's value is kept.
+- **A failed reading** counts as "no guess" in all six boxes, because a person types the whole ticket.
+- **Comparison is by meaning**, using the same rules the system uses: 8:30 is 08:30, 10/11/2026 is 10/11/26, and names and workplaces are normalised.
+- **The whole folder is one batch** for the "names from the same batch" step (D28), like one upload.
+- **Spending.** Without `--yes` the runner only checks the files and shows the estimated cost. With it, the runner stops starting new tickets at 1.5 times the estimate.
+- **Excel.** The truth file must be saved as "CSV UTF-8"; anything else is refused instead of garbling Hebrew. Seconds that Excel adds to times (08:30:00) are dropped. Output files start with the UTF-8 marker Excel needs, and text that looks like a formula is escaped.

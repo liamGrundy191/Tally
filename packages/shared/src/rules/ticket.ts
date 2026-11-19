@@ -50,7 +50,7 @@ function meaning(field: FieldKey, raw: string): string | number | null {
 }
 
 /** Do two readings of a field mean the same thing? "8:30" and "08:30" do. */
-function sameReading(field: FieldKey, a: string, b: string): boolean {
+export function sameReading(field: FieldKey, a: string, b: string): boolean {
   const x = meaning(field, a);
   const y = meaning(field, b);
   if (x !== null || y !== null) return x === y;

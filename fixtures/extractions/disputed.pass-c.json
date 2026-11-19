@@ -1,0 +1,38 @@
+{
+  "fields": {
+    "firstName": {
+      "value": "עומר",
+      "legible": true,
+      "suggestion": null
+    },
+    "workplace": {
+      "value": "שופרסל",
+      "legible": true,
+      "suggestion": null
+    },
+    "date": {
+      "value": "12/11/26",
+      "legible": true,
+      "suggestion": null
+    },
+    "startTime": {
+      "value": "22:00",
+      "legible": true,
+      "suggestion": null
+    },
+    "endTime": {
+      "value": "06:00",
+      "legible": true,
+      "suggestion": null
+    },
+    "totalWorked": {
+      "value": null,
+      "legible": false,
+      "suggestion": "08:00"
+    }
+  },
+  "voided": false,
+  "overwrittenFields": ["totalWorked"],
+  "workplaceMatch": null,
+  "nameMatch": null
+}

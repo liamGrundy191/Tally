@@ -463,7 +463,7 @@ Done when: tests on fixture images (straight, rotated 10°, blurred, dark) produ
 Liam checks: look at the saved crops for a few real scans.
 
 **T0.6 Proof-of-concept runner**
-`pnpm poc --input <folder> --truth <truth.csv>` runs steps 1–6 on every page and prints: share of fields read correctly; share of tickets flagged; **number of wrong values not flagged**, split into names / workplace / date and times; average cost per ticket. Writes a CSV of every mismatch.
+`pnpm poc --input <folder> --truth <truth.csv>` runs steps 1–6 on every page and prints: share of fields read correctly; share of tickets flagged; **number of wrong values not flagged**, split into names / workplace / date and times; average cost per ticket. Writes a CSV of every mismatch. Grading rules: D31. `--template` writes an empty truth file; without `--yes` it only checks and estimates the cost.
 Done when: it runs end to end on the fixtures with the fake extractor.
 Liam checks: run it on 10 real tickets.
 
