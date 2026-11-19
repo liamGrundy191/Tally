@@ -11,7 +11,8 @@
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
     "ticket:pdf": "node --experimental-strip-types --disable-warning=ExperimentalWarning packages/shared/src/templates/ticket-pdf.ts",
-    "extract": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file-if-exists=.env tools/poc/src/extract-one.ts"
+    "extract": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file-if-exists=.env tools/poc/src/extract-one.ts",
+    "crops": "node --experimental-strip-types --disable-warning=ExperimentalWarning tools/poc/src/crops.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

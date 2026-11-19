@@ -86,3 +86,22 @@ The step that sends a ticket image to the AI and gets back what it read. It is b
 - **Cost and ownership.** Liam asked whether to use his own API key or a company account. Decision: his key for development with invented data, and an agency-owned account before any real worker data is processed, since the agency is the one sending its workers' names to the AI provider and should hold the account and the bills.
 - **A deliberate deviation from the vendor's default.** Anthropic recommends an automatic fallback to another model when a request is declined. We chose to treat a decline as a failed reading that goes to a person, keeping one reader for every ticket.
 - **First real test.** Liam filled in four tickets by hand, some deliberately hard (a night shift, a scribbled-over date digit, ambiguous digits) and scanned them with a phone. The AI made no wrong readings: every value it gave was correct, and everything it was unsure of it marked unreadable, including the overwritten date. The cost was about 7 cents per ticket. The weak spot: it could not read any cursive Hebrew name or workplace with confidence. That shaped what came next: cutting each box out at full detail (T0.5) and asking shift leaders to write in print letters.
+
+### 7. Rethinking after a disappointing result
+
+Liam was unhappy that the AI read none of the cursive names or workplaces, while Claude Code, reading the same scans zoomed in, could read about half. He asked why they differed, and suggested the cause himself: the program's instructions put safety first ("say nothing if unsure"), while a person, or Claude reading for him, gives a best reading and marks the doubtful letters.
+
+Two ideas came out of that conversation:
+
+- **A list of the agency's workplaces** (Liam's idea, checked with the agency owner). Matching handwriting against a known list is far easier than reading it from scratch. If both readings match the same place, that is strong evidence.
+- **Best-guess suggestions** for unclear boxes. The reviewer sees a pre-filled guess and confirms it, instead of typing. The box is still always flagged, so safety is unchanged and only review time shrinks.
+
+A worker list was ruled out on purpose: the plan forbids keeping a register of workers.
+
+### 8. Preparing the picture (T0.5)
+
+Each scan is straightened using the four printed corner squares, even when it is tilted, photographed at an angle, upside down, or lying on a desk. Each box is then cut out at full detail, and blurred or dark scans are flagged.
+
+- **Testing without real images.** All test pictures are generated from the blank ticket PDF (rotated, blurred, darkened, on a grey background), so no real ticket images are ever stored in the project.
+- **Two test weaknesses were found by planting bugs on purpose.** With one corner square covered, the code first "found" a rectangle made of printed letters; it now accepts only marks the size of a real square. And the upside-down test was too lax to notice an upside-down result; it was tightened until the planted bug failed it.
+- **Measuring rather than assuming.** Re-reading Liam's four tickets with straightened, cut-out images barely changed the results. That showed the bottleneck was the AI's instructions, not the picture quality, and it pointed the next step at the instructions.

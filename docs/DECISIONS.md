@@ -94,3 +94,14 @@ Anthropic recommends letting a declined request fall back to another model autom
 ## D22 · T0.4 · `pnpm extract <image>` for one real reading
 
 Shrinks the image (phone rotation applied, greyscale, longest side 2000 px), runs both passes on the whole ticket, and prints both readings, the flags and the cost. It does not straighten or crop yet (T0.5). It reads the API key from a local `.env`, which is never committed. TypeScript's `erasableSyntaxOnly` is on in `packages/shared` and `tools/poc`, so code stays runnable by Node directly.
+
+## D23 · T0.5 · How a scan is prepared
+
+- **Finding the markers.** The four corner markers are found as the largest solid dark squares that together form a rectangle with the ticket's proportions. Small print can never stand in for a missing marker, and the ticket must fill at least a quarter of the picture.
+- **Upside-down and sideways scans.** The markers are symmetric, so these are told apart by the printed labels, which sit on the ticket's right-hand side.
+- **Straightening.** A full perspective correction, so tilted and angled phone photos work.
+- **What the AI receives.** The straightened ticket at 10 px/mm for pass A, and each field cut out at 12 px/mm with a 1.5 mm margin for pass B. Both are taken from the full-resolution image (up to 4000 px), not the 2000 px normalised copy, and are contrast-stretched to help dim photos.
+- **Quality limits.** `IMAGE_DARK` below mean brightness 120; `IMAGE_BLURRY` below sharpness 50 (variance of the Laplacian, measured after the contrast stretch so lighting does not affect it). These are first values from four phone scans and blurred or darkened copies; they are retuned on the Phase 0 set.
+- **Without markers.** When no markers are found, the whole normalised page is read and the ticket is flagged `MARKERS_NOT_FOUND`.
+- **Commands.** `pnpm crops <scan>` saves the straightened ticket and crops to `scan-output/` (not committed) for checking by eye. `pnpm extract` now uses the same preparation and accepts multi-page PDFs.
+- **Result on Liam's four tickets.** Every ticket was straightened correctly, but reading was about the same as before. The strict "any doubt means unreadable" instruction, not image quality, is what blocks cursive names and workplaces. That led to D24 and D25.
