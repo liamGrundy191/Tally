@@ -37,7 +37,7 @@ This system turns scanned tickets into those Excel sheets. The AI reads the tick
 | Handwriting       | Mainly Hebrew, occasionally English.                                                                                                                                                     |
 | UI language       | English. Hebrew values must display correctly (right-to-left) inside it.                                                                                                                 |
 | Rounding          | None. Minutes are kept exactly as written.                                                                                                                                               |
-| Workers           | No worker list, no IDs, no grouping. Different workers often share a name, even at the same place and time.                                                                              |
+| Workers           | No worker register, no IDs, no grouping; an uploaded list of first names only helps reading (D28). Different workers often share a name, even at the same place and time.                |
 | Workplaces        | Handwritten; they come and go. Grouped by name so each gets its own Excel sheet. Similar spellings are merged only after a person confirms.                                              |
 | Jobs              | The user creates a job, uploads one or more files, reviews, exports one Excel file. Many jobs per month. No fixed date ranges.                                                           |
 | Month-end combine | A job can import earlier exported Excel files (plus new scans) and export one combined file. Imported rows are trusted as they are.                                                      |
@@ -132,8 +132,11 @@ Each step writes its result before the next starts and checks for its own saved 
 2. **Normalise.** Apply EXIF rotation, convert to greyscale JPEG, cap the long edge at 2000 px. Keep the original untouched; store the normalised copy beside it.
 3. **Pre-checks.** Find the four corner markers and deskew/crop to the slip. Measure sharpness (variance of a Laplacian filter) and mean brightness. Failures raise `MARKERS_NOT_FOUND`, `IMAGE_BLURRY` or `IMAGE_DARK`. The ticket is still read, but these flags send it to a person. **Needs Liam's eyes:** thresholds are tuned on the Phase 0 set.
 4. **Extraction, pass A.** Send the whole slip and the field list. The response must validate against the Zod schema: each field is `{ value: string | null, legible: boolean }`, plus `voided: boolean` and `overwrittenFields: string[]`. Invalid JSON counts as a failed attempt.
-5. **Extraction, pass B.** Independent call with different prompt wording. If markers were found, send each field's crop separately instead of the whole slip. Pass B never sees pass A's output.
-6. **Compare and validate.** Normalise both passes (trim, digits only for date/time fields, name normalisation from section 5) and compare field by field. Then run the rule checks. Then group the workplace and check for possible duplicates (section 5).
+5. **Extraction, pass B.** Independent call with different prompt wording. If markers were found, send the whole slip and then each field's crop, enlarged (D29). Pass B never sees pass A's output.
+   5a. **Extraction, pass C (tie-break, D27).** Only when a field is unreadable in either pass or the passes disagree: one more independent call, with its own wording, for those fields only. It never sees passes A or B. Its reading only improves the suggestion shown to the reviewer; it never settles a field or clears a flag.
+6. **Compare and validate.** Normalise both passes (trim, digits only for date/time fields, name normalisation from section 5) and compare field by field. Then run the rule checks. Then group the workplace and check for possible duplicates (section 5). With a workplace list (D25) or a names list (D28), both passes naming the same entry, written like it and like no other entry, settles that field.
+   6a. **Names from the same batch (D28).** After every ticket in the upload is read, names that raised no flag form a temporary list. A ticket whose name is still unclear and resembles one of them is read again (passes A and B) with those names added to the list. Only a name both passes settle from the list is taken; every other field and flag stays as first read. The temporary list is not stored.
+   6b. **Total confirmed by the times (D30, ⚠ risky).** An unclear total is accepted only when both passes guess exactly end minus start, and start and end were both read with certainty.
 7. **Set status.** No flags → `verified` (with `verifiedHow = auto`), unless `REVIEW_EVERYTHING=true`, in which case → `needs_review` with no flags, for a one-click confirm. Any flag → `needs_review`. Extraction failed after retries → `needs_manual_entry`.
 
 `REVIEW_EVERYTHING` ships set to `true`. It is turned off only after real use shows no unflagged errors.
@@ -157,7 +160,7 @@ Each step writes its result before the next starts and checks for its own saved 
 | `MARKERS_NOT_FOUND` / `IMAGE_BLURRY` / `IMAGE_DARK` | Pre-check failed                                                                                                               | "The scan is blurry"                                        |
 | `WORKPLACE_SIMILAR`                                 | The workplace is similar to, but not the same as, another in the job                                                           | "Is 'סופר-פארם' the same place as 'סופר פארם'?"             |
 | `WORKPLACE_NOT_ON_LIST`                             | A workplace list is in use and neither reading matches an entry (D25)                                                          | "Is 'X' a new workplace?"                                   |
-| `WORKPLACE_AMBIGUOUS`                               | Both readings match a list entry, but the writing also resembles another entry (D25)                                           | "Is this בית נוי or בית נוף?"                               |
+| `MATCH_AMBIGUOUS`                                   | Both readings match a list entry, but the writing also resembles another entry (D25, D28)                                      | "Is this בית נוי or בית נוף?"                               |
 | `POSSIBLE_DUPLICATE`                                | See 5.2                                                                                                                        | "Same name, place, date and overlapping times as ticket 14" |
 | `EXTRACTION_ERROR`                                  | Extractor failed after retries                                                                                                 | "Could not read this ticket. Please type it in."            |
 
@@ -243,6 +246,8 @@ A final row totals all workplaces (formulas).
 | Verified | `auto`, `confirmed`, `corrected`, `manual` or `imported`            |
 
 Rows are sorted by date, then start time. Each row is one ticket. Nothing is merged or totalled per worker.
+
+**Sheet — `שמות` (Names).** Each confirmed first name once, sorted, nothing else. The user keeps it and uploads it as the names list for the next job (D28). Ignored on import.
 
 **Sheet — `לא נכללו` (Excluded).** One row per excluded ticket: source, workplace, worker, date, reason, who excluded it. Ignored on import.
 
@@ -342,16 +347,16 @@ REST + JSON under `/api`. Every route except login and invite acceptance require
 
 ## 9. Web app screens
 
-| Screen                | Content                                                                                                                                                                                             |
-| --------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Login / Accept invite | Email and password; optional one-time code                                                                                                                                                          |
-| Jobs                  | List of jobs with status and counts; "New job" button                                                                                                                                               |
-| Job dashboard         | Progress ("142 of 310 read, 23 need review"); upload area; **Review next** button; Workplaces button; Export button with the reason it is disabled; after export, Download and **Close and delete** |
-| Upload                | Drag and drop many files (PDF, JPEG, PNG, XLSX). Per-file state: uploading, uploaded, failed with Retry. Excel imports show their one-line report.                                                  |
-| Review                | Described below                                                                                                                                                                                     |
-| Workplaces            | Workplace groups with counts; open `WORKPLACE_SIMILAR` questions as cards with **Same place** / **Different place**                                                                                 |
-| Admin                 | Users, invites                                                                                                                                                                                      |
-| Ticket template       | Download the blank printable ticket                                                                                                                                                                 |
+| Screen                | Content                                                                                                                                                                                                                                                                                                        |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Login / Accept invite | Email and password; optional one-time code                                                                                                                                                                                                                                                                     |
+| Jobs                  | List of jobs with status and counts; "New job" button                                                                                                                                                                                                                                                          |
+| Job dashboard         | Progress ("142 of 310 read, 23 need review"); upload area; **Review next** button; Workplaces button; Export button with the reason it is disabled; after export, Download and **Close and delete**                                                                                                            |
+| Upload                | Drag and drop many files (PDF, JPEG, PNG, XLSX). Per-file state: uploading, uploaded, failed with Retry. Excel imports show their one-line report. Before reading starts, the user picks **Speed** (Now / Batch) and **Reading quality** (Standard / Best) and sees the estimated price for this upload (D26). |
+| Review                | Described below                                                                                                                                                                                                                                                                                                |
+| Workplaces            | Workplace groups with counts; open `WORKPLACE_SIMILAR` questions as cards with **Same place** / **Different place**                                                                                                                                                                                            |
+| Admin                 | Users, invites                                                                                                                                                                                                                                                                                                 |
+| Ticket template       | Download the blank printable ticket                                                                                                                                                                                                                                                                            |
 
 **Review screen**
 

@@ -119,3 +119,17 @@ Before handing it over, it was tested on Liam's tickets with a deliberately wron
 **A gap Liam found.** He asked what stops both readings from picking the same wrong entry when two places have similar names. The answer was "nothing", and his list already had such a pair (invented example: בית נוי and בית נוף). Now, when the handwriting also resembles a second entry, the workplace goes to a person even if both readings agree.
 
 **Cost.** Liam raised cost as a real factor. One run over four tickets costs about 8 cents per ticket. That makes "when does the cost outweigh the time saved" a question to measure, alongside accuracy.
+
+### 10. Names, speed and price
+
+Workplaces were solved by the list; names remained the weakest field. Liam and Claude worked through it as a conversation rather than a spec:
+
+- **What a mistake costs.** The name decides who gets paid, so a wrong name must never slip through, but a flagged name costs only a few seconds. The goal became making flagged names quick to confirm, and accepting only the safe ones.
+- **Ideas weighed and dropped.** A worker list from the agency is impossible, because workers change every month or two. Saving names between runs was too much work for the gain and would break the rule that nothing is kept between jobs. A general list of common Israeli names was dropped: the workers come from many backgrounds, and a big list has look-alikes for almost every name. Printing "block letters" on the ticket would help, but shift leaders will not follow it.
+- **What was chosen.** The export hands back a list of the month's names, and the user uploads it next time. This works because many workers stay at least two months. Names that read clearly in the same upload also help read the unclear ones, since one worker usually has several tickets. Both use the same safety rule as workplaces, including the look-alike check.
+- **A third read.** When the two readings disagree or are unsure, a third independent reading breaks the tie. It only improves the suggestion the reviewer sees and never approves anything by itself, because the tests showed a reading can be confidently wrong.
+- **Price as a feature.** Liam raised cost as a real factor: about 8 cents a ticket. The user will choose between reading now or in batch mode (about half price, results within hours), and between a stronger and a cheaper model. The price is shown before reading starts.
+
+**Liam's challenge on "KOIN".** One reading kept returning the English word "KOIN" for a Hebrew name. Liam found it suspicious and asked why that reading saw only the cut-out boxes. The cause: in cursive, א, ס, ו and מ look like K, O, I and N, and read left to right the Hebrew name מוסא becomes "KOIN". On its own, a cut-out box gives no hint that the ticket is in Hebrew. That reading now sees the whole ticket as well as the enlarged boxes, and every instruction warns about Hebrew that looks like English. The same test also showed the look-alike check was too strict for short names, and it was tightened for names only.
+
+**Result.** On the next run, three of the four names were accepted correctly, including the "KOIN" one. The fourth was correctly held back because a planted look-alike was on the list. Three of four workplaces were accepted, and the fourth was shown to a person because it looked corrected on paper. Nothing wrong was accepted. The cost was about 15 cents a ticket, including the third read.

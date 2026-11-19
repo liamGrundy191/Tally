@@ -8,6 +8,7 @@ import {
   PROMPT_VERSION,
   type TicketExtractor,
   buildRequest,
+  listsOf,
   validateAnswer,
 } from './extractor.ts';
 
@@ -44,7 +45,7 @@ export class AnthropicExtractor implements TicketExtractor {
       throw new ExtractionError('invalid_output', 'The answer was not in the required format.');
     }
     return {
-      result: validateAnswer(response.parsed_output, input.knownWorkplaces),
+      result: validateAnswer(response.parsed_output, listsOf(input)),
       model: response.model,
       promptVersion: PROMPT_VERSION,
       usage: {

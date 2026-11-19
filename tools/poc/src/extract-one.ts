@@ -1,23 +1,34 @@
-// `pnpm extract <scan>`: reads every ticket in a scan (PDF, JPEG or PNG) with the real model,
-// both passes, and prints what each pass read, the flags, and the cost. Also saves the
-// straightened tickets, the field crops and the readings to scan-output/<scan name>/.
-// Needs ANTHROPIC_API_KEY in .env. Costs a few cents per ticket.
+// `pnpm extract <scan>`: reads every ticket in a scan (PDF, JPEG or PNG) with the real model and
+// prints what each pass read, the flags, and the cost. Per ticket: passes A and B; pass C for
+// fields they could not settle (D27); then a second look at unclear names using the clear names
+// from the same scan (D28). Saves the straightened tickets, the field crops and the readings to
+// scan-output/<scan name>/. Needs ANTHROPIC_API_KEY in .env. Costs a few cents per ticket.
 import {
   AGENCY_TIME_ZONE,
+  type CheckedTicket,
   DEFAULT_MAX_DATE_AGE_DAYS,
   DEFAULT_MAX_SHIFT_HOURS,
   DEFAULT_MIN_SHIFT_HOURS,
+  type ExtractionResult,
   FIELD_KEYS,
   TEMPLATE_V1,
+  batchNameCandidates,
   checkExtraction,
   todayIn,
+  trustedName,
+  unclearFields,
+  withRetriedName,
 } from '@tally/shared';
-import { AnthropicExtractor, type ExtractionSuccess } from '@tally/shared/extraction';
+import {
+  AnthropicExtractor,
+  type ExtractionInput,
+  type ExtractionPass,
+} from '@tally/shared/extraction';
 import { prepareTicket } from '@tally/shared/imaging';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
+import { loadList } from './lists.ts';
 import { scanPages } from './pages.ts';
-import { loadWorkplaces } from './workplaces.ts';
 
 const DEFAULT_MODEL = 'claude-opus-5-5';
 // shortcut: prices hard-coded for the cost estimate only; update from anthropic.com/pricing.
@@ -42,18 +53,42 @@ const settings = {
   maxDateAgeDays: DEFAULT_MAX_DATE_AGE_DAYS,
 };
 
-const knownWorkplaces = loadWorkplaces();
+const knownWorkplaces = loadList('workplaces.txt');
+const knownNames = loadList('names.txt');
 const report: string[] = [
   `Model: ${model}`,
-  knownWorkplaces.length > 0
-    ? `Using ${knownWorkplaces.length} known workplaces from workplaces.txt.`
-    : 'No workplaces.txt: reading workplaces without a list.',
+  `Lists: ${knownWorkplaces.length} workplaces (workplaces.txt), ${knownNames.length} names (names.txt).`,
 ];
 for (const line of report) console.log(line);
-let inputTokens = 0;
-let outputTokens = 0;
-const pages = await scanPages(path);
+const usage = {
+  input: 0,
+  output: 0,
+  calls: { A: 0, B: 0, C: 0 } as Record<ExtractionPass, number>,
+};
 
+async function read(input: ExtractionInput, pass: ExtractionPass): Promise<ExtractionResult> {
+  const r = await extractor.extract(input, TEMPLATE_V1, pass);
+  usage.input += r.usage.inputTokens;
+  usage.output += r.usage.outputTokens;
+  usage.calls[pass]++;
+  return r.result;
+}
+
+interface Ticket {
+  page: number;
+  input: ExtractionInput;
+  markersFound: boolean;
+  imageFlags: string[];
+  a: ExtractionResult;
+  b: ExtractionResult;
+  c?: ExtractionResult;
+  checked: CheckedTicket;
+  secondLook?: string;
+}
+
+// Round 1: passes A and B on every ticket, and pass C where they could not settle a field.
+const tickets: Ticket[] = [];
+const pages = await scanPages(path);
 for (const [i, page] of pages.entries()) {
   const prepared = await prepareTicket(page, TEMPLATE_V1);
   const dir = join(outRoot, `page-${i + 1}`);
@@ -67,12 +102,29 @@ for (const [i, page] of pages.entries()) {
     image: prepared.ticket,
     crops: prepared.crops,
     knownWorkplaces,
+    knownNames,
   };
-  let a: ExtractionSuccess;
-  let b: ExtractionSuccess;
+  const lists = { knownWorkplaces, knownNames };
   try {
-    a = await extractor.extract(input, TEMPLATE_V1, 'A');
-    b = await extractor.extract(input, TEMPLATE_V1, 'B');
+    const a = await read(input, 'A');
+    const b = await read(input, 'B');
+    let checked = checkExtraction(a, b, settings, lists);
+    let c: ExtractionResult | undefined;
+    if (unclearFields(checked).length > 0) {
+      c = await read(input, 'C');
+      checked = checkExtraction(a, b, settings, { ...lists, thirdRead: c });
+    }
+    const imageFlags = prepared.flags.map((f) => f.code);
+    tickets.push({
+      page: i + 1,
+      input,
+      markersFound: prepared.markersFound,
+      imageFlags,
+      a,
+      b,
+      c,
+      checked,
+    });
   } catch (error) {
     const status = (error as { status?: number }).status;
     console.error(
@@ -81,53 +133,63 @@ for (const [i, page] of pages.entries()) {
         : `Page ${i + 1}: reading failed: ${String(error)}`,
     );
     if (status === 401) process.exit(1);
-    continue;
   }
-  inputTokens += a.usage.inputTokens + b.usage.inputTokens;
-  outputTokens += a.usage.outputTokens + b.usage.outputTokens;
+}
 
-  const { flags, suggestions, fields, workplaceFromList } = checkExtraction(
-    a.result,
-    b.result,
-    settings,
-    {
+// Round 2: unclear names get a second look, with the scan's clear names added to the list.
+const batchNames = [
+  ...new Set(tickets.map((t) => trustedName(t.checked)).filter((n) => n !== null)),
+];
+for (const t of tickets) {
+  const candidates = batchNameCandidates(t.a, t.b, t.checked, batchNames, knownNames);
+  if (candidates.length === 0) continue;
+  const input = { ...t.input, knownNames: [...knownNames, ...candidates] };
+  try {
+    const retry = checkExtraction(await read(input, 'A'), await read(input, 'B'), settings, {
       knownWorkplaces,
-    },
-  );
-  const show = (r: ExtractionSuccess, k: (typeof FIELD_KEYS)[number]) => {
-    const f = r.result.fields[k];
+      knownNames: input.knownNames,
+    });
+    t.checked = withRetriedName(t.checked, retry);
+    t.secondLook = `${candidates.join(', ')} → ${retry.nameFromList ? `settled: ${retry.fields.firstName}` : 'not settled'}`;
+  } catch (error) {
+    console.error(`Page ${t.page}: second look failed: ${String(error)}`);
+  }
+}
+
+for (const t of tickets) {
+  const { flags, suggestions, fields, workplaceFromList, nameFromList } = t.checked;
+  const show = (r: ExtractionResult | undefined, k: (typeof FIELD_KEYS)[number]) => {
+    if (!r) return '-';
+    const f = r.fields[k];
     return f.legible ? (f.value ?? '(empty)') : f.suggestion ? `? (guess ${f.suggestion})` : '?';
   };
   const lines = [
-    `\n=== Ticket ${i + 1} (markers ${prepared.markersFound ? 'found' : 'NOT found'})`,
+    `\n=== Ticket ${t.page} (markers ${t.markersFound ? 'found' : 'NOT found'})`,
     ...FIELD_KEYS.map(
-      (k) => `${k.padEnd(12)} read 1: ${show(a, k).padEnd(24)} read 2: ${show(b, k)}`,
+      (k) =>
+        `${k.padEnd(12)} read 1: ${show(t.a, k).padEnd(22)} read 2: ${show(t.b, k).padEnd(22)} read 3: ${show(t.c, k)}`,
     ),
-    ...(knownWorkplaces.length > 0
-      ? [
-          `list match   read 1: ${(a.result.workplaceMatch ?? 'none').padEnd(24)} read 2: ${b.result.workplaceMatch ?? 'none'}${workplaceFromList ? '  → accepted' : ''}`,
-        ]
-      : []),
+    `name match   read 1: ${(t.a.nameMatch ?? 'none').padEnd(22)} read 2: ${t.b.nameMatch ?? 'none'}${nameFromList ? '  → accepted' : ''}`,
+    `place match  read 1: ${(t.a.workplaceMatch ?? 'none').padEnd(22)} read 2: ${t.b.workplaceMatch ?? 'none'}${workplaceFromList ? '  → accepted' : ''}`,
+    ...(t.secondLook ? [`second look at name (batch names): ${t.secondLook}`] : []),
     `result: ${(['firstName', 'workplace'] as const)
       .map((k) => {
-        const value = fields[k];
-        const guess = value ?? suggestions[k];
-        if (!flags.some((f) => f.field === k)) return `${k}=${value ?? '(empty)'} (accepted)`;
+        if (!flags.some((f) => f.field === k)) return `${k}=${fields[k] ?? '(empty)'} (accepted)`;
+        const guess = fields[k] ?? suggestions[k];
         return `${k}=${guess ? `person confirms "${guess}"` : 'person types it'}`;
       })
       .join(', ')}`,
-    `crossed out: ${a.result.voided || b.result.voided ? 'yes' : 'no'}; overwritten: ${[...new Set([...a.result.overwrittenFields, ...b.result.overwrittenFields])].join(', ') || 'none'}`,
-    `flags: ${[...prepared.flags, ...flags].map((f) => `${f.code}${f.field ? ` (${f.field})` : ''}`).join(', ') || 'none'}`,
+    `flags: ${[...t.imageFlags, ...flags.map((f) => `${f.code}${f.field ? ` (${f.field})` : ''}`)].join(', ') || 'none'}`,
   ];
   console.log(lines.join('\n'));
-  report.push(...lines, `full answers: ${JSON.stringify({ readA: a.result, readB: b.result })}`);
+  report.push(...lines, `full answers: ${JSON.stringify({ readA: t.a, readB: t.b, readC: t.c })}`);
 }
 
 const price = PRICE_PER_MILLION[model];
 const cost = price
-  ? ` ≈ $${((inputTokens * price[0] + outputTokens * price[1]) / 1e6).toFixed(4)}`
+  ? ` ≈ $${((usage.input * price[0] + usage.output * price[1]) / 1e6).toFixed(4)}`
   : '';
-const total = `\nTokens: ${inputTokens} in, ${outputTokens} out${cost} for ${pages.length} ticket(s).`;
+const total = `\nCalls: ${usage.calls.A} A, ${usage.calls.B} B, ${usage.calls.C} C. Tokens: ${usage.input} in, ${usage.output} out${cost} for ${pages.length} ticket(s).`;
 console.log(total);
 writeFileSync(join(outRoot, 'readings.txt'), [...report, total].join('\n') + '\n');
 console.log(`Saved to ${outRoot}/ (readings.txt, ticket and field images).`);

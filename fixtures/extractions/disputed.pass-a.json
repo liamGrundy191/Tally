@@ -33,5 +33,6 @@
   },
   "voided": false,
   "overwrittenFields": ["totalWorked"],
-  "workplaceMatch": null
+  "workplaceMatch": null,
+  "nameMatch": null
 }

@@ -2,6 +2,8 @@
 
 Decisions made after `docs/PLAN.md` was written, newest last. Each says what was decided, why, and where it came from.
 
+**Risky decisions** bend a core rule on purpose. They are marked ⚠ RISKY and must be re-checked against real results before go-live: D30.
+
 ---
 
 ## D1 · T0.1 · API tests use Vitest, not Jest (Liam chose option A in Q1)
@@ -115,8 +117,46 @@ Changes plan principle 2. The extractor still returns `legible: false` whenever 
 - **The list.** The extractor receives the agency's workplaces and must name one entry exactly as `workplaceMatch`, or null. The answer format only allows list entries, so it cannot invent one.
 - **When the workplace is accepted.** Both readings name the same entry, and every reading of the handwriting (value or suggestion) resembles it: at most max(2, 30% of the entry's length) letters different after name normalisation. The workplace is then set to the list entry, with no workplace reading flag. A crossed-out or overwritten workplace stays flagged.
 - **When it is flagged.** Different entries; only one reading matching; no readable handwriting to compare; or handwriting that does not resemble the entry, so an entry is never forced onto the writing.
-- **Two similar entries.** If the handwriting also resembles a second entry (for example בית נוי and בית נוף), the workplace is not accepted even when both readings agree: `WORKPLACE_AMBIGUOUS` asks a person, with the matched entry suggested. Liam found this gap: two readings can make the same mistake.
+- **Two similar entries.** If the handwriting also resembles a second entry (for example בית נוי and בית נוף), the workplace is not accepted even when both readings agree: `MATCH_AMBIGUOUS` asks a person, with the matched entry suggested. Liam found this gap: two readings can make the same mistake.
 - **Not on the list.** When neither reading matches any entry, `WORKPLACE_NOT_ON_LIST` asks whether it is a new workplace.
 - **Where the list lives.** For now, `workplaces.txt` (one per line, kept off GitHub as it lists the agency's clients); later, an "upload Excel" screen in the app. No nicknames per entry yet.
-- **Names stay unmatched.** There is no list for names: a worker register is a rejected idea.
+- **Names.** See D28.
 - **Versioning.** Prompts are now `v2`. The `v1` files are kept for the record but no longer match the answer format.
+
+## D26 · Planning · The user chooses speed and reading quality, and sees the price (Liam)
+
+- **Speed.** _Now_: tickets are read straight away. _Batch_: Anthropic's batch service, about half the price, with results usually within an hour and at most 24 hours. Tickets are reviewed later anyway, so batch suits most uploads.
+- **Reading quality.** _Best_ uses the strongest model; _Standard_ uses a cheaper one. Each option says in plain words how it affects reading ("Standard: cheaper, more tickets may need a person"). Which model sits behind each option, and the per-ticket prices, are set from Phase 0 measurements, not assumed.
+- **Price.** Before reading starts, the upload screen shows the estimated cost ("about $6 for 150 tickets"), from the measured average cost per ticket for the chosen options. The spending caps still apply.
+- **Measured so far.** The strongest model, read immediately, costs about 8 cents per ticket on Liam's four test tickets.
+
+## D27 · Planning · A third read for unclear fields (Liam)
+
+When either reading is unsure of a field, or the two disagree, a third independent read (pass C) reads those fields only. It can only improve the guess the reviewer sees. It never accepts a value or clears a flag, because one reading can be confidently wrong (Liam's tickets showed this twice) and two out of three agreeing is weaker than two out of two. It adds cost only on unclear tickets.
+
+## D28 · Planning · Known names, from last month's export and from the same batch (Liam)
+
+Names were the weakest field on Liam's tickets. The name decides who gets paid, so a wrong name must never slip through, but a flagged name only costs the reviewer a few seconds.
+
+- **An uploaded names list, not a register.** The user uploads a list of first names (for now `names.txt`, later an Excel upload). Names are matched exactly like workplaces (D25): both passes must name the same entry, the writing must resemble it, and it must resemble no other entry. Many names have look-alikes (דנה / דינה), so those still go to a person, with the guess filled in. A name missing from the list is normal (workers change every month or two) and is not flagged.
+- **Nothing is kept between jobs.** Saving names automatically was considered and rejected: too much for too little. Instead the export has a `שמות` sheet with each confirmed name once, and the user uploads it next time. The list lives in the user's own files.
+- **Names from the same batch.** One worker usually has several tickets in an upload. After the whole upload is read, names that raised no flag form a temporary list. An unclear name that resembles one of them is read again with those names on the list. Only names that came out of a clean reading are used, so one misread cannot spread to other tickets. The temporary list goes with the job.
+- **Rejected or deferred.** A general list of common Israeli names (the workers' names are mostly not common ones, and a big list has look-alikes everywhere). Printing "block letters" on the ticket (not realistic for the shift leaders). One-click name buttons in the review screen (a maybe, to decide with the review screen).
+- **Known limit.** Two workers really called the same name cannot be told apart by the name. The agency already handles this today.
+
+## D29 · Planning · Read 2 sees the whole ticket as well as the boxes; look-alike tests (Liam)
+
+- **Read 2.** It used to see only the cut-out boxes. On its own, a cut-out of the cursive name מוסא was read as the English "KOIN": cursive א, ס, ו, מ look like K, O, I, N, and reading them left to right reverses the word. Read 2 now gets the whole ticket for context, then each box enlarged. Its different wording keeps it independent from read 1. All prompts now warn that cursive Hebrew can look like Latin letters.
+- **Look-alikes.** For names, only entries one letter apart count as look-alikes (two for names of 8 letters or more); two letters apart blocked clearly different short names such as הבן and הדס. Workplaces keep the stricter test, at Liam's request, because the list is short and two-letter pairs exist on it.
+
+## D30 · ⚠ RISKY · An unclear total can be accepted when the times confirm it (Liam)
+
+**The rule it bends:** "a guess is never a value" (plan principle 2, D24). This is the only exception.
+
+**The rule.** The total worked is accepted without a person only when all of these hold: start and end were both read with certainty by both passes and raised no flag; the total's only flag is "unreadable" (not a disagreement, not corrected, ticket not crossed out); and both passes offer a total equal to end minus start. The ticket records `totalFromMath`, so the reviewer and the audit can see the total came from this rule.
+
+**Why it is acceptable.** The total is the one field that can be checked against two others. Two independent guesses that agree with two certain times are stronger evidence than many accepted readings.
+
+**What could go wrong.** If a shift leader wrote a wrong total, and both readings misread it as exactly the "right" one, the wrong total would be silently corrected to match the times. Hours would then follow the times, not what was written. This is unlikely but possible.
+
+**Re-check before go-live.** In the Phase 0 set, count how often this rule fires and whether any total it accepted differs from the truth. If any does, remove the rule.
