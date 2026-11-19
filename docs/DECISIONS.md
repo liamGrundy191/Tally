@@ -160,3 +160,14 @@ Names were the weakest field on Liam's tickets. The name decides who gets paid, 
 **What could go wrong.** If a shift leader wrote a wrong total, and both readings misread it as exactly the "right" one, the wrong total would be silently corrected to match the times. Hours would then follow the times, not what was written. This is unlikely but possible.
 
 **Re-check before go-live.** In the Phase 0 set, count how often this rule fires and whether any total it accepted differs from the truth. If any does, remove the rule.
+
+## D32 · Ticket · Narrower slip, smaller markers, 15 workplace boxes (Liam)
+
+Liam looked at the printed ticket and asked for these changes:
+
+- **Narrower slip.** Three quarters of A4's width (157.5 × 74.25 mm), still four per page, against the left edge; the 52 mm strip on the right is cut off. This replaces the slip size in D18.
+- **6 mm markers** (were 8 mm), about 44% less black ink. Not smaller: the marker search ignores any mark under a third of the largest dark mark, and a fully inked character box (8 × 9 mm) must not push the markers out. 5 mm would need a change to the search.
+- **15 workplace boxes** (were 18). To fit, character boxes are 8 mm wide (were 8.5 mm); height stays 9 mm.
+- **Less padding.** Labels sit right beside the boxes instead of in a wide margin; the example strip is centred at the top; the three time groups are 6 mm apart (were about 12 mm).
+- **Boxes keep 2 mm clear of the markers.** Found while testing: the scan's contrast stretch darkens the pale box lines, and a box 0.25 mm from a marker merged with it, so the marker was not found on tilted scans. A test now checks the clearance. The orientation check reads the new label column.
+- **Still `v1`.** Only test tickets have been printed; old printouts no longer match and should be thrown away.

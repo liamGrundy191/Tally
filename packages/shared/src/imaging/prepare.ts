@@ -5,6 +5,7 @@ import type { TicketImage } from '../extraction/extractor.ts';
 import type { FieldKey, Flag } from '../rules/schemas.ts';
 import {
   FRAME_MM,
+  LABELS_MM,
   MARKER_CENTRES_MM,
   MARKER_MM,
   SLIP_MM,
@@ -248,8 +249,10 @@ function orient(quad: Point[], img: Grey): Homography {
   const options = starts.map((start) => {
     const ordered = [0, 1, 2, 3].map((n) => quad[(start + n) % 4]!);
     const h = homography(MARKERS_MM, ordered);
-    const labels = inkIn(img, h, SLIP_MM.width - 40, 14, 30, 36);
-    const mirror = inkIn(img, h, 10, 14, 30, 36);
+    // The label column beside the box rows, and the same strip turned 180°.
+    const w = LABELS_MM.right - LABELS_MM.left;
+    const labels = inkIn(img, h, LABELS_MM.left, 14, w, 30);
+    const mirror = inkIn(img, h, SLIP_MM.width - LABELS_MM.right, 14, w, 30);
     return { h, score: labels - mirror };
   });
   return options[0]!.score >= options[1]!.score ? options[0]!.h : options[1]!.h;

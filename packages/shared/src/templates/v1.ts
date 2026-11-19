@@ -9,11 +9,14 @@ import type { FieldKey } from '../rules/schemas.ts';
 
 export const TEMPLATE_VERSION = 'v1';
 
-/** One slip: a quarter of an A4 portrait page, so four print on each page. */
-export const SLIP_MM = { width: 210, height: 297 / 4 } as const;
+/** One slip: three quarters of A4's width and a quarter of its height, four per page (D32). */
+export const SLIP_MM = { width: (210 * 3) / 4, height: 297 / 4 } as const;
 
-/** Solid black corner squares, inset from the slip edge to stay clear of printer margins. */
-export const MARKER_MM = { size: 8, inset: 6 } as const;
+/**
+ * Solid black corner squares, inset from the slip edge to stay clear of printer margins.
+ * 6 mm saves ink and still beats a fully inked character box in the marker search (D32).
+ */
+export const MARKER_MM = { size: 6, inset: 6 } as const;
 
 const markerCentre = MARKER_MM.inset + MARKER_MM.size / 2;
 
@@ -33,7 +36,7 @@ export const FRAME_MM = {
 } as const;
 
 /** One handwritten character box, and the narrow slot for a printed ':' or '/'. */
-export const CELL_MM = { width: 8.5, height: 9 } as const;
+export const CELL_MM = { width: 8, height: 9 } as const;
 export const SEPARATOR_MM = 4;
 
 /** Fractions of the marker frame. */
@@ -86,16 +89,38 @@ function field(
   };
 }
 
-/** Right edge of the box rows; the labels sit to the right of it, Hebrew-style. */
-const BOXES_RIGHT_MM = 165;
+/** The label column: labels are right-aligned to its right edge, Hebrew-style. */
+export const LABELS_MM = { left: 130, right: SLIP_MM.width - 6 } as const;
+
+/** Right edge of the box rows, just left of the label column. */
+const BOXES_RIGHT_MM = LABELS_MM.left - 0.5;
+
+/**
+ * Printed boxes keep this far from the markers: the scan's contrast stretch darkens box lines,
+ * and a box touching a marker merges with it so the marker is no longer found.
+ */
+export const MARKER_CLEARANCE_MM = 2;
+
+/** The times row starts just clear of the bottom-left marker; labels sit above it. */
+const TIME_W_MM = patternWidthMm('HH:MM', CELL_MM.width, SEPARATOR_MM);
+const TIME_GAP_MM = 6;
+const TOTAL_RIGHT_MM = MARKER_MM.inset + MARKER_MM.size + MARKER_CLEARANCE_MM + TIME_W_MM;
 
 export const FIELDS: readonly TemplateField[] = [
   field('firstName', 'שם פרטי', 'First name', '_'.repeat(12), BOXES_RIGHT_MM, 15),
-  field('workplace', 'מקום עבודה', 'Workplace', '_'.repeat(18), BOXES_RIGHT_MM, 25.5),
+  field('workplace', 'מקום עבודה', 'Workplace', '_'.repeat(15), BOXES_RIGHT_MM, 25.5),
   field('date', 'תאריך', 'Date (DD/MM/YY)', 'DD/MM/YY', BOXES_RIGHT_MM, 36),
-  field('startTime', 'שעת התחלה', 'Start', 'HH:MM', BOXES_RIGHT_MM, 53, true),
-  field('endTime', 'שעת סיום', 'End', 'HH:MM', 115, 53, true),
-  field('totalWorked', 'סה״כ שעות', 'Total', 'HH:MM', 65, 53, true),
+  field(
+    'startTime',
+    'שעת התחלה',
+    'Start',
+    'HH:MM',
+    TOTAL_RIGHT_MM + 2 * (TIME_GAP_MM + TIME_W_MM),
+    53,
+    true,
+  ),
+  field('endTime', 'שעת סיום', 'End', 'HH:MM', TOTAL_RIGHT_MM + TIME_GAP_MM + TIME_W_MM, 53, true),
+  field('totalWorked', 'סה״כ שעות', 'Total', 'HH:MM', TOTAL_RIGHT_MM, 53, true),
 ];
 
 export interface TicketTemplate {

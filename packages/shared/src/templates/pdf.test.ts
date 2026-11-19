@@ -3,10 +3,20 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { A4_MM, EXAMPLE, HEBREW_FONT_URL, SLIPS_PER_PAGE, renderTicketPdf } from './pdf.ts';
-import { CELL_MM, FIELDS, FRAME_MM, MARKER_CENTRES_MM, MARKER_MM, SLIP_MM } from './v1.ts';
+import {
+  CELL_MM,
+  FIELDS,
+  FRAME_MM,
+  LABELS_MM,
+  MARKER_CENTRES_MM,
+  MARKER_CLEARANCE_MM,
+  MARKER_MM,
+  SLIP_MM,
+} from './v1.ts';
 
 const DPI = 150;
 const px = (mm: number) => Math.round((mm / 25.4) * DPI);
@@ -39,10 +49,42 @@ describe('ticket template v1 field map', () => {
     const cells = (key: string) =>
       [...FIELDS.find((f) => f.key === key)!.pattern].filter((c) => c !== '/' && c !== ':').length;
     expect(cells('firstName')).toBe(12);
-    expect(cells('workplace')).toBe(18);
+    expect(cells('workplace')).toBe(15);
     expect(FIELDS.find((f) => f.key === 'date')!.pattern).toBe('DD/MM/YY');
     for (const key of ['startTime', 'endTime', 'totalWorked']) {
       expect(FIELDS.find((f) => f.key === key)!.pattern).toBe('HH:MM');
+    }
+  });
+
+  it('keeps every box clear of every marker, so they never merge on a scan', () => {
+    const half = MARKER_MM.size / 2 + MARKER_CLEARANCE_MM;
+    for (const f of FIELDS) {
+      const x = FRAME_MM.x + f.box.x * FRAME_MM.width;
+      const y = FRAME_MM.y + f.box.y * FRAME_MM.height;
+      const w = f.box.w * FRAME_MM.width;
+      const h = f.box.h * FRAME_MM.height;
+      for (const [name, c] of Object.entries(MARKER_CENTRES_MM)) {
+        const apart =
+          x >= c.x + half || x + w <= c.x - half || y >= c.y + half || y + h <= c.y - half;
+        expect(apart, `${f.key} / ${name}`).toBe(true);
+      }
+    }
+  });
+
+  it('makes markers big enough that a fully inked box cannot push them out of the search', () => {
+    // The marker search ignores marks under a third of the largest one (prepare.ts, D32).
+    expect(MARKER_MM.size ** 2).toBeGreaterThan((CELL_MM.width * CELL_MM.height) / 3);
+  });
+
+  it('fits every side label in the label column', async () => {
+    const doc = await PDFDocument.create();
+    doc.registerFontkit(fontkit);
+    const hebrew = await doc.embedFont(readFileSync(HEBREW_FONT_URL));
+    const latin = await doc.embedFont(StandardFonts.Helvetica);
+    const columnPt = ((LABELS_MM.right - LABELS_MM.left) * 72) / 25.4;
+    for (const f of FIELDS.filter((f) => !f.labelAbove)) {
+      expect(hebrew.widthOfTextAtSize(f.labelHe, 10), f.key).toBeLessThan(columnPt);
+      expect(latin.widthOfTextAtSize(f.labelEn, 7), f.key).toBeLessThan(columnPt);
     }
   });
 
