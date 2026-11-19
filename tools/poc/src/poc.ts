@@ -93,7 +93,7 @@ export async function runPoc(
     page: t.page,
     read: reads[i]!,
   }));
-  return { report: grade(graded, truth), graded };
+  return { report: grade(graded, truth, opts.knownWorkplaces), graded };
 }
 
 const LABEL: Record<FieldKey, string> = {

@@ -1,7 +1,7 @@
 // Compares what the system did with what is really written (truth.csv). The key number is a
 // wrong value that reached the result without a flag on its own box: the G0 gate needs zero of
 // those in the date and the times, and zero missed crossed-out tickets (D31).
-import { FIELD_KEYS, type FieldKey, type Flag, sameReading } from '@tally/shared';
+import { FIELD_KEYS, type FieldKey, type Flag, resemblesEntry, sameReading } from '@tally/shared';
 import type { ReadTicket } from '@tally/shared/extraction';
 import { type TruthRow, truthKey } from './truth.ts';
 
@@ -46,7 +46,22 @@ const WORDS: Record<Exclude<Outcome, 'correct' | 'flagged_right_guess'>, string>
   flagged_no_guess: 'flagged; no guess filled in',
 };
 
-export function grade(tickets: readonly GradedTicket[], truthRows: readonly TruthRow[]) {
+/**
+ * The list exists to turn a misspelt workplace into its proper name, so a list entry is right when
+ * the writing resembles that entry and no other one (D31).
+ */
+const rightListEntry = (shown: string | null, written: string | null, list: readonly string[]) =>
+  shown !== null &&
+  written !== null &&
+  list.includes(shown) &&
+  resemblesEntry(written, shown) &&
+  !list.some((e) => e !== shown && resemblesEntry(written, e));
+
+export function grade(
+  tickets: readonly GradedTicket[],
+  truthRows: readonly TruthRow[],
+  knownWorkplaces: readonly string[] = [],
+) {
   const truth = new Map(truthRows.map((r) => [truthKey(r.file, r.page), r]));
   const tally = Object.fromEntries(
     FIELD_KEYS.map((k) => [
@@ -116,13 +131,19 @@ export function grade(tickets: readonly GradedTicket[], truthRows: readonly Trut
       let shown: string | null;
       if (own.length === 0) {
         shown = c.values[k];
-        outcome = same(k, shown, truthValue) ? 'correct' : 'wrong_not_flagged';
+        const right =
+          same(k, shown, truthValue) ||
+          (k === 'workplace' && rightListEntry(shown, truthValue, knownWorkplaces));
+        outcome = right ? 'correct' : 'wrong_not_flagged';
       } else {
         fieldsChecked++;
         // What the reviewer finds filled in: the guess, or the value when no reading was in doubt.
         const doubted = own.some((f) => READING.includes(f.code));
         shown = c.suggestions[k] ?? (doubted ? null : c.values[k]);
-        outcome = same(k, shown, truthValue)
+        const right =
+          same(k, shown, truthValue) ||
+          (k === 'workplace' && rightListEntry(shown, truthValue, knownWorkplaces));
+        outcome = right
           ? 'flagged_right_guess'
           : shown === null
             ? 'flagged_no_guess'

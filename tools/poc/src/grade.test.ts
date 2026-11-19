@@ -144,6 +144,41 @@ describe('grading one ticket', () => {
   });
 });
 
+describe('workplaces from the list', () => {
+  const list = ['בית הורדים', 'דולב', 'דולפ'];
+  const accepted = (entry: string) =>
+    readAs(answer({ workplace: entry }), answer({ workplace: entry }));
+  it('a misspelt workplace given its proper list name is right', () => {
+    const r = grade(
+      [{ file: 'scan.pdf', page: 1, read: accepted('בית הורדים') }],
+      [truth({ workplace: 'בית הורדם' })],
+      list,
+    );
+    expect(r.fields.workplace.correct).toBe(1);
+    expect(r.mistakes).toEqual([]);
+  });
+
+  it('is wrong when the writing is, or also resembles, another entry', () => {
+    const other = grade(
+      [{ file: 'scan.pdf', page: 1, read: accepted('דולב') }],
+      [truth({ workplace: 'דולפ' })],
+      list,
+    );
+    expect(other.fields.workplace.wrong_not_flagged).toBe(1);
+    const both = grade(
+      [{ file: 'scan.pdf', page: 1, read: accepted('דולב') }],
+      [truth({ workplace: 'דולק' })], // one letter from each
+      list,
+    );
+    expect(both.fields.workplace.wrong_not_flagged).toBe(1);
+  });
+
+  it('without a list, only an exact reading is right', () => {
+    const r = one(readAs(answer({ workplace: 'בית הורדים' })), truth({ workplace: 'בית הורדם' }));
+    expect(r.fields.workplace.wrong_not_flagged).toBe(1);
+  });
+});
+
 describe('crossed-out tickets and failures', () => {
   it('a crossed-out ticket caught is not graded box by box', () => {
     const r = one(readAs(answer({}, { voided: true })), truth({ startTime: '23:00' }, true));

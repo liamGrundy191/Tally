@@ -168,6 +168,7 @@ Names were the weakest field on Liam's tickets. The name decides who gets paid, 
 - **What the reviewer finds filled in** is the guess, or the value when no reading was in doubt (for example a corrected box). A box where the two readings disagreed, and no guess is agreed, counts as "no guess", even though one reading's value is kept.
 - **A failed reading** counts as "no guess" in all six boxes, because a person types the whole ticket.
 - **Comparison is by meaning**, using the same rules the system uses: 8:30 is 08:30, 10/11/2026 is 10/11/26, and names and workplaces are normalised.
+- **A misspelt workplace given its list name is right** (found on Liam's first real run: written "בית הורדם", accepted as the list's "בית הורדים"). It counts as right only when the writing resembles that entry and no other one; turning a misspelling into the proper name is what the list is for.
 - **The whole folder is one batch** for the "names from the same batch" step (D28), like one upload.
 - **Spending.** Without `--yes` the runner only checks the files and shows the estimated cost. With it, the runner stops starting new tickets at 1.5 times the estimate.
 - **Excel.** The truth file must be saved as "CSV UTF-8"; anything else is refused instead of garbling Hebrew. Seconds that Excel adds to times (08:30:00) are dropped. Output files start with the UTF-8 marker Excel needs, and text that looks like a formula is escaped.
