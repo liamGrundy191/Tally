@@ -182,3 +182,11 @@ Liam looked at the printed ticket and asked for these changes:
 - **Less padding.** Labels sit right beside the boxes instead of in a wide margin; the example strip is centred at the top; the three time groups are 6 mm apart (were about 12 mm).
 - **Boxes keep 2 mm clear of the markers.** Found while testing: the scan's contrast stretch darkens the pale box lines, and a box 0.25 mm from a marker merged with it, so the marker was not found on tilted scans. A test now checks the clearance. The orientation check reads the new label column.
 - **Still `v1`.** Only test tickets have been printed; old printouts no longer match and should be thrown away.
+
+## D33 · Ticket · Two scan problems found while checking D32
+
+Liam asked for the new ticket (D32) to be checked. All tests passed, but the tests only used empty tickets, so filled-in and corrected tickets were simulated too.
+
+- **Filled-in tickets came out upside down.** The way up was decided by comparing the printed labels with the opposite side of the ticket. Dense handwriting there outweighed the labels, so every simulated filled ticket was turned 180°, with no warning. The cut-out boxes would then have shown the wrong fields. The way up now comes from the printed example strip (דנה, 08:30): turned 180° it would sit below the time boxes, where nothing is ever written. A test with heavy writing at four angles guards it.
+- **A scribbled-out correction hid the markers.** Blacking out two boxes makes a solid patch four times a 6 mm marker's area, and the marker search ignored marks under a third of the largest. It now tries again without the one or two largest patches. The four markers must still match each other in size, so a scribble can never stand in for one. One covered marker is still flagged.
+- **Old printouts are refused.** Scans of the previous layout raise `MARKERS_NOT_FOUND` instead of being cut up wrongly.

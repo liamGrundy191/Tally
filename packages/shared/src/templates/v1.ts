@@ -89,6 +89,9 @@ function field(
   };
 }
 
+/** The printed example strip (דנה, 08:30), centred at the top. It also tells which way is up. */
+export const EXAMPLE_STRIP_MM = { top: 6.5, height: 6.5 } as const;
+
 /** The label column: labels are right-aligned to its right edge, Hebrew-style. */
 export const LABELS_MM = { left: 130, right: SLIP_MM.width - 6 } as const;
 

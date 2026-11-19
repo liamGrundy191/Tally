@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { PDFDocument, type PDFFont, type PDFPage, StandardFonts, rgb, type RGB } from 'pdf-lib';
 import {
   CELL_MM,
+  EXAMPLE_STRIP_MM,
   FIELDS,
   FRAME_MM,
   LABELS_MM,
@@ -134,7 +135,13 @@ function drawSlip(page: PDFPage, fonts: Fonts, slipTopMm: number) {
 
   // Example strip, centred at the top: label, a name in block letters (first letter in the
   // rightmost box) and a time, read right to left.
-  const ex = { cellW: 6, cellH: 6.5, sepW: 3, y: 6.5, gap: 3 };
+  const ex = {
+    cellW: 6,
+    cellH: EXAMPLE_STRIP_MM.height,
+    sepW: 3,
+    y: EXAMPLE_STRIP_MM.top,
+    gap: 3,
+  };
   const name = [...EXAMPLE.name].reverse().join('');
   const labelW =
     Math.max(
