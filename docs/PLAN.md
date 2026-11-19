@@ -55,11 +55,11 @@ Worker registry or worker totals · pay, rates, overtime, tax, payslips · invoi
 
 ## 2. The paper ticket
 
-A slip a quarter of an A4 page (210 × 74.25 mm), four per A4 page, generated once as a PDF and then printed or photocopied anywhere.
+A slip three quarters of an A4 page wide and a quarter high (157.5 × 74.25 mm), four per A4 page (the strip beside them is cut off, D32), generated once as a PDF and then printed or photocopied anywhere.
 
 **Printed elements**
 
-- Four solid black corner squares (about 8 mm), used to find and straighten the slip.
+- Four solid black corner squares (6 mm), used to find and straighten the slip.
 - A small version mark in one corner: `v1`.
 - Field labels in Hebrew, with English beneath in smaller type.
 - Character boxes in a light colour (pale blue, e.g. `#B8D4F0`), so box lines do not merge with ink.
@@ -71,7 +71,7 @@ A slip a quarter of an A4 page (210 × 74.25 mm), four per A4 page, generated on
 | Field key     | Label (HE / EN)        | Format                        |
 | ------------- | ---------------------- | ----------------------------- |
 | `firstName`   | שם פרטי / First name   | Block letters, 12 boxes       |
-| `workplace`   | מקום עבודה / Workplace | Block letters, 18 boxes       |
+| `workplace`   | מקום עבודה / Workplace | Block letters, 15 boxes       |
 | `date`        | תאריך / Date           | `DD/MM/YY`, one digit per box |
 | `startTime`   | שעת התחלה / Start      | `HH:MM`, 24-hour              |
 | `endTime`     | שעת סיום / End         | `HH:MM`, 24-hour              |
@@ -79,7 +79,7 @@ A slip a quarter of an A4 page (210 × 74.25 mm), four per A4 page, generated on
 
 **The arithmetic check:** `end − start = total`. If `end < start`, the shift crossed midnight: add 24 hours to `end` first. The shift belongs to the date written (the start day).
 
-**Field map.** Each template version has a field map in code (`packages/shared/src/templates/v1.ts`): the position of every field box as fractions of the slip's width and height, measured from the top-left corner marker. The PDF generator and the cropping step both read the same map, so they cannot drift apart.
+**Field map.** Each template version has a field map in code (`packages/shared/src/templates/v1.ts`): the position of every field box as fractions of the marker frame, where (0, 0) is the centre of the top-left corner marker and (1, 1) the centre of the bottom-right one (D4). The PDF generator and the cropping step both read the same map, so they cannot drift apart.
 
 ---
 

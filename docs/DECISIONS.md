@@ -171,3 +171,14 @@ Names were the weakest field on Liam's tickets. The name decides who gets paid, 
 - **The whole folder is one batch** for the "names from the same batch" step (D28), like one upload.
 - **Spending.** Without `--yes` the runner only checks the files and shows the estimated cost. With it, the runner stops starting new tickets at 1.5 times the estimate.
 - **Excel.** The truth file must be saved as "CSV UTF-8"; anything else is refused instead of garbling Hebrew. Seconds that Excel adds to times (08:30:00) are dropped. Output files start with the UTF-8 marker Excel needs, and text that looks like a formula is escaped.
+
+## D32 · Ticket · Narrower slip, smaller markers, 15 workplace boxes (Liam)
+
+Liam looked at the printed ticket and asked for these changes:
+
+- **Narrower slip.** Three quarters of A4's width (157.5 × 74.25 mm), still four per page, against the left edge; the 52 mm strip on the right is cut off. This replaces the slip size in D18.
+- **6 mm markers** (were 8 mm), about 44% less black ink. Not smaller: the marker search ignores any mark under a third of the largest dark mark, and a fully inked character box (8 × 9 mm) must not push the markers out. 5 mm would need a change to the search.
+- **15 workplace boxes** (were 18). To fit, character boxes are 8 mm wide (were 8.5 mm); height stays 9 mm.
+- **Less padding.** Labels sit right beside the boxes instead of in a wide margin; the example strip is centred at the top; the three time groups are 6 mm apart (were about 12 mm).
+- **Boxes keep 2 mm clear of the markers.** Found while testing: the scan's contrast stretch darkens the pale box lines, and a box 0.25 mm from a marker merged with it, so the marker was not found on tilted scans. A test now checks the clearance. The orientation check reads the new label column.
+- **Still `v1`.** Only test tickets have been printed; old printouts no longer match and should be thrown away.
