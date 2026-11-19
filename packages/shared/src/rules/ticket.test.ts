@@ -505,6 +505,17 @@ describe('workplace list (D25)', () => {
     expect(r.fields.workplace).toBe('סופר פארם');
   });
 
+  it('accepts a workplace with a number read in the other word order', () => {
+    const r = checkExtraction(
+      unreadableWorkplace('שושנים 12', '12 שושנים'),
+      unreadableWorkplace('12 שושנים', '12 שושנים'),
+      settings,
+      { knownWorkplaces: ['12 שושנים', 'כרמלית'] },
+    );
+    expect(r.flags).toEqual([]);
+    expect(r.fields.workplace).toBe('12 שושנים');
+  });
+
   it('flags when the readings pick different entries', () => {
     const r = checkExtraction(
       unreadableWorkplace('שופרסל', 'שופרסל דיל'),

@@ -3,8 +3,10 @@ import { readFileSync } from 'node:fs';
 import { PDFDocument, type PDFFont, type PDFPage, StandardFonts, rgb, type RGB } from 'pdf-lib';
 import {
   CELL_MM,
+  EXAMPLE_STRIP_MM,
   FIELDS,
   FRAME_MM,
+  LABELS_MM,
   MARKER_CENTRES_MM,
   MARKER_MM,
   SEPARATOR_MM,
@@ -39,7 +41,6 @@ const BOX = hex(0xb8d4f0); // pale blue, so box lines do not merge with ink
 const SEPARATOR = hex(0x6f93c0);
 const SECONDARY = hex(0x555555);
 const CUT_LINE = hex(0xaaaaaa);
-const LABEL_RIGHT_MM = 202;
 const isHebrew = (s: string) => /[֐-׿]/.test(s);
 
 export async function renderTicketPdf(): Promise<Uint8Array> {
@@ -51,17 +52,19 @@ export async function renderTicketPdf(): Promise<Uint8Array> {
     latin: await doc.embedFont(StandardFonts.Helvetica),
   };
   const page = doc.addPage([A4_MM.width * MM, A4_MM.height * MM]);
-  for (let i = 0; i < SLIPS_PER_PAGE; i++) {
-    drawSlip(page, fonts, i * SLIP_MM.height);
-    if (i === 0) continue;
-    const cutY = (A4_MM.height - i * SLIP_MM.height) * MM;
+  const cut = (x1: number, y1: number, x2: number, y2: number) =>
     page.drawLine({
-      start: { x: 0, y: cutY },
-      end: { x: A4_MM.width * MM, y: cutY },
+      start: { x: x1 * MM, y: (A4_MM.height - y1) * MM },
+      end: { x: x2 * MM, y: (A4_MM.height - y2) * MM },
       thickness: 0.4,
       color: CUT_LINE,
       dashArray: [4, 4],
     });
+  // Slips sit against the left edge; the strip to their right is cut off.
+  cut(SLIP_MM.width, 0, SLIP_MM.width, A4_MM.height);
+  for (let i = 0; i < SLIPS_PER_PAGE; i++) {
+    drawSlip(page, fonts, i * SLIP_MM.height);
+    if (i > 0) cut(0, i * SLIP_MM.height, SLIP_MM.width, i * SLIP_MM.height);
   }
   return doc.save();
 }
@@ -130,22 +133,30 @@ function drawSlip(page: PDFPage, fonts: Fonts, slipTopMm: number) {
     SECONDARY,
   );
 
-  // Example strip: a name in block letters (first letter in the rightmost box) and a time.
-  const ex = { cellW: 6, cellH: 6.5, sepW: 3, y: 6.5 };
-  text(EXAMPLE.labelHe, 9, 186, 10.5, 'right');
-  text(EXAMPLE.labelEn, 6.5, 186, 13.5, 'right', SECONDARY);
+  // Example strip, centred at the top: label, a name in block letters (first letter in the
+  // rightmost box) and a time, read right to left.
+  const ex = {
+    cellW: 6,
+    cellH: EXAMPLE_STRIP_MM.height,
+    sepW: 3,
+    y: EXAMPLE_STRIP_MM.top,
+    gap: 3,
+  };
   const name = [...EXAMPLE.name].reverse().join('');
-  cells(
-    '_'.repeat(name.length),
-    160 - name.length * ex.cellW,
-    ex.y,
-    ex.cellW,
-    ex.cellH,
-    ex.sepW,
-    name,
-  );
+  const labelW =
+    Math.max(
+      fonts.hebrew.widthOfTextAtSize(EXAMPLE.labelHe, 9),
+      fonts.latin.widthOfTextAtSize(EXAMPLE.labelEn, 6.5),
+    ) / MM;
+  const nameW = name.length * ex.cellW;
   const timeW = patternWidthMm(EXAMPLE.time, ex.cellW, ex.sepW);
-  cells(EXAMPLE.time, 135 - timeW, ex.y, ex.cellW, ex.cellH, ex.sepW, EXAMPLE.time);
+  const exRight = (SLIP_MM.width + labelW + ex.gap + nameW + 2 * ex.gap + timeW) / 2;
+  text(EXAMPLE.labelHe, 9, exRight, 10.5, 'right');
+  text(EXAMPLE.labelEn, 6.5, exRight, 13.5, 'right', SECONDARY);
+  const nameRight = exRight - labelW - ex.gap;
+  cells('_'.repeat(name.length), nameRight - nameW, ex.y, ex.cellW, ex.cellH, ex.sepW, name);
+  const timeRight = nameRight - nameW - 2 * ex.gap;
+  cells(EXAMPLE.time, timeRight - timeW, ex.y, ex.cellW, ex.cellH, ex.sepW, EXAMPLE.time);
 
   for (const f of FIELDS) {
     const x = FRAME_MM.x + f.box.x * FRAME_MM.width;
@@ -156,8 +167,8 @@ function drawSlip(page: PDFPage, fonts: Fonts, slipTopMm: number) {
       text(f.labelHe, 10, centre, y - 4.5, 'center');
       text(f.labelEn, 7, centre, y - 1.3, 'center', SECONDARY);
     } else {
-      text(f.labelHe, 10, LABEL_RIGHT_MM, y + 4, 'right');
-      text(f.labelEn, 7, LABEL_RIGHT_MM, y + 7.5, 'right', SECONDARY);
+      text(f.labelHe, 10, LABELS_MM.right, y + 4, 'right');
+      text(f.labelEn, 7, LABELS_MM.right, y + 7.5, 'right', SECONDARY);
     }
   }
 }

@@ -50,7 +50,7 @@ function meaning(field: FieldKey, raw: string): string | number | null {
 }
 
 /** Do two readings of a field mean the same thing? "8:30" and "08:30" do. */
-function sameReading(field: FieldKey, a: string, b: string): boolean {
+export function sameReading(field: FieldKey, a: string, b: string): boolean {
   const x = meaning(field, a);
   const y = meaning(field, b);
   if (x !== null || y !== null) return x === y;
@@ -75,19 +75,25 @@ export type Suggestions = Partial<Record<FieldKey, string>>;
 const offered = (f: { value: string | null; legible: boolean; suggestion: string | null }) =>
   f.legible ? f.value : f.suggestion;
 
-/** Does the handwriting plausibly spell this list entry? A few letters may differ. */
+/**
+ * Does the handwriting plausibly spell this list entry? A few letters may differ, and the words
+ * may come in another order: a number inside Hebrew text ("12 שושנים") is often read the other
+ * way round ("שושנים 12").
+ */
 export function resemblesEntry(written: string, entry: string): boolean {
   const w = normaliseName(written);
   const e = normaliseName(entry);
   if (w === '' || e === '') return false;
-  return levenshtein(w, e) <= Math.max(2, Math.round(0.3 * [...e].length));
+  const limit = Math.max(2, Math.round(0.3 * [...e].length));
+  const words = (s: string) => s.split(' ').sort().join(' ');
+  return levenshtein(w, e) <= limit || levenshtein(words(w), words(e)) <= limit;
 }
 
 /**
  * Could the handwriting be this other entry instead? Stricter than `resemblesEntry`: one letter
  * different for entries up to 7 letters, two for longer ones. With two letters allowed, short
  * names that are clearly different (הבן and הדס) counted as look-alikes. Workplaces keep the
- * looser `resemblesEntry` as their look-alike test (Liam: the list is short, and קנטה-like pairs matter).
+ * looser `resemblesEntry` as their look-alike test (Liam: the list is short, and pairs two letters apart exist on it).
  */
 export function looksAlike(written: string, entry: string): boolean {
   const w = normaliseName(written);

@@ -5,6 +5,7 @@ import type { TicketImage } from '../extraction/extractor.ts';
 import type { FieldKey, Flag } from '../rules/schemas.ts';
 import {
   FRAME_MM,
+  EXAMPLE_STRIP_MM,
   MARKER_CENTRES_MM,
   MARKER_MM,
   SLIP_MM,
@@ -138,11 +139,20 @@ const FRAME_RATIO = FRAME_MM.width / FRAME_MM.height;
  * print (labels, digits) can never stand in for a missing marker.
  */
 function findMarkerQuad(blobs: Blob[], img: Grey): Point[] | null {
-  const largest = Math.max(0, ...blobs.map((b) => b.area));
-  const cands = [...blobs]
-    .filter((b) => b.area >= largest / 3)
-    .sort((a, b) => b.area - a.area)
-    .slice(0, 30);
+  // A scribbled-out correction can be a solid patch several times a marker's size, which would
+  // push the markers under the size cut-off. If nothing is found, try again without the one or
+  // two largest patches; the four markers must still match each other in size (D32).
+  const sorted = [...blobs].sort((a, b) => b.area - a.area);
+  for (let skip = 0; skip <= 2; skip++) {
+    const quad = searchQuad(sorted.slice(skip), img);
+    if (quad) return quad;
+  }
+  return null;
+}
+
+function searchQuad(sorted: Blob[], img: Grey): Point[] | null {
+  const largest = sorted[0]?.area ?? 0;
+  const cands = sorted.filter((b) => b.area >= largest / 3).slice(0, 30);
   const minLongSide = 0.25 * Math.max(img.width, img.height);
   let best: { points: Point[]; score: number } | null = null;
   for (let i = 0; i < cands.length; i++)
@@ -239,7 +249,9 @@ function inkIn(
 
 /**
  * Which way up the ticket is. The four markers are symmetric, so the two rotations 180° apart
- * both fit; the printed labels sit on the right of the ticket, so the right edge has more ink.
+ * both fit. The printed example strip at the top decides: turned 180°, it would sit below the
+ * time boxes, where nothing is printed or written. Handwriting cannot tip this, unlike the old
+ * check (labels against the box side), which dense writing turned upside down.
  */
 function orient(quad: Point[], img: Grey): Homography {
   const s0 = distance(quad[0]!, quad[1]!);
@@ -248,9 +260,11 @@ function orient(quad: Point[], img: Grey): Homography {
   const options = starts.map((start) => {
     const ordered = [0, 1, 2, 3].map((n) => quad[(start + n) % 4]!);
     const h = homography(MARKERS_MM, ordered);
-    const labels = inkIn(img, h, SLIP_MM.width - 40, 14, 30, 36);
-    const mirror = inkIn(img, h, 10, 14, 30, 36);
-    return { h, score: labels - mirror };
+    // A band through the example strip's characters, and the same band turned 180°.
+    const band = { x: SLIP_MM.width / 2 - 25, y: EXAMPLE_STRIP_MM.top + 0.5, w: 50, h: 4 };
+    const top = inkIn(img, h, band.x, band.y, band.w, band.h);
+    const bottom = inkIn(img, h, band.x, SLIP_MM.height - band.y - band.h, band.w, band.h);
+    return { h, score: top - bottom };
   });
   return options[0]!.score >= options[1]!.score ? options[0]!.h : options[1]!.h;
 }

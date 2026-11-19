@@ -167,3 +167,89 @@ describe('MARKERS_NOT_FOUND / IMAGE_BLURRY / IMAGE_DARK', () => {
     expect(codes(await prepareTicket(covered, TEMPLATE_V1))).toEqual(['MARKERS_NOT_FOUND']);
   });
 });
+
+describe('a filled-in ticket comes out the right way up', () => {
+  // Dense "handwriting" in every box: thick zigzags, much more ink than real writing. The way up
+  // must come from print that writing never covers, not from where the ink is.
+  let filled: Buffer;
+  let reference: Awaited<ReturnType<typeof decode>>;
+  beforeAll(async () => {
+    const strokes = FIELDS.map((f) => {
+      const x = FRAME_MM.x + f.box.x * FRAME_MM.width;
+      const y = FRAME_MM.y + f.box.y * FRAME_MM.height;
+      const w = f.box.w * FRAME_MM.width;
+      const h = f.box.h * FRAME_MM.height;
+      const points = Array.from({ length: 40 }, (_, i) => {
+        const px_ = px(x + 1 + (i / 39) * (w - 2));
+        const py = px(y + h / 2 + Math.sin(i * 1.3) * (h / 2 - 1.5));
+        return `${px_},${py}`;
+      }).join(' ');
+      return `<polyline points="${points}" fill="none" stroke="#111" stroke-width="${px(1.2)}"/>`;
+    }).join('');
+    const slip = await sharp(ticket)
+      .extract({ left: 60, top: 60, width: px(SLIP_MM.width), height: px(SLIP_MM.height) })
+      .png()
+      .toBuffer();
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${px(SLIP_MM.width)}" height="${px(SLIP_MM.height)}">${strokes}</svg>`;
+    const upright = await sharp(slip)
+      .composite([{ input: Buffer.from(svg) }])
+      .png()
+      .toBuffer();
+    filled = await sharp(upright)
+      .extend({ top: 60, bottom: 60, left: 60, right: 60, background: '#ffffff' })
+      .png()
+      .toBuffer();
+    reference = await decode({
+      data: await sharp(upright)
+        .resize(SLIP_MM.width * SLIP_PX_PER_MM, Math.round(SLIP_MM.height * SLIP_PX_PER_MM), {
+          fit: 'fill',
+        })
+        .toBuffer(),
+    });
+  });
+
+  it.each([0, 9, -12, 180])('rotated %i°', async (angle) => {
+    const scan = await sharp(filled).rotate(angle, { background: '#c8c8c8' }).png().toBuffer();
+    const prepared = await prepareTicket(scan, TEMPLATE_V1);
+    expect(prepared.markersFound).toBe(true);
+    const result = await decode(prepared.ticket);
+    const w = Math.min(result.width, reference.width);
+    const h = Math.min(result.height, reference.height);
+    const diff = (flip: boolean) => {
+      let sum = 0;
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          const r = flip
+            ? result.data[(result.height - 1 - y) * result.width + (result.width - 1 - x)]!
+            : result.data[y * result.width + x]!;
+          sum += Math.abs(r - reference.data[y * reference.width + x]!);
+        }
+      return sum / (w * h);
+    };
+    // Upright, the result matches the drawn ticket far better than when turned 180°.
+    expect(diff(false)).toBeLessThan(diff(true) / 2);
+  });
+});
+
+describe('a scribbled-out correction does not hide the markers', () => {
+  // A solid black patch over one, two or three boxes (someone blacking out wrong digits). Two
+  // boxes make a near-square patch four times a marker's area, the hardest case for 6 mm markers.
+  it.each([1, 2, 3])('over %i box(es)', async (boxes) => {
+    const date = FIELDS.find((f) => f.key === 'date')!;
+    const x = FRAME_MM.x + date.box.x * FRAME_MM.width;
+    const y = FRAME_MM.y + date.box.y * FRAME_MM.height;
+    const patch = await sharp({
+      create: { width: px(boxes * 8), height: px(9), channels: 3, background: '#111111' },
+    })
+      .png()
+      .toBuffer();
+    const scan = await sharp(ticket)
+      .composite([{ input: patch, left: 60 + px(x), top: 60 + px(y) }])
+      .png()
+      .toBuffer();
+    const tilted = await sharp(scan).rotate(5, { background: '#c8c8c8' }).png().toBuffer();
+    const prepared = await prepareTicket(tilted, TEMPLATE_V1);
+    expect(prepared.markersFound).toBe(true);
+    expect(codes(prepared)).toEqual([]);
+  });
+});

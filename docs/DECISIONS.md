@@ -160,3 +160,34 @@ Names were the weakest field on Liam's tickets. The name decides who gets paid, 
 **What could go wrong.** If a shift leader wrote a wrong total, and both readings misread it as exactly the "right" one, the wrong total would be silently corrected to match the times. Hours would then follow the times, not what was written. This is unlikely but possible.
 
 **Re-check before go-live.** In the Phase 0 set, count how often this rule fires and whether any total it accepted differs from the truth. If any does, remove the rule.
+
+## D31 · T0.6 · How the Phase 0 runner grades
+
+- **The dangerous case** is a wrong value with no flag on its own box. A flag on the whole ticket (blurry scan, missing markers) does not count, because a reviewer cannot be expected to recheck every box of a blurry ticket. The one exception is the times: "the times do not add up" or "hours out of range" sends the reviewer to start, end and total together, so it covers all three.
+- **A missed crossed-out ticket** counts against the G0 gate, like a wrong date or time, because its hours would be paid.
+- **What the reviewer finds filled in** is the guess, or the value when no reading was in doubt (for example a corrected box). A box where the two readings disagreed, and no guess is agreed, counts as "no guess", even though one reading's value is kept.
+- **A failed reading** counts as "no guess" in all six boxes, because a person types the whole ticket.
+- **Comparison is by meaning**, using the same rules the system uses: 8:30 is 08:30, 10/11/2026 is 10/11/26, and names and workplaces are normalised.
+- **A misspelt workplace given its list name is right** (found on Liam's first real run: written "בית הורדם", accepted as the list's "בית הורדים"). It counts as right only when the writing resembles that entry and no other one; turning a misspelling into the proper name is what the list is for.
+- **The whole folder is one batch** for the "names from the same batch" step (D28), like one upload.
+- **Spending.** Without `--yes` the runner only checks the files and shows the estimated cost. With it, the runner stops starting new tickets at 1.5 times the estimate.
+- **Excel.** The truth file must be saved as "CSV UTF-8"; anything else is refused instead of garbling Hebrew. Seconds that Excel adds to times (08:30:00) are dropped. Output files start with the UTF-8 marker Excel needs, and text that looks like a formula is escaped.
+
+## D32 · Ticket · Narrower slip, smaller markers, 15 workplace boxes (Liam)
+
+Liam looked at the printed ticket and asked for these changes:
+
+- **Narrower slip.** Three quarters of A4's width (157.5 × 74.25 mm), still four per page, against the left edge; the 52 mm strip on the right is cut off. This replaces the slip size in D18.
+- **6 mm markers** (were 8 mm), about 44% less black ink. Not smaller: the marker search ignores any mark under a third of the largest dark mark, and a fully inked character box (8 × 9 mm) must not push the markers out. 5 mm would need a change to the search.
+- **15 workplace boxes** (were 18). To fit, character boxes are 8 mm wide (were 8.5 mm); height stays 9 mm.
+- **Less padding.** Labels sit right beside the boxes instead of in a wide margin; the example strip is centred at the top; the three time groups are 6 mm apart (were about 12 mm).
+- **Boxes keep 2 mm clear of the markers.** Found while testing: the scan's contrast stretch darkens the pale box lines, and a box 0.25 mm from a marker merged with it, so the marker was not found on tilted scans. A test now checks the clearance. The orientation check reads the new label column.
+- **Still `v1`.** Only test tickets have been printed; old printouts no longer match and should be thrown away.
+
+## D33 · Ticket · Two scan problems found while checking D32
+
+Liam asked for the new ticket (D32) to be checked. All tests passed, but the tests only used empty tickets, so filled-in and corrected tickets were simulated too.
+
+- **Filled-in tickets came out upside down.** The way up was decided by comparing the printed labels with the opposite side of the ticket. Dense handwriting there outweighed the labels, so every simulated filled ticket was turned 180°, with no warning. The cut-out boxes would then have shown the wrong fields. The way up now comes from the printed example strip (דנה, 08:30): turned 180° it would sit below the time boxes, where nothing is ever written. A test with heavy writing at four angles guards it.
+- **A scribbled-out correction hid the markers.** Blacking out two boxes makes a solid patch four times a 6 mm marker's area, and the marker search ignored marks under a third of the largest. It now tries again without the one or two largest patches. The four markers must still match each other in size, so a scribble can never stand in for one. One covered marker is still flagged.
+- **Old printouts are refused.** Scans of the previous layout raise `MARKERS_NOT_FOUND` instead of being cut up wrongly.
