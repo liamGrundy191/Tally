@@ -113,3 +113,9 @@ The AI now gives a best guess for every unclear box. The guess is always flagged
 A workplace is accepted only when both readings name the same entry and the handwriting resembles it. Anything else is flagged, so a nearby entry can never be forced onto the writing.
 
 Before handing it over, it was tested on Liam's tickets with a deliberately wrong list of workplaces. Every reading correctly answered "none of these", and the guesses for names and times matched what a careful human reading found (for example זכריה, and a start time of 02:50 that also makes the total add up).
+
+**Result with the real list.** With the agency's 32 workplaces, all four workplaces on Liam's test tickets were matched by both readings, up from none. Three went straight through. The fourth looked corrected on paper, so it is still shown to a person. No wrong value got through unflagged. One reading was confidently wrong about a name again, but the two readings disagreed, so it was flagged. Names remain the weak field.
+
+**A gap Liam found.** He asked what stops both readings from picking the same wrong entry when two places have similar names. The answer was "nothing", and his list already had such a pair (invented example: בית נוי and בית נוף). Now, when the handwriting also resembles a second entry, the workplace goes to a person even if both readings agree.
+
+**Cost.** Liam raised cost as a real factor. One run over four tickets costs about 8 cents per ticket. That makes "when does the cost outweigh the time saved" a question to measure, alongside accuracy.

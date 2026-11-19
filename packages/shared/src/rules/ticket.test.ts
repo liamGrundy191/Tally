@@ -460,7 +460,16 @@ describe('suggestions: best guesses for unclear boxes, never used as values', ()
 });
 
 describe('workplace list (D25)', () => {
-  const list = { usedWorkplaceList: true };
+  const list = {
+    knownWorkplaces: [
+      'משק ברזלי',
+      'הסנה הבוער',
+      'סופר פארם',
+      'שופרסל דיל',
+      'שופרסל אקספרס',
+      'רמי לוי',
+    ],
+  };
   const unreadableWorkplace = (suggestion: string | null, match: string | null) =>
     pass(
       { workplace: null },
@@ -547,6 +556,20 @@ describe('workplace list (D25)', () => {
       list,
     );
     expect(codes(r.flags)).toEqual(['CORRECTION_MARKS:workplace']);
+  });
+
+  it('flags when the handwriting also fits a second, similar entry on the list', () => {
+    const twins = { knownWorkplaces: ['בית נוי', 'בית נוף'] };
+    const r = checkExtraction(
+      pass({ workplace: 'בית נוי' }, { workplaceMatch: 'בית נוי' }),
+      pass({ workplace: 'בית נוי' }, { workplaceMatch: 'בית נוי' }),
+      settings,
+      twins,
+    );
+    expect(codes(r.flags)).toEqual(['WORKPLACE_AMBIGUOUS:workplace']);
+    expect(r.flags[0]!.detail).toEqual({ match: 'בית נוי', alsoFits: ['בית נוף'] });
+    expect(r.suggestions.workplace).toBe('בית נוי');
+    expect(r.workplaceFromList).toBe(false);
   });
 
   it('does nothing extra when no list was used', () => {

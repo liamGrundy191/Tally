@@ -157,6 +157,7 @@ Each step writes its result before the next starts and checks for its own saved 
 | `MARKERS_NOT_FOUND` / `IMAGE_BLURRY` / `IMAGE_DARK` | Pre-check failed                                                                                                               | "The scan is blurry"                                        |
 | `WORKPLACE_SIMILAR`                                 | The workplace is similar to, but not the same as, another in the job                                                           | "Is 'סופר-פארם' the same place as 'סופר פארם'?"             |
 | `WORKPLACE_NOT_ON_LIST`                             | A workplace list is in use and neither reading matches an entry (D25)                                                          | "Is 'X' a new workplace?"                                   |
+| `WORKPLACE_AMBIGUOUS`                               | Both readings match a list entry, but the writing also resembles another entry (D25)                                           | "Is this בית נוי or בית נוף?"                               |
 | `POSSIBLE_DUPLICATE`                                | See 5.2                                                                                                                        | "Same name, place, date and overlapping times as ticket 14" |
 | `EXTRACTION_ERROR`                                  | Extractor failed after retries                                                                                                 | "Could not read this ticket. Please type it in."            |
 

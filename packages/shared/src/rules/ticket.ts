@@ -60,8 +60,8 @@ function sameReading(field: FieldKey, a: string, b: string): boolean {
 }
 
 export interface ReconcileOptions {
-  /** True when the passes were given the agency's list of workplaces. */
-  usedWorkplaceList?: boolean;
+  /** The agency's list of workplaces, when the passes were given it. */
+  knownWorkplaces?: readonly string[];
 }
 
 /** Best guesses for flagged fields, for the reviewer to confirm. Never used as values. */
@@ -138,7 +138,8 @@ export function reconcilePasses(
   }
 
   let workplaceFromList = false;
-  if (opts.usedWorkplaceList) {
+  const list = opts.knownWorkplaces ?? [];
+  if (list.length > 0) {
     const ma = a.workplaceMatch;
     const mb = b.workplaceMatch;
     const written = [offered(a.fields.workplace), offered(b.fields.workplace)].filter(
@@ -146,12 +147,23 @@ export function reconcilePasses(
     );
     const isWorkplaceReading = (f: Flag) =>
       f.field === 'workplace' && (f.code === 'FIELD_UNREADABLE' || f.code === 'PASS_DISAGREEMENT');
-    if (
+    const agreed =
       ma !== null &&
       ma === mb &&
       written.length > 0 &&
-      written.every((t) => resemblesWorkplace(t, ma))
-    ) {
+      written.every((t) => resemblesWorkplace(t, ma));
+    // Handwriting that also fits another entry (בית נוי / בית נוף) could be either: a person decides.
+    const alsoFits = agreed
+      ? list.filter((e) => e !== ma && written.some((t) => resemblesWorkplace(t, e)))
+      : [];
+    if (agreed && alsoFits.length > 0) {
+      flags.push({
+        code: 'WORKPLACE_AMBIGUOUS',
+        field: 'workplace',
+        detail: { match: ma, alsoFits },
+      });
+      suggestions.workplace = ma!;
+    } else if (agreed) {
       flags = flags.filter((f) => !isWorkplaceReading(f));
       values.workplace = ma;
       delete suggestions.workplace;

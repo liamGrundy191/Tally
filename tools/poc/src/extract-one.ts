@@ -91,7 +91,7 @@ for (const [i, page] of pages.entries()) {
     b.result,
     settings,
     {
-      usedWorkplaceList: knownWorkplaces.length > 0,
+      knownWorkplaces,
     },
   );
   const show = (r: ExtractionSuccess, k: (typeof FIELD_KEYS)[number]) => {
