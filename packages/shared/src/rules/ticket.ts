@@ -11,6 +11,7 @@ import {
 } from './schemas.ts';
 import { isBlank, stripInvisible } from './text.ts';
 import { parseClock, parseDuration, shiftMinutes } from './time.ts';
+import { levenshtein } from './workplaces.ts';
 
 export interface RuleSettings {
   /** Today in the agency's time zone, YYYY-MM-DD (see `todayIn`). */
@@ -58,27 +59,70 @@ function sameReading(field: FieldKey, a: string, b: string): boolean {
   return key(a) === key(b);
 }
 
+export interface ReconcileOptions {
+  /** True when the passes were given the agency's list of workplaces. */
+  usedWorkplaceList?: boolean;
+}
+
+/** Best guesses for flagged fields, for the reviewer to confirm. Never used as values. */
+export type Suggestions = Partial<Record<FieldKey, string>>;
+
+/** What a pass offers for a field: its reading if legible, otherwise its suggestion. */
+const offered = (f: { value: string | null; legible: boolean; suggestion: string | null }) =>
+  f.legible ? f.value : f.suggestion;
+
+/** Does the handwriting plausibly spell this list entry? A few letters may differ. */
+export function resemblesWorkplace(written: string, entry: string): boolean {
+  const w = normaliseName(written);
+  const e = normaliseName(entry);
+  if (w === '' || e === '') return false;
+  return levenshtein(w, e) <= Math.max(2, Math.round(0.3 * [...e].length));
+}
+
 /**
  * Step 6, first half: combine the two independent passes. Never picks a winner silently: any
- * difference, any unreadable field, crossing-out or overwriting becomes a flag.
+ * difference, any unreadable field, crossing-out or overwriting becomes a flag. With a workplace
+ * list, both passes naming the same entry, with handwriting that resembles it, settles the
+ * workplace (D25); otherwise the workplace is flagged.
  */
 export function reconcilePasses(
   a: ExtractionResult,
   b: ExtractionResult,
-): { values: RawTicketValues; flags: Flag[] } {
-  const flags: Flag[] = [];
+  opts: ReconcileOptions = {},
+): {
+  values: RawTicketValues;
+  suggestions: Suggestions;
+  flags: Flag[];
+  workplaceFromList: boolean;
+} {
+  let flags: Flag[] = [];
   const values = {} as RawTicketValues;
+  const suggestions: Suggestions = {};
 
   for (const field of FIELD_KEYS) {
     const fa = a.fields[field];
     const fb = b.fields[field];
-    // A value from a pass that said "not legible" is a guess and is never used.
+    // A value from a pass that said "not legible" is a guess and is never used as a value.
     const va = fa.legible ? fa.value : null;
     const vb = fb.legible ? fb.value : null;
+    const disputed = () => {
+      const sa = offered(fa);
+      const sb = offered(fb);
+      if (!isBlank(sa) && !isBlank(sb)) {
+        if (sameReading(field, sa!, sb!)) suggestions[field] = sa!;
+      } else if (!isBlank(sa) || !isBlank(sb)) {
+        suggestions[field] = (isBlank(sa) ? sb : sa)!;
+      }
+    };
 
     if (!fa.legible || !fb.legible) {
-      flags.push({ code: 'FIELD_UNREADABLE', field, detail: { passA: va, passB: vb } });
+      flags.push({
+        code: 'FIELD_UNREADABLE',
+        field,
+        detail: { passA: va, passB: vb, suggestionA: fa.suggestion, suggestionB: fb.suggestion },
+      });
       values[field] = isBlank(va) ? (isBlank(vb) ? null : vb) : va;
+      disputed();
       continue;
     }
     if (isBlank(va) && isBlank(vb)) {
@@ -93,12 +137,46 @@ export function reconcilePasses(
     values[field] = va;
   }
 
+  let workplaceFromList = false;
+  if (opts.usedWorkplaceList) {
+    const ma = a.workplaceMatch;
+    const mb = b.workplaceMatch;
+    const written = [offered(a.fields.workplace), offered(b.fields.workplace)].filter(
+      (t): t is string => !isBlank(t),
+    );
+    const isWorkplaceReading = (f: Flag) =>
+      f.field === 'workplace' && (f.code === 'FIELD_UNREADABLE' || f.code === 'PASS_DISAGREEMENT');
+    if (
+      ma !== null &&
+      ma === mb &&
+      written.length > 0 &&
+      written.every((t) => resemblesWorkplace(t, ma))
+    ) {
+      flags = flags.filter((f) => !isWorkplaceReading(f));
+      values.workplace = ma;
+      delete suggestions.workplace;
+      workplaceFromList = true;
+    } else if (ma === null && mb === null) {
+      flags.push({ code: 'WORKPLACE_NOT_ON_LIST', field: 'workplace', detail: { written } });
+    } else {
+      if (!flags.some(isWorkplaceReading)) {
+        flags.push({
+          code: 'PASS_DISAGREEMENT',
+          field: 'workplace',
+          detail: { matchA: ma, matchB: mb },
+        });
+      }
+      if (ma === mb || ma === null || mb === null) suggestions.workplace = (ma ?? mb)!;
+      else delete suggestions.workplace;
+    }
+  }
+
   if (a.voided || b.voided) flags.push({ code: 'VOIDED_TICKET' });
   const overwritten = new Set([...a.overwrittenFields, ...b.overwrittenFields]);
   for (const field of FIELD_KEYS) {
     if (overwritten.has(field)) flags.push({ code: 'CORRECTION_MARKS', field });
   }
-  return { values, flags };
+  return { values, suggestions, flags, workplaceFromList };
 }
 
 /**
@@ -207,8 +285,13 @@ export function checkTicketValues(
  * Step 6 for a scanned ticket: reconcile both passes, then run the rule checks. A field already
  * flagged as unreadable or disputed is not flagged again as empty.
  */
-export function checkExtraction(a: ExtractionResult, b: ExtractionResult, settings: RuleSettings) {
-  const reconciled = reconcilePasses(a, b);
+export function checkExtraction(
+  a: ExtractionResult,
+  b: ExtractionResult,
+  settings: RuleSettings,
+  opts: ReconcileOptions = {},
+) {
+  const reconciled = reconcilePasses(a, b, opts);
   const checked = checkTicketValues(reconciled.values, settings);
   const disputed = new Set(
     reconciled.flags
@@ -219,5 +302,11 @@ export function checkExtraction(a: ExtractionResult, b: ExtractionResult, settin
     ...reconciled.flags,
     ...checked.flags.filter((f) => !(f.code === 'FIELD_EMPTY' && disputed.has(f.field))),
   ];
-  return { values: reconciled.values, fields: checked.fields, flags };
+  return {
+    values: reconciled.values,
+    fields: checked.fields,
+    suggestions: reconciled.suggestions,
+    workplaceFromList: reconciled.workplaceFromList,
+    flags,
+  };
 }

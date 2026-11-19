@@ -11,24 +11,40 @@ export const FIELD_KEYS = [
 export const FieldKeySchema = z.enum(FIELD_KEYS);
 export type FieldKey = z.infer<typeof FieldKeySchema>;
 
-/** One field as the extractor read it. `legible: false` is the honest answer when unsure. */
+/**
+ * One field as the extractor read it. `legible: false` is the honest answer when unsure; the
+ * best guess then goes in `suggestion`, which is shown to the reviewer and never used as a value.
+ */
 export const ExtractedFieldSchema = z.object({
   value: z.string().nullable(),
   legible: z.boolean(),
+  suggestion: z.string().nullable(),
 });
 
-/** What one extraction pass must return. Anything that does not validate is a failed attempt. */
-export const ExtractionResultSchema = z.object({
-  fields: z.object(
-    Object.fromEntries(FIELD_KEYS.map((k) => [k, ExtractedFieldSchema])) as Record<
-      FieldKey,
-      typeof ExtractedFieldSchema
-    >,
-  ),
-  voided: z.boolean(),
-  overwrittenFields: z.array(FieldKeySchema),
-});
-export type ExtractionResult = z.infer<typeof ExtractionResultSchema>;
+/**
+ * What one extraction pass must return. Anything that does not validate is a failed attempt.
+ * With a list of known workplaces, `workplaceMatch` must be one of its entries exactly (or null);
+ * without one it must be null.
+ */
+export function extractionResultSchema(knownWorkplaces: readonly string[] = []) {
+  const entries = [...new Set(knownWorkplaces)];
+  return z.object({
+    fields: z.object(
+      Object.fromEntries(FIELD_KEYS.map((k) => [k, ExtractedFieldSchema])) as Record<
+        FieldKey,
+        typeof ExtractedFieldSchema
+      >,
+    ),
+    voided: z.boolean(),
+    overwrittenFields: z.array(FieldKeySchema),
+    workplaceMatch:
+      entries.length > 0 ? z.enum(entries as [string, ...string[]]).nullable() : z.null(),
+  });
+}
+export const ExtractionResultSchema = extractionResultSchema();
+export type ExtractionResult = Omit<z.infer<typeof ExtractionResultSchema>, 'workplaceMatch'> & {
+  workplaceMatch: string | null;
+};
 
 export const FLAG_CODES = [
   'PASS_DISAGREEMENT',
@@ -47,6 +63,7 @@ export const FLAG_CODES = [
   'IMAGE_BLURRY',
   'IMAGE_DARK',
   'WORKPLACE_SIMILAR',
+  'WORKPLACE_NOT_ON_LIST',
   'POSSIBLE_DUPLICATE',
   'EXTRACTION_ERROR',
 ] as const;

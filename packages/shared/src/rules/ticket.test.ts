@@ -35,18 +35,25 @@ function pass(
     unreadable?: (keyof RawTicketValues)[];
     voided?: boolean;
     overwritten?: (keyof RawTicketValues)[];
+    suggestions?: Partial<RawTicketValues>;
+    workplaceMatch?: string | null;
   } = {},
 ): ExtractionResult {
   const all = { ...goodValues, ...values };
   return {
     fields: Object.fromEntries(
-      Object.entries(all).map(([k, v]) => [
-        k,
-        { value: v, legible: !extra.unreadable?.includes(k as keyof RawTicketValues) },
-      ]),
+      Object.entries(all).map(([k, v]) => {
+        const key = k as keyof RawTicketValues;
+        const legible = !extra.unreadable?.includes(key);
+        return [
+          k,
+          { value: v, legible, suggestion: legible ? null : (extra.suggestions?.[key] ?? null) },
+        ];
+      }),
     ) as ExtractionResult['fields'],
     voided: extra.voided ?? false,
     overwrittenFields: extra.overwritten ?? [],
+    workplaceMatch: extra.workplaceMatch ?? null,
   };
 }
 
@@ -414,6 +421,136 @@ describe('SCRIPT_UNEXPECTED: a name that is not plain Hebrew or English', () => 
 
   it('does not check the workplace (brand names may be anything)', () => {
     expect(check({ workplace: 'H&M 3' })).toEqual([]);
+  });
+});
+
+describe('suggestions: best guesses for unclear boxes, never used as values', () => {
+  it('passes on a suggestion both readings agree on', () => {
+    const r = checkExtraction(
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זכריה' } }),
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זכריה' } }),
+      settings,
+    );
+    expect(r.suggestions).toEqual({ firstName: 'זכריה' });
+    expect(r.fields.firstName).toBeNull(); // still empty until a person confirms
+    expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:firstName']);
+  });
+
+  it('passes on the only suggestion when one reading has none', () => {
+    const r = reconcilePasses(
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זכריה' } }),
+      pass({ firstName: null }, { unreadable: ['firstName'] }),
+    );
+    expect(r.suggestions).toEqual({ firstName: 'זכריה' });
+  });
+
+  it('offers no suggestion when the two guesses differ, but keeps both for the reviewer', () => {
+    const r = reconcilePasses(
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זכריה' } }),
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'לכריה' } }),
+    );
+    expect(r.suggestions).toEqual({});
+    expect(r.flags[0]!.detail).toMatchObject({ suggestionA: 'זכריה', suggestionB: 'לכריה' });
+  });
+
+  it('uses the clear reading of one pass as the suggestion when the other could not read it', () => {
+    const r = reconcilePasses(pass(), pass({ endTime: null }, { unreadable: ['endTime'] }));
+    expect(r.suggestions).toEqual({ endTime: '16:30' });
+  });
+});
+
+describe('workplace list (D25)', () => {
+  const list = { usedWorkplaceList: true };
+  const unreadableWorkplace = (suggestion: string | null, match: string | null) =>
+    pass(
+      { workplace: null },
+      { unreadable: ['workplace'], suggestions: { workplace: suggestion }, workplaceMatch: match },
+    );
+
+  it('accepts the workplace when both readings pick the same entry and the writing resembles it', () => {
+    const r = checkExtraction(
+      unreadableWorkplace('משק בר?לי', 'משק ברזלי'),
+      unreadableWorkplace('משק ברזלי', 'משק ברזלי'),
+      settings,
+      list,
+    );
+    expect(r.flags).toEqual([]);
+    expect(r.fields.workplace).toBe('משק ברזלי');
+    expect(r.workplaceFromList).toBe(true);
+  });
+
+  it('accepts a clearly read workplace that matches an entry', () => {
+    const r = checkExtraction(
+      pass({}, { workplaceMatch: 'סופר פארם' }),
+      pass({ workplace: 'סופר-פארם' }, { workplaceMatch: 'סופר פארם' }),
+      settings,
+      list,
+    );
+    expect(r.flags).toEqual([]);
+    expect(r.fields.workplace).toBe('סופר פארם');
+  });
+
+  it('flags when the readings pick different entries', () => {
+    const r = checkExtraction(
+      unreadableWorkplace('שופרסל', 'שופרסל דיל'),
+      unreadableWorkplace('שופרסל', 'שופרסל אקספרס'),
+      settings,
+      list,
+    );
+    expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:workplace']);
+    expect(r.suggestions.workplace).toBeUndefined();
+  });
+
+  it('flags when only one reading picks an entry, and suggests it', () => {
+    const r = checkExtraction(
+      unreadableWorkplace('רמי לוי', 'רמי לוי'),
+      unreadableWorkplace(null, null),
+      settings,
+      list,
+    );
+    expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:workplace']);
+    expect(r.suggestions.workplace).toBe('רמי לוי');
+  });
+
+  it('flags when both pick an entry the handwriting does not resemble (no forced matches)', () => {
+    const r = checkExtraction(
+      unreadableWorkplace('הסנה הבוער', 'משק ברזלי'),
+      unreadableWorkplace('הסנה הבוער', 'משק ברזלי'),
+      settings,
+      list,
+    );
+    expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:workplace']);
+    expect(r.fields.workplace).toBeNull();
+  });
+
+  it('flags when both pick an entry but neither offers any reading of the handwriting', () => {
+    const r = checkExtraction(
+      unreadableWorkplace(null, 'משק ברזלי'),
+      unreadableWorkplace(null, 'משק ברזלי'),
+      settings,
+      list,
+    );
+    expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:workplace']);
+    expect(r.suggestions.workplace).toBe('משק ברזלי');
+  });
+
+  it('flags a workplace that is not on the list as possibly new', () => {
+    const r = checkExtraction(pass(), pass(), settings, list);
+    expect(codes(r.flags)).toEqual(['WORKPLACE_NOT_ON_LIST:workplace']);
+  });
+
+  it('keeps an overwritten workplace flagged even when it matches', () => {
+    const r = checkExtraction(
+      pass({}, { workplaceMatch: 'סופר פארם', overwritten: ['workplace'] }),
+      pass({}, { workplaceMatch: 'סופר פארם' }),
+      settings,
+      list,
+    );
+    expect(codes(r.flags)).toEqual(['CORRECTION_MARKS:workplace']);
+  });
+
+  it('does nothing extra when no list was used', () => {
+    expect(checkExtraction(pass(), pass(), settings).flags).toEqual([]);
   });
 });
 

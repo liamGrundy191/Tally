@@ -17,7 +17,7 @@ This system turns scanned tickets into those Excel sheets. The AI reads the tick
 ### 1.1 Principles (non-negotiable)
 
 1. **No silent guesses.** A value reaches an export only if it passed every rule check, was confirmed by a person, was typed by a person, or was imported from an earlier export. Anything else is flagged with a specific, plain-language reason.
-2. **"Unreadable" is a valid answer.** The extractor returns `legible: false` rather than its best guess. Prompts, schemas and code must make that the easy path.
+2. **"Unreadable" is a valid answer.** The extractor returns `legible: false` rather than its best guess. Prompts, schemas and code must make that the easy path. It may add its best guess as a separate `suggestion`, which is shown to the reviewer and never used as a value (D24).
 3. **Never merge people.** Each ticket is one row in the output. The system never decides that two tickets belong to the same worker and never combines them.
 4. **One ticket never breaks a batch.** Every ticket is processed independently. A failure becomes a ticket that needs manual entry, never a failed request.
 5. **Nothing is lost while a job is open.** Original files are immutable until the job is closed. All state lives in Postgres, so any process can crash and resume.
@@ -156,6 +156,7 @@ Each step writes its result before the next starts and checks for its own saved 
 | `SCRIPT_UNEXPECTED`                                 | The name has characters that are not Hebrew or English letters (digits, other alphabets, symbols), or mixes Hebrew and English | "The name contains a digit — check the reading"             |
 | `MARKERS_NOT_FOUND` / `IMAGE_BLURRY` / `IMAGE_DARK` | Pre-check failed                                                                                                               | "The scan is blurry"                                        |
 | `WORKPLACE_SIMILAR`                                 | The workplace is similar to, but not the same as, another in the job                                                           | "Is 'סופר-פארם' the same place as 'סופר פארם'?"             |
+| `WORKPLACE_NOT_ON_LIST`                             | A workplace list is in use and neither reading matches an entry (D25)                                                          | "Is 'X' a new workplace?"                                   |
 | `POSSIBLE_DUPLICATE`                                | See 5.2                                                                                                                        | "Same name, place, date and overlapping times as ticket 14" |
 | `EXTRACTION_ERROR`                                  | Extractor failed after retries                                                                                                 | "Could not read this ticket. Please type it in."            |
 
@@ -189,6 +190,8 @@ Each ticket is one output row. There is no worker table.
 The system never chooses for the user.
 
 ### 5.3 Workplaces: grouped, with confirmation for similar spellings
+
+- The agency's list of workplaces is given to the extractor (D25). When both readings name the same list entry and the handwriting resembles it, the workplace is that entry; otherwise it is flagged, and a workplace on no list is flagged as possibly new.
 
 - Workplaces with the same normalised name are grouped automatically.
 - A workplace whose normalised name is similar to another group's (Levenshtein distance ≤ 2, or one contains the other) raises `WORKPLACE_SIMILAR`. The user chooses **Same place** (merge, choosing the display name) or **Different place**. The decision applies to every ticket in both groups.

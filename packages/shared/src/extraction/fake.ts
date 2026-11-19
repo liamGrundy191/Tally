@@ -35,7 +35,7 @@ export class FakeExtractor implements TicketExtractor {
       throw new ExtractionError('invalid_output', `Prepared answer is not JSON: ${file.pathname}`);
     }
     return {
-      result: validateAnswer(answer),
+      result: validateAnswer(answer, input.knownWorkplaces),
       model: 'fake',
       promptVersion: PROMPT_VERSION,
       usage: { inputTokens: 0, outputTokens: 0 },

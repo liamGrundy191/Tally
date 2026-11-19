@@ -11,3 +11,6 @@ tickets-v1.pdf
 
 # Output of pnpm crops / pnpm extract (may contain real ticket images)
 scan-output/
+
+# The agency's workplace list (client names): stays local
+workplaces.txt
