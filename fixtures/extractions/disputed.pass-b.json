@@ -33,5 +33,6 @@
   },
   "voided": false,
   "overwrittenFields": [],
-  "workplaceMatch": null
+  "workplaceMatch": null,
+  "nameMatch": null
 }

@@ -78,7 +78,7 @@ describe('prepared answers through the T0.3 checks', () => {
 });
 
 describe('the two prompts', () => {
-  it.each(['A', 'B'] as const)('pass %s tells the model the essentials', (pass) => {
+  it.each(['A', 'B', 'C'] as const)('pass %s tells the model the essentials', (pass) => {
     const prompt = loadPrompt(pass);
     expect(prompt).toContain('"legible": false'); // unreadable instead of guessing
     expect(prompt).toContain('`voided`'); // crossed-out tickets
@@ -87,10 +87,11 @@ describe('the two prompts', () => {
     expect(prompt).toContain('דנה'); // the printed example is not a value
     expect(prompt).toContain('`suggestion`'); // best guess for unclear boxes, never the value
     expect(prompt).toContain('`workplaceMatch`'); // only an exact list entry, or null
+    expect(prompt).toContain('`nameMatch`'); // the same for names
   });
 
-  it('are worded differently, so the two readings are independent', () => {
-    expect(loadPrompt('A')).not.toBe(loadPrompt('B'));
+  it('are worded differently, so the readings are independent', () => {
+    expect(new Set([loadPrompt('A'), loadPrompt('B'), loadPrompt('C')]).size).toBe(3);
   });
 });
 
@@ -131,6 +132,14 @@ describe('the request sent to the model', () => {
     expect(content.filter((b) => b.type === 'image')).toHaveLength(1);
   });
 
+  it('pass C has its own wording and reads the whole ticket', () => {
+    const crops = Object.fromEntries(TEMPLATE_V1.fields.map((f) => [f.key, image]));
+    const req = buildRequest(input('t1', { crops }), TEMPLATE_V1, 'C', 'claude-opus-5-5');
+    expect(req.system).toBe(loadPrompt('C'));
+    const content = req.messages[0]!.content as Anthropic.ContentBlockParam[];
+    expect(content.filter((b) => b.type === 'image')).toHaveLength(1);
+  });
+
   it('pass A ignores crops and always sends the whole ticket', () => {
     const crops = { firstName: image };
     const req = buildRequest(input('t1', { crops }), TEMPLATE_V1, 'A', 'claude-opus-5-5');
@@ -163,6 +172,7 @@ describe('the workplace list', () => {
     voided: false,
     overwrittenFields: [],
     workplaceMatch: match,
+    nameMatch: null,
   });
 
   it('is sent with the request, one entry per line', () => {
@@ -174,17 +184,36 @@ describe('the workplace list', () => {
   });
 
   it('limits the answer format to the list entries or null', () => {
-    const schema = JSON.stringify(answerFormat(list).schema);
+    const schema = JSON.stringify(answerFormat({ workplaces: list }).schema);
     expect(schema).toContain('"enum":["משק ברזלי","הסנה הבוער"]');
   });
 
   it('accepts an exact list entry or null', () => {
-    expect(validateAnswer(answer('משק ברזלי'), list).workplaceMatch).toBe('משק ברזלי');
-    expect(validateAnswer(answer(null), list).workplaceMatch).toBeNull();
+    expect(validateAnswer(answer('משק ברזלי'), { workplaces: list }).workplaceMatch).toBe(
+      'משק ברזלי',
+    );
+    expect(validateAnswer(answer(null), { workplaces: list }).workplaceMatch).toBeNull();
   });
 
   it('rejects a workplace match that is not on the list (a failed attempt)', () => {
-    expect(() => validateAnswer(answer('משק ברזל'), list)).toThrow(ExtractionError);
+    expect(() => validateAnswer(answer('משק ברזל'), { workplaces: list })).toThrow(ExtractionError);
+  });
+
+  it('sends the names list too, and limits nameMatch to it', () => {
+    const req = buildRequest(
+      input('t1', { knownNames: ['זכריה', 'מוברטו'] }),
+      TEMPLATE_V1,
+      'A',
+      'm',
+    );
+    const text = (req.messages[0]!.content as Anthropic.ContentBlockParam[]).find(
+      (b) => b.type === 'text',
+    ) as Anthropic.TextBlockParam;
+    expect(text.text).toContain(['- זכריה', '- מוברטו'].join(String.fromCharCode(10)));
+    expect(text.text).toContain('workplaceMatch must be null');
+    const named = { ...answer(null), nameMatch: 'זכריה' };
+    expect(validateAnswer(named, { names: ['זכריה'] }).nameMatch).toBe('זכריה');
+    expect(() => validateAnswer(named, { workplaces: list })).toThrow(ExtractionError);
   });
 
   it('rejects any workplace match when no list was given', () => {
@@ -219,6 +248,7 @@ describe('AnthropicExtractor (with a stand-in client, no network)', () => {
     voided: false,
     overwrittenFields: [],
     workplaceMatch: null,
+    nameMatch: null,
   };
 
   it('returns the validated answer, the model that answered, and token usage', async () => {

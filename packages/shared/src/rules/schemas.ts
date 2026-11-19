@@ -22,12 +22,25 @@ export const ExtractedFieldSchema = z.object({
 });
 
 /**
- * What one extraction pass must return. Anything that does not validate is a failed attempt.
- * With a list of known workplaces, `workplaceMatch` must be one of its entries exactly (or null);
- * without one it must be null.
+ * The lists the reader may match handwriting against: the agency's workplaces (D25) and the
+ * first names the user uploaded plus clear names from the same batch (D28).
  */
-export function extractionResultSchema(knownWorkplaces: readonly string[] = []) {
-  const entries = [...new Set(knownWorkplaces)];
+export interface KnownLists {
+  workplaces?: readonly string[];
+  names?: readonly string[];
+}
+
+/** An exact entry of the list or null; always null when there is no list. */
+function listMatch(list: readonly string[] = []) {
+  const entries = [...new Set(list)];
+  return entries.length > 0 ? z.enum(entries as [string, ...string[]]).nullable() : z.null();
+}
+
+/**
+ * What one extraction pass must return. Anything that does not validate is a failed attempt.
+ * `workplaceMatch` and `nameMatch` must be exact list entries (or null).
+ */
+export function extractionResultSchema(lists: KnownLists = {}) {
   return z.object({
     fields: z.object(
       Object.fromEntries(FIELD_KEYS.map((k) => [k, ExtractedFieldSchema])) as Record<
@@ -37,13 +50,17 @@ export function extractionResultSchema(knownWorkplaces: readonly string[] = []) 
     ),
     voided: z.boolean(),
     overwrittenFields: z.array(FieldKeySchema),
-    workplaceMatch:
-      entries.length > 0 ? z.enum(entries as [string, ...string[]]).nullable() : z.null(),
+    workplaceMatch: listMatch(lists.workplaces),
+    nameMatch: listMatch(lists.names),
   });
 }
 export const ExtractionResultSchema = extractionResultSchema();
-export type ExtractionResult = Omit<z.infer<typeof ExtractionResultSchema>, 'workplaceMatch'> & {
+export type ExtractionResult = Omit<
+  z.infer<typeof ExtractionResultSchema>,
+  'workplaceMatch' | 'nameMatch'
+> & {
   workplaceMatch: string | null;
+  nameMatch: string | null;
 };
 
 export const FLAG_CODES = [
@@ -64,7 +81,7 @@ export const FLAG_CODES = [
   'IMAGE_DARK',
   'WORKPLACE_SIMILAR',
   'WORKPLACE_NOT_ON_LIST',
-  'WORKPLACE_AMBIGUOUS',
+  'MATCH_AMBIGUOUS',
   'POSSIBLE_DUPLICATE',
   'EXTRACTION_ERROR',
 ] as const;

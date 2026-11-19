@@ -62,6 +62,10 @@ function sameReading(field: FieldKey, a: string, b: string): boolean {
 export interface ReconcileOptions {
   /** The agency's list of workplaces, when the passes were given it. */
   knownWorkplaces?: readonly string[];
+  /** The known first names, when the passes were given them (D28). */
+  knownNames?: readonly string[];
+  /** The tie-break read (pass C, D27). It only improves suggestions; it never settles a field. */
+  thirdRead?: ExtractionResult;
 }
 
 /** Best guesses for flagged fields, for the reviewer to confirm. Never used as values. */
@@ -72,18 +76,21 @@ const offered = (f: { value: string | null; legible: boolean; suggestion: string
   f.legible ? f.value : f.suggestion;
 
 /** Does the handwriting plausibly spell this list entry? A few letters may differ. */
-export function resemblesWorkplace(written: string, entry: string): boolean {
+export function resemblesEntry(written: string, entry: string): boolean {
   const w = normaliseName(written);
   const e = normaliseName(entry);
   if (w === '' || e === '') return false;
   return levenshtein(w, e) <= Math.max(2, Math.round(0.3 * [...e].length));
 }
 
+const isReadingFlag = (field: FieldKey) => (f: Flag) =>
+  f.field === field && (f.code === 'FIELD_UNREADABLE' || f.code === 'PASS_DISAGREEMENT');
+
 /**
  * Step 6, first half: combine the two independent passes. Never picks a winner silently: any
- * difference, any unreadable field, crossing-out or overwriting becomes a flag. With a workplace
- * list, both passes naming the same entry, with handwriting that resembles it, settles the
- * workplace (D25); otherwise the workplace is flagged.
+ * difference, any unreadable field, crossing-out or overwriting becomes a flag. With a list,
+ * both passes naming the same entry, with handwriting that resembles it and no other entry,
+ * settles the workplace (D25) or the name (D28); otherwise the field is flagged.
  */
 export function reconcilePasses(
   a: ExtractionResult,
@@ -94,10 +101,12 @@ export function reconcilePasses(
   suggestions: Suggestions;
   flags: Flag[];
   workplaceFromList: boolean;
+  nameFromList: boolean;
 } {
   let flags: Flag[] = [];
   const values = {} as RawTicketValues;
   const suggestions: Suggestions = {};
+  const c = opts.thirdRead;
 
   for (const field of FIELD_KEYS) {
     const fa = a.fields[field];
@@ -105,21 +114,29 @@ export function reconcilePasses(
     // A value from a pass that said "not legible" is a guess and is never used as a value.
     const va = fa.legible ? fa.value : null;
     const vb = fb.legible ? fb.value : null;
+    // Suggest a reading two reads agree on; with a single reading, that one; otherwise none.
     const disputed = () => {
-      const sa = offered(fa);
-      const sb = offered(fb);
-      if (!isBlank(sa) && !isBlank(sb)) {
-        if (sameReading(field, sa!, sb!)) suggestions[field] = sa!;
-      } else if (!isBlank(sa) || !isBlank(sb)) {
-        suggestions[field] = (isBlank(sa) ? sb : sa)!;
-      }
+      const offers = [fa, fb, ...(c ? [c.fields[field]] : [])]
+        .map(offered)
+        .filter((o): o is string => !isBlank(o));
+      const agreed = offers.find((x, i) =>
+        offers.some((y, j) => j > i && sameReading(field, x, y)),
+      );
+      if (agreed !== undefined) suggestions[field] = agreed;
+      else if (offers.length === 1) suggestions[field] = offers[0]!;
     };
 
     if (!fa.legible || !fb.legible) {
       flags.push({
         code: 'FIELD_UNREADABLE',
         field,
-        detail: { passA: va, passB: vb, suggestionA: fa.suggestion, suggestionB: fb.suggestion },
+        detail: {
+          passA: va,
+          passB: vb,
+          suggestionA: fa.suggestion,
+          suggestionB: fb.suggestion,
+          ...(c ? { passC: offered(c.fields[field]) } : {}),
+        },
       });
       values[field] = isBlank(va) ? (isBlank(vb) ? null : vb) : va;
       disputed();
@@ -130,65 +147,74 @@ export function reconcilePasses(
       continue;
     }
     if (isBlank(va) || isBlank(vb) || !sameReading(field, va!, vb!)) {
-      flags.push({ code: 'PASS_DISAGREEMENT', field, detail: { passA: va, passB: vb } });
+      flags.push({
+        code: 'PASS_DISAGREEMENT',
+        field,
+        detail: { passA: va, passB: vb, ...(c ? { passC: offered(c.fields[field]) } : {}) },
+      });
       values[field] = isBlank(va) ? vb : va;
+      if (c) disputed();
       continue;
     }
     values[field] = va;
   }
 
-  let workplaceFromList = false;
-  const list = opts.knownWorkplaces ?? [];
-  if (list.length > 0) {
-    const ma = a.workplaceMatch;
-    const mb = b.workplaceMatch;
-    const written = [offered(a.fields.workplace), offered(b.fields.workplace)].filter(
+  /** Settles a field from a list when both passes name the same fitting entry. */
+  const settleFromList = (
+    field: 'workplace' | 'firstName',
+    ma: string | null,
+    mb: string | null,
+    list: readonly string[],
+  ): boolean => {
+    if (list.length === 0) return false;
+    const written = [offered(a.fields[field]), offered(b.fields[field])].filter(
       (t): t is string => !isBlank(t),
     );
-    const isWorkplaceReading = (f: Flag) =>
-      f.field === 'workplace' && (f.code === 'FIELD_UNREADABLE' || f.code === 'PASS_DISAGREEMENT');
     const agreed =
-      ma !== null &&
-      ma === mb &&
-      written.length > 0 &&
-      written.every((t) => resemblesWorkplace(t, ma));
+      ma !== null && ma === mb && written.length > 0 && written.every((t) => resemblesEntry(t, ma));
     // Handwriting that also fits another entry (בית נוי / בית נוף) could be either: a person decides.
     const alsoFits = agreed
-      ? list.filter((e) => e !== ma && written.some((t) => resemblesWorkplace(t, e)))
+      ? list.filter((e) => e !== ma && written.some((t) => resemblesEntry(t, e)))
       : [];
     if (agreed && alsoFits.length > 0) {
-      flags.push({
-        code: 'WORKPLACE_AMBIGUOUS',
-        field: 'workplace',
-        detail: { match: ma, alsoFits },
-      });
-      suggestions.workplace = ma!;
-    } else if (agreed) {
-      flags = flags.filter((f) => !isWorkplaceReading(f));
-      values.workplace = ma;
-      delete suggestions.workplace;
-      workplaceFromList = true;
-    } else if (ma === null && mb === null) {
-      flags.push({ code: 'WORKPLACE_NOT_ON_LIST', field: 'workplace', detail: { written } });
-    } else {
-      if (!flags.some(isWorkplaceReading)) {
-        flags.push({
-          code: 'PASS_DISAGREEMENT',
-          field: 'workplace',
-          detail: { matchA: ma, matchB: mb },
-        });
-      }
-      if (ma === mb || ma === null || mb === null) suggestions.workplace = (ma ?? mb)!;
-      else delete suggestions.workplace;
+      flags.push({ code: 'MATCH_AMBIGUOUS', field, detail: { match: ma, alsoFits } });
+      suggestions[field] = ma!;
+      return false;
     }
-  }
+    if (agreed) {
+      flags = flags.filter((f) => !isReadingFlag(field)(f));
+      values[field] = ma;
+      delete suggestions[field];
+      return true;
+    }
+    if (ma === null && mb === null) {
+      // A new name is normal (workers change); a new workplace is worth asking about.
+      if (field === 'workplace') {
+        flags.push({ code: 'WORKPLACE_NOT_ON_LIST', field, detail: { written } });
+      }
+      return false;
+    }
+    if (!flags.some(isReadingFlag(field))) {
+      flags.push({ code: 'PASS_DISAGREEMENT', field, detail: { matchA: ma, matchB: mb } });
+    }
+    if (ma === mb || ma === null || mb === null) suggestions[field] = (ma ?? mb)!;
+    else delete suggestions[field];
+    return false;
+  };
+  const workplaceFromList = settleFromList(
+    'workplace',
+    a.workplaceMatch,
+    b.workplaceMatch,
+    opts.knownWorkplaces ?? [],
+  );
+  const nameFromList = settleFromList('firstName', a.nameMatch, b.nameMatch, opts.knownNames ?? []);
 
   if (a.voided || b.voided) flags.push({ code: 'VOIDED_TICKET' });
   const overwritten = new Set([...a.overwrittenFields, ...b.overwrittenFields]);
   for (const field of FIELD_KEYS) {
     if (overwritten.has(field)) flags.push({ code: 'CORRECTION_MARKS', field });
   }
-  return { values, suggestions, flags, workplaceFromList };
+  return { values, suggestions, flags, workplaceFromList, nameFromList };
 }
 
 /**
@@ -319,6 +345,71 @@ export function checkExtraction(
     fields: checked.fields,
     suggestions: reconciled.suggestions,
     workplaceFromList: reconciled.workplaceFromList,
+    nameFromList: reconciled.nameFromList,
     flags,
+  };
+}
+
+/** A ticket after `checkExtraction`. */
+export type CheckedTicket = ReturnType<typeof checkExtraction>;
+
+/** Fields the two passes could not settle; these get the tie-break read (pass C, D27). */
+export const unclearFields = (t: CheckedTicket): FieldKey[] => [
+  ...new Set(
+    t.flags
+      .filter((f) => f.code === 'FIELD_UNREADABLE' || f.code === 'PASS_DISAGREEMENT')
+      .map((f) => f.field!),
+  ),
+];
+
+/**
+ * A name another ticket in the same batch can be matched against (D28): no rule raised any
+ * doubt about it, so both passes agreed on it or a list settled it.
+ */
+export function trustedName(t: CheckedTicket): string | null {
+  if (t.flags.some((f) => f.field === 'firstName' || f.code === 'VOIDED_TICKET')) return null;
+  return isBlank(t.fields.firstName) ? null : t.fields.firstName;
+}
+
+/**
+ * Clear names from the batch that this ticket's unclear name might be, and that were not on the
+ * list it was read with. When there are any, the ticket is read again with them on the list.
+ * A name with correction marks stays with a person, so it gets no second look.
+ */
+export function batchNameCandidates(
+  a: ExtractionResult,
+  b: ExtractionResult,
+  t: CheckedTicket,
+  batchNames: readonly string[],
+  knownNames: readonly string[] = [],
+): string[] {
+  if (!t.flags.some(isReadingFlag('firstName'))) return [];
+  if (t.flags.some((f) => f.field === 'firstName' && f.code === 'CORRECTION_MARKS')) return [];
+  const written = [offered(a.fields.firstName), offered(b.fields.firstName)].filter(
+    (n): n is string => !isBlank(n),
+  );
+  return [...new Set(batchNames)].filter(
+    (n) => !knownNames.includes(n) && written.some((w) => resemblesEntry(w, n)),
+  );
+}
+
+/**
+ * Takes the name from the second look only when both of its passes settled it from the list;
+ * every other field and flag stays as the first reading found it.
+ */
+export function withRetriedName(first: CheckedTicket, retry: CheckedTicket): CheckedTicket {
+  if (!retry.nameFromList) return first;
+  const suggestions = { ...first.suggestions };
+  delete suggestions.firstName;
+  return {
+    ...first,
+    values: { ...first.values, firstName: retry.values.firstName },
+    fields: { ...first.fields, firstName: retry.fields.firstName },
+    suggestions,
+    nameFromList: true,
+    flags: [
+      ...first.flags.filter((f) => f.field !== 'firstName'),
+      ...retry.flags.filter((f) => f.field === 'firstName'),
+    ],
   };
 }

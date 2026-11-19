@@ -7,6 +7,7 @@ import {
   ExtractionError,
   PROMPT_VERSION,
   type TicketExtractor,
+  listsOf,
   validateAnswer,
 } from './extractor.ts';
 
@@ -35,7 +36,7 @@ export class FakeExtractor implements TicketExtractor {
       throw new ExtractionError('invalid_output', `Prepared answer is not JSON: ${file.pathname}`);
     }
     return {
-      result: validateAnswer(answer, input.knownWorkplaces),
+      result: validateAnswer(answer, listsOf(input)),
       model: 'fake',
       promptVersion: PROMPT_VERSION,
       usage: { inputTokens: 0, outputTokens: 0 },

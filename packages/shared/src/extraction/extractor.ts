@@ -2,13 +2,19 @@
 import type Anthropic from '@anthropic-ai/sdk';
 import { zodOutputFormat } from '@anthropic-ai/sdk/helpers/zod';
 import { readFileSync } from 'node:fs';
-import { type ExtractionResult, type FieldKey, extractionResultSchema } from '../rules/schemas.ts';
+import {
+  type ExtractionResult,
+  type FieldKey,
+  type KnownLists,
+  extractionResultSchema,
+} from '../rules/schemas.ts';
 import type { TemplateField, TicketTemplate } from '../templates/v1.ts';
 
 /** Bump when a prompt file changes, and add a new prompts/vN folder; never edit an old version. */
-export const PROMPT_VERSION = 'v2';
+export const PROMPT_VERSION = 'v3';
 
-export type ExtractionPass = 'A' | 'B';
+/** A and B are the two independent readings; C is the tie-break read for unclear fields (D27). */
+export type ExtractionPass = 'A' | 'B' | 'C';
 
 export interface TicketImage {
   data: Buffer;
@@ -24,7 +30,14 @@ export interface ExtractionInput {
   crops?: Partial<Record<FieldKey, TicketImage>>;
   /** The agency's workplaces; the model may only name one of these as `workplaceMatch`. */
   knownWorkplaces?: readonly string[];
+  /** Known first names (uploaded list plus clear names from the batch, D28), for `nameMatch`. */
+  knownNames?: readonly string[];
 }
+
+export const listsOf = (input: ExtractionInput): KnownLists => ({
+  workplaces: input.knownWorkplaces,
+  names: input.knownNames,
+});
 
 export interface ExtractionSuccess {
   result: ExtractionResult;
@@ -68,8 +81,8 @@ export function loadPrompt(pass: ExtractionPass): string {
 }
 
 /** The answer format the model is held to, generated from the same schema the rules use. */
-export const answerFormat = (knownWorkplaces: readonly string[] = []) =>
-  zodOutputFormat(extractionResultSchema(knownWorkplaces));
+export const answerFormat = (lists: KnownLists = {}) =>
+  zodOutputFormat(extractionResultSchema(lists));
 
 function describeField(f: TemplateField): string {
   const boxes = [...f.pattern].filter((c) => c !== '/' && c !== ':').length;
@@ -89,17 +102,19 @@ export function buildRequest(
   pass: ExtractionPass,
   model: string,
 ) {
-  const workplaces = input.knownWorkplaces ?? [];
+  const list = (entries: readonly string[] = [], what: string, key: string) =>
+    entries.length > 0
+      ? [
+          '',
+          `Known ${what} (for ${key}, copy one exactly or use null):`,
+          ...entries.map((e) => `- ${e}`),
+        ]
+      : ['', `No list of known ${what} is given: ${key} must be null.`];
   const fieldList = [
     `Ticket template ${template.version}. Fields:`,
     ...template.fields.map(describeField),
-    '',
-    ...(workplaces.length > 0
-      ? [
-          'Known workplaces (for workplaceMatch, copy one exactly or use null):',
-          ...workplaces.map((w) => `- ${w}`),
-        ]
-      : ['No list of known workplaces is given: workplaceMatch must be null.']),
+    ...list(input.knownWorkplaces, 'workplaces', 'workplaceMatch'),
+    ...list(input.knownNames, 'first names', 'nameMatch'),
   ].join('\n');
   const useCrops =
     pass === 'B' && input.crops !== undefined && template.fields.every((f) => input.crops![f.key]);
@@ -122,16 +137,13 @@ export function buildRequest(
     max_tokens: 16000,
     system: loadPrompt(pass),
     messages: [{ role: 'user' as const, content }],
-    output_config: { effort: 'medium' as const, format: answerFormat(workplaces) },
+    output_config: { effort: 'medium' as const, format: answerFormat(listsOf(input)) },
   };
 }
 
 /** Validates an answer against the schema; anything else is a failed attempt. */
-export function validateAnswer(
-  answer: unknown,
-  knownWorkplaces: readonly string[] = [],
-): ExtractionResult {
-  const parsed = extractionResultSchema(knownWorkplaces).safeParse(answer);
+export function validateAnswer(answer: unknown, lists: KnownLists = {}): ExtractionResult {
+  const parsed = extractionResultSchema(lists).safeParse(answer);
   if (!parsed.success) {
     throw new ExtractionError(
       'invalid_output',

@@ -6,10 +6,14 @@ import {
   type RawTicketValues,
 } from './schemas.ts';
 import {
+  batchNameCandidates,
   checkExtraction,
   checkTicketValues,
   reconcilePasses,
   type RuleSettings,
+  trustedName,
+  unclearFields,
+  withRetriedName,
 } from './ticket.ts';
 
 const settings: RuleSettings = {
@@ -37,6 +41,7 @@ function pass(
     overwritten?: (keyof RawTicketValues)[];
     suggestions?: Partial<RawTicketValues>;
     workplaceMatch?: string | null;
+    nameMatch?: string | null;
   } = {},
 ): ExtractionResult {
   const all = { ...goodValues, ...values };
@@ -54,6 +59,7 @@ function pass(
     voided: extra.voided ?? false,
     overwrittenFields: extra.overwritten ?? [],
     workplaceMatch: extra.workplaceMatch ?? null,
+    nameMatch: extra.nameMatch ?? null,
   };
 }
 
@@ -566,7 +572,7 @@ describe('workplace list (D25)', () => {
       settings,
       twins,
     );
-    expect(codes(r.flags)).toEqual(['WORKPLACE_AMBIGUOUS:workplace']);
+    expect(codes(r.flags)).toEqual(['MATCH_AMBIGUOUS:workplace']);
     expect(r.flags[0]!.detail).toEqual({ match: 'בית נוי', alsoFits: ['בית נוף'] });
     expect(r.suggestions.workplace).toBe('בית נוי');
     expect(r.workplaceFromList).toBe(false);
@@ -574,6 +580,176 @@ describe('workplace list (D25)', () => {
 
   it('does nothing extra when no list was used', () => {
     expect(checkExtraction(pass(), pass(), settings).flags).toEqual([]);
+  });
+});
+
+describe('known names list (D28)', () => {
+  const names = { knownNames: ['זכריה', 'מוברטו', 'אוסף', 'דנה', 'דינה'] };
+  const unreadableName = (suggestion: string | null, match: string | null) =>
+    pass(
+      { firstName: null },
+      { unreadable: ['firstName'], suggestions: { firstName: suggestion }, nameMatch: match },
+    );
+
+  it('accepts the name when both readings pick the same entry and the writing resembles it', () => {
+    const r = checkExtraction(
+      unreadableName('זכריה', 'זכריה'),
+      unreadableName('לכריה', 'זכריה'),
+      settings,
+      names,
+    );
+    expect(r.flags).toEqual([]);
+    expect(r.fields.firstName).toBe('זכריה');
+    expect(r.nameFromList).toBe(true);
+  });
+
+  it('sends a name with a look-alike on the list to a person, even when both readings agree', () => {
+    const r = checkExtraction(
+      pass({ firstName: 'דנה' }, { nameMatch: 'דנה' }),
+      pass({ firstName: 'דנה' }, { nameMatch: 'דנה' }),
+      settings,
+      names,
+    );
+    expect(codes(r.flags)).toEqual(['MATCH_AMBIGUOUS:firstName']);
+    expect(r.suggestions.firstName).toBe('דנה');
+  });
+
+  it('does not flag a clearly read name that is not on the list: new workers are normal', () => {
+    const r = checkExtraction(pass(), pass(), settings, names);
+    expect(r.flags).toEqual([]);
+    expect(r.fields.firstName).toBe('דוד');
+  });
+
+  it('never forces an entry the handwriting does not resemble', () => {
+    const r = checkExtraction(
+      unreadableName('אברהם', 'אוסף'),
+      unreadableName('אברהם', 'אוסף'),
+      settings,
+      names,
+    );
+    expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:firstName']);
+    expect(r.nameFromList).toBe(false);
+  });
+
+  it('flags when the readings pick different names', () => {
+    const r = checkExtraction(
+      unreadableName('דנה', 'דנה'),
+      unreadableName('דינה', 'דינה'),
+      settings,
+      names,
+    );
+    expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:firstName']);
+    expect(r.suggestions.firstName).toBeUndefined();
+  });
+});
+
+describe('third read (pass C, D27)', () => {
+  const unreadable = (suggestion: string | null) =>
+    pass(
+      { firstName: null },
+      { unreadable: ['firstName'], suggestions: { firstName: suggestion } },
+    );
+
+  it('breaks a tie between two guesses, but the field stays flagged', () => {
+    const r = checkExtraction(unreadable('זכריה'), unreadable('לכריה'), settings, {
+      thirdRead: unreadable('זכריה'),
+    });
+    expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:firstName']);
+    expect(r.suggestions.firstName).toBe('זכריה');
+    expect(r.fields.firstName).toBeNull();
+  });
+
+  it('a clear third reading never settles a disagreement', () => {
+    const r = checkExtraction(pass({ endTime: '16:30' }), pass({ endTime: '18:30' }), settings, {
+      thirdRead: pass({ endTime: '16:30' }),
+    });
+    expect(codes(r.flags)).toContain('PASS_DISAGREEMENT:endTime');
+    expect(r.suggestions.endTime).toBe('16:30');
+  });
+
+  it('offers no suggestion when all three readings differ', () => {
+    const r = checkExtraction(unreadable('זכריה'), unreadable('לכריה'), settings, {
+      thirdRead: unreadable('זבריה'),
+    });
+    expect(r.suggestions.firstName).toBeUndefined();
+  });
+
+  it('is asked only about the fields the two passes could not settle', () => {
+    const r = checkExtraction(unreadable('זכריה'), pass({ firstName: null }), settings);
+    expect(unclearFields(r)).toEqual(['firstName']);
+    expect(unclearFields(checkExtraction(pass(), pass(), settings))).toEqual([]);
+  });
+});
+
+describe('names from the same batch (D28)', () => {
+  const unreadableName = (suggestion: string | null, match: string | null = null) =>
+    pass(
+      { firstName: null },
+      { unreadable: ['firstName'], suggestions: { firstName: suggestion }, nameMatch: match },
+    );
+
+  it('trusts only names no rule doubted', () => {
+    expect(trustedName(checkExtraction(pass(), pass(), settings))).toBe('דוד');
+    const unclear = checkExtraction(unreadableName('דוד'), unreadableName('דוד'), settings);
+    expect(trustedName(unclear)).toBeNull();
+    const voided = checkExtraction(pass({}, { voided: true }), pass(), settings);
+    expect(trustedName(voided)).toBeNull();
+  });
+
+  it('gives an unclear name a second look only with batch names that resemble it', () => {
+    const a = unreadableName('מוברטו');
+    const b = unreadableName('מוכרטו');
+    const t = checkExtraction(a, b, settings);
+    expect(batchNameCandidates(a, b, t, ['מוברטו', 'דוד'])).toEqual(['מוברטו']);
+    expect(batchNameCandidates(a, b, t, ['מוברטו'], ['מוברטו'])).toEqual([]); // already listed
+    const clear = checkExtraction(pass(), pass(), settings);
+    expect(batchNameCandidates(pass(), pass(), clear, ['דוד'])).toEqual([]);
+  });
+
+  it('gives a corrected name no second look', () => {
+    const a = pass(
+      { firstName: null },
+      {
+        unreadable: ['firstName'],
+        suggestions: { firstName: 'מוברטו' },
+        overwritten: ['firstName'],
+      },
+    );
+    const t = checkExtraction(a, a, settings);
+    expect(batchNameCandidates(a, a, t, ['מוברטו'])).toEqual([]);
+  });
+
+  it('takes the name from the second look only when its passes settled it from the list', () => {
+    const first = checkExtraction(
+      pass(
+        { firstName: null, endTime: '18:30' },
+        { unreadable: ['firstName'], suggestions: { firstName: 'מוברטו' } },
+      ),
+      pass({ firstName: null }, { unreadable: ['firstName'] }),
+      settings,
+    );
+    const lists = { knownNames: ['מוברטו'] };
+    const settled = checkExtraction(
+      unreadableName('מוברטו', 'מוברטו'),
+      unreadableName('מוברטו', 'מוברטו'),
+      settings,
+      lists,
+    );
+    const merged = withRetriedName(first, settled);
+    expect(merged.fields.firstName).toBe('מוברטו');
+    expect(merged.suggestions.firstName).toBeUndefined();
+    // The first reading's other problems stay.
+    const others = codes(first.flags).filter((c) => !c.endsWith(':firstName'));
+    expect(others.length).toBeGreaterThan(0);
+    expect(codes(merged.flags)).toEqual(others);
+
+    const unsettled = checkExtraction(
+      unreadableName('מוברטו', 'מוברטו'),
+      unreadableName(null),
+      settings,
+      lists,
+    );
+    expect(withRetriedName(first, unsettled)).toBe(first);
   });
 });
 
