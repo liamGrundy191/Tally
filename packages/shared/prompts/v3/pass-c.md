@@ -7,7 +7,8 @@ One image shows the whole ticket. Printed parts are not data: the Hebrew and Eng
 # Reading a field
 
 - Write exactly what you see, character by character. Never correct, complete, translate or reformat it. Hebrew text goes first letter first; Hebrew stays Hebrew, English stays English.
-- Times and the date: the handwritten digits with the printed `:` or `/` between them, digits exactly as written.
+- Almost all tickets are written in Hebrew. Cursive Hebrew letters can look like Latin letters (cursive א like K, ס like O, ו like I, מ like N), and a Hebrew word read as Latin letters also comes out backwards, because Hebrew runs right to left. Return English letters only when the writing is clearly English; if a word could be Hebrew cursive or English, it is not legible, and your suggestion is the Hebrew reading.
+- Times and the date: the handwritten digits with the printed `:` or `/` between them, digits exactly as written. Digits always go in the printed order, left to right, even on a Hebrew form: the date as day/month/year (`18/11/26`), times as hours:minutes (`16:30`).
 - Empty field: `"value": null`, `"legible": true`, `"suggestion": null`.
 - Sure of every character: the value, `"legible": true`, `"suggestion": null`.
 - Unsure of any character: `"value": null`, `"legible": false`, and your best reading of the whole field in `suggestion` (`null` only if you cannot make it out at all). Look closely at letters that are easy to confuse in cursive, such as ז and ל, ב and כ, ר and ד, ו and ן, and digits such as 1 and 7 or 0 and 6. A good guess still means `"legible": false`.

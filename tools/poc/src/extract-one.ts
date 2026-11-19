@@ -175,7 +175,7 @@ for (const t of tickets) {
     `result: ${(['firstName', 'workplace'] as const)
       .map((k) => {
         if (!flags.some((f) => f.field === k)) return `${k}=${fields[k] ?? '(empty)'} (accepted)`;
-        const guess = suggestions[k];
+        const guess = fields[k] ?? suggestions[k];
         return `${k}=${guess ? `person confirms "${guess}"` : 'person types it'}`;
       })
       .join(', ')}`,

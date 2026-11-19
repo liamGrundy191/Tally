@@ -141,3 +141,8 @@ Names were the weakest field on Liam's tickets. The name decides who gets paid, 
 - **Names from the same batch.** One worker usually has several tickets in an upload. After the whole upload is read, names that raised no flag form a temporary list. An unclear name that resembles one of them is read again with those names on the list. Only names that came out of a clean reading are used, so one misread cannot spread to other tickets. The temporary list goes with the job.
 - **Rejected or deferred.** A general list of common Israeli names (the workers' names are mostly not common ones, and a big list has look-alikes everywhere). Printing "block letters" on the ticket (not realistic for the shift leaders). One-click name buttons in the review screen (a maybe, to decide with the review screen).
 - **Known limit.** Two workers really called the same name cannot be told apart by the name. The agency already handles this today.
+
+## D29 · Planning · Read 2 sees the whole ticket as well as the boxes; look-alike tests (Liam)
+
+- **Read 2.** It used to see only the cut-out boxes. On its own, a cut-out of the cursive name מוסא was read as the English "KOIN": cursive א, ס, ו, מ look like K, O, I, N, and reading them left to right reverses the word. Read 2 now gets the whole ticket for context, then each box enlarged. Its different wording keeps it independent from read 1. All prompts now warn that cursive Hebrew can look like Latin letters.
+- **Look-alikes.** For names, only entries one letter apart count as look-alikes (two for names of 8 letters or more); two letters apart blocked clearly different short names such as הבן and הדס. Workplaces keep the stricter test, at Liam's request, because the list is short and two-letter pairs exist on it.

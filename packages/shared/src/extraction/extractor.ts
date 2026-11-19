@@ -26,7 +26,7 @@ export interface ExtractionInput {
   id: string;
   /** The whole (normalised) ticket. */
   image: TicketImage;
-  /** One crop per field, when the corner markers were found. Only pass B uses them. */
+  /** One crop per field, when the corner markers were found. Only pass B uses them, beside the whole ticket. */
   crops?: Partial<Record<FieldKey, TicketImage>>;
   /** The agency's workplaces; the model may only name one of these as `workplaceMatch`. */
   knownWorkplaces?: readonly string[];
@@ -119,15 +119,18 @@ export function buildRequest(
   const useCrops =
     pass === 'B' && input.crops !== undefined && template.fields.every((f) => input.crops![f.key]);
 
+  // Pass B gets the whole ticket for context, then each field zoomed in (D29).
   const content: Anthropic.ContentBlockParam[] = useCrops
     ? [
+        { type: 'text', text: 'The whole ticket:' },
+        imageBlock(input.image),
         ...template.fields.flatMap((f): Anthropic.ContentBlockParam[] => [
           { type: 'text', text: `Field ${f.key} ("${f.labelHe}" / "${f.labelEn}"):` },
           imageBlock(input.crops![f.key]!),
         ]),
         {
           type: 'text',
-          text: `${fieldList}\n\nEach image above is one field cut out of the ticket.`,
+          text: `${fieldList}\n\nAfter the whole ticket, each image is one field cut out of it and enlarged.`,
         },
       ]
     : [imageBlock(input.image), { type: 'text', text: fieldList }];

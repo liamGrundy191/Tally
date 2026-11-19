@@ -83,6 +83,19 @@ export function resemblesEntry(written: string, entry: string): boolean {
   return levenshtein(w, e) <= Math.max(2, Math.round(0.3 * [...e].length));
 }
 
+/**
+ * Could the handwriting be this other entry instead? Stricter than `resemblesEntry`: one letter
+ * different for entries up to 7 letters, two for longer ones. With two letters allowed, short
+ * names that are clearly different (הבן and הדס) counted as look-alikes. Workplaces keep the
+ * looser `resemblesEntry` as their look-alike test (Liam: the list is short, and קנטה-like pairs matter).
+ */
+export function looksAlike(written: string, entry: string): boolean {
+  const w = normaliseName(written);
+  const e = normaliseName(entry);
+  if (w === '' || e === '') return false;
+  return levenshtein(w, e) <= Math.max(1, Math.floor([...e].length / 4));
+}
+
 const isReadingFlag = (field: FieldKey) => (f: Flag) =>
   f.field === field && (f.code === 'FIELD_UNREADABLE' || f.code === 'PASS_DISAGREEMENT');
 
@@ -174,7 +187,11 @@ export function reconcilePasses(
       ma !== null && ma === mb && written.length > 0 && written.every((t) => resemblesEntry(t, ma));
     // Handwriting that also fits another entry (בית נוי / בית נוף) could be either: a person decides.
     const alsoFits = agreed
-      ? list.filter((e) => e !== ma && written.some((t) => resemblesEntry(t, e)))
+      ? list.filter(
+          (e) =>
+            e !== ma &&
+            written.some((t) => (field === 'workplace' ? resemblesEntry : looksAlike)(t, e)),
+        )
       : [];
     if (agreed && alsoFits.length > 0) {
       flags.push({ code: 'MATCH_AMBIGUOUS', field, detail: { match: ma, alsoFits } });

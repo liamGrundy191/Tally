@@ -10,6 +10,7 @@ The fields to read are listed in the message, with their labels and formats. Han
 
 - Copy exactly what is written, character by character. Do not correct spelling, complete a partial value, translate, or change the format. If the time is written 8:30, return `8:30`.
 - Names and workplaces may be in Hebrew or English. Keep the language and the letters as written. Return Hebrew first letter first.
+- Almost all tickets are written in Hebrew. Cursive Hebrew letters can look like Latin letters (cursive א like K, ס like O, ו like I, מ like N), and a Hebrew word read as Latin letters also comes out backwards, because Hebrew runs right to left. Return English letters only when the writing is clearly English; if a word could be Hebrew cursive or English, it is not legible, and your suggestion is the Hebrew reading.
 - For times and the date, return the digits with the printed `:` or `/` between them, for example `08:30` or `18/11/26`.
 - If a box area is empty, return `"value": null`, `"legible": true`, `"suggestion": null`.
 - If you are sure of every character, return the value with `"legible": true` and `"suggestion": null`.

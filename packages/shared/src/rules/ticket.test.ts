@@ -564,6 +564,16 @@ describe('workplace list (D25)', () => {
     expect(codes(r.flags)).toEqual(['CORRECTION_MARKS:workplace']);
   });
 
+  it('keeps the stricter look-alike test for workplaces: two letters apart still counts', () => {
+    const r = checkExtraction(
+      pass({ workplace: 'בית נוי' }, { workplaceMatch: 'בית נוי' }),
+      pass({ workplace: 'בית נוי' }, { workplaceMatch: 'בית נוי' }),
+      settings,
+      { knownWorkplaces: ['בית נוי', 'בית נוף', 'בית מוף'] },
+    );
+    expect(r.flags[0]!.detail).toEqual({ match: 'בית נוי', alsoFits: ['בית נוף', 'בית מוף'] });
+  });
+
   it('flags when the handwriting also fits a second, similar entry on the list', () => {
     const twins = { knownWorkplaces: ['בית נוי', 'בית נוף'] };
     const r = checkExtraction(
@@ -612,6 +622,23 @@ describe('known names list (D28)', () => {
     );
     expect(codes(r.flags)).toEqual(['MATCH_AMBIGUOUS:firstName']);
     expect(r.suggestions.firstName).toBe('דנה');
+  });
+
+  it('does not count short names two letters apart as look-alikes', () => {
+    // Liam's tickets: הבן was blocked by הדס, and זכריה by זכאי.
+    for (const [name, other] of [
+      ['הבן', 'הדס'],
+      ['זכריה', 'זכאי'],
+    ]) {
+      const r = checkExtraction(
+        pass({ firstName: name }, { nameMatch: name }),
+        pass({ firstName: name }, { nameMatch: name }),
+        settings,
+        { knownNames: [name!, other!] },
+      );
+      expect(r.flags).toEqual([]);
+      expect(r.nameFromList).toBe(true);
+    }
   });
 
   it('does not flag a clearly read name that is not on the list: new workers are normal', () => {

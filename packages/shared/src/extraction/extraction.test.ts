@@ -113,16 +113,17 @@ describe('the request sent to the model', () => {
     }
   });
 
-  it('pass B with field crops sends one labelled image per field and not the whole ticket', () => {
+  it('pass B with field crops sends the whole ticket, then one labelled image per field', () => {
     const crops = Object.fromEntries(TEMPLATE_V1.fields.map((f) => [f.key, image]));
     const req = buildRequest(input('t1', { crops }), TEMPLATE_V1, 'B', 'claude-opus-5-5');
     expect(req.system).toBe(loadPrompt('B'));
     const content = req.messages[0]!.content as Anthropic.ContentBlockParam[];
-    expect(content.filter((b) => b.type === 'image')).toHaveLength(TEMPLATE_V1.fields.length);
+    expect(content.filter((b) => b.type === 'image')).toHaveLength(TEMPLATE_V1.fields.length + 1);
+    expect(content[1]).toMatchObject({ type: 'image' }); // the whole ticket comes first
     TEMPLATE_V1.fields.forEach((f, i) => {
-      expect(content[i * 2]).toMatchObject({ type: 'text' });
-      expect((content[i * 2] as Anthropic.TextBlockParam).text).toContain(f.key);
-      expect(content[i * 2 + 1]).toMatchObject({ type: 'image' });
+      expect(content[2 + i * 2]).toMatchObject({ type: 'text' });
+      expect((content[2 + i * 2] as Anthropic.TextBlockParam).text).toContain(f.key);
+      expect(content[3 + i * 2]).toMatchObject({ type: 'image' });
     });
   });
 
