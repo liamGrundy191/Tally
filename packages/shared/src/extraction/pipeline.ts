@@ -38,7 +38,7 @@ export interface BatchOptions {
   settings: RuleSettings;
   knownWorkplaces?: readonly string[];
   knownNames?: readonly string[];
-  /** Tickets read at the same time (plan: worker concurrency 4). */
+  /** Tickets read at the same time (plan: worker concurrency 4; batch mode: all of them). */
   concurrency?: number;
   /** Called after every model call, for cost tracking. */
   onRead?: (pass: ExtractionPass, usage: { inputTokens: number; outputTokens: number }) => void;
@@ -56,7 +56,15 @@ export async function readBatch(items: readonly BatchItem[], opts: BatchOptions)
   const knownNames = opts.knownNames ?? [];
   const concurrency = opts.concurrency ?? 4;
   const read = async (input: ExtractionInput, pass: ExtractionPass) => {
-    const r = await opts.extractor.extract(input, opts.template, pass);
+    let r;
+    try {
+      r = await opts.extractor.extract(input, opts.template, pass);
+    } catch (error) {
+      // A failed answer can still have cost money (e.g. cut off after thinking): count it.
+      const usage = (error as { usage?: { inputTokens: number; outputTokens: number } }).usage;
+      if (usage) opts.onRead?.(pass, usage);
+      throw error;
+    }
     opts.onRead?.(pass, r.usage);
     return r.result;
   };
@@ -74,8 +82,8 @@ export async function readBatch(items: readonly BatchItem[], opts: BatchOptions)
     const lists = { knownWorkplaces, knownNames };
     try {
       if (opts.canSpend && !opts.canSpend()) throw new Error('not read: spending cap reached');
-      const a = await read(full, 'A');
-      const b = await read(full, 'B');
+      // Both passes at once: faster, and in batch mode a whole round becomes one batch.
+      const [a, b] = await Promise.all([read(full, 'A'), read(full, 'B')]);
       out.reads = { A: a, B: b };
       out.checked = checkExtraction(a, b, opts.settings, lists);
       if (unclearFields(out.checked).length > 0 && (!opts.canSpend || opts.canSpend())) {
@@ -111,7 +119,8 @@ export async function readBatch(items: readonly BatchItem[], opts: BatchOptions)
     const names = [...knownNames, ...candidates];
     const input = { ...items[i]!.input, knownWorkplaces, knownNames: names };
     try {
-      const retry = checkExtraction(await read(input, 'A'), await read(input, 'B'), opts.settings, {
+      const [a2, b2] = await Promise.all([read(input, 'A'), read(input, 'B')]);
+      const retry = checkExtraction(a2, b2, opts.settings, {
         knownWorkplaces,
         knownNames: names,
       });

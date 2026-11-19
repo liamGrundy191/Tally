@@ -14,6 +14,8 @@ import {
 } from '@tally/shared';
 import {
   AnthropicExtractor,
+  DEFAULT_EFFORT,
+  type Effort,
   type BatchItem,
   type ExtractionPass,
   readBatch,
@@ -64,7 +66,10 @@ const usage = {
 let tickets;
 try {
   tickets = await readBatch(items, {
-    extractor: new AnthropicExtractor({ model }),
+    extractor: new AnthropicExtractor({
+      model,
+      effort: (process.env.EXTRACTOR_EFFORT || DEFAULT_EFFORT) as Effort,
+    }),
     template: TEMPLATE_V1,
     settings: {
       today: todayIn(AGENCY_TIME_ZONE),

@@ -6,9 +6,33 @@ export const PRICE_PER_MILLION: Record<string, [input: number, output: number]> 
 };
 
 /** Measured on Liam's test tickets with all three reads (PROGRESSION section 10). */
-export const MEASURED_USD_PER_TICKET: Record<string, number> = { 'claude-opus-5-5': 0.15 };
+const MEASURED = { model: 'claude-opus-5-5', usdPerTicket: 0.15 } as const;
 
 export const costUsd = (model: string, inputTokens: number, outputTokens: number) => {
   const p = PRICE_PER_MILLION[model];
   return p ? (inputTokens * p[0] + outputTokens * p[1]) / 1e6 : null;
+};
+
+/**
+ * Estimated cost per ticket in immediate mode: the measured Opus cost, scaled by the model's price.
+ * null for a model with no known price; the runner then refuses to spend, since it could not stop
+ * itself in time.
+ */
+export function estimateUsdPerTicket(model: string): number | null {
+  const p = PRICE_PER_MILLION[model];
+  const base = PRICE_PER_MILLION[MEASURED.model]!;
+  return p ? MEASURED.usdPerTicket * (p[0] / base[0]) : null;
+}
+
+/**
+ * Cost factors for effort, relative to the measured medium. High was measured at about 1.1 on two
+ * hard tickets (D35); the others are guesses. Max ran out of answer space on hard tickets and is
+ * far more expensive; it stays a guess until anyone needs it.
+ */
+export const EFFORT_COST_GUESS: Record<string, number> = {
+  low: 0.85,
+  medium: 1,
+  high: 1.15,
+  xhigh: 2,
+  max: 4,
 };

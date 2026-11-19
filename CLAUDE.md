@@ -52,7 +52,7 @@ pnpm ticket:pdf                                   # printable ticket
 pnpm crops <scan>                                 # straighten a scan and save field crops (free)
 pnpm extract <scan>                               # read a scan's tickets with the real model (costs cents)
 pnpm poc --input <folder> --template             # Phase 0: empty truth.csv for a folder of scans
-pnpm poc --input <folder> [--truth <csv>] [--yes] # Phase 0 runner: grade against truth (--yes spends money)
+pnpm poc --input <folder> [--truth <csv>] [--yes] [--batch] # Phase 0 runner: grade against truth (--yes spends money; --batch half price, slower)
 ```
 
 Keep this command list up to date when you add scripts.

@@ -468,7 +468,7 @@ Done when: it runs end to end on the fixtures with the fake extractor.
 Liam checks: run it on 10 real tickets.
 
 **H0 Human step (Liam and the agency)**
-Print about 150 tickets. Five or more people fill them in, mostly Hebrew, some English, some careless. Include overnight shifts, crossed-out tickets, overwritten digits, two different workers with the same name, the same place spelled differently, and deliberate arithmetic mistakes. Scan them as multi-page PDFs; photograph about a third with phones. Type the true values into `truth.csv`.
+Print about 150 tickets. Five or more people fill them in the way real shift leaders would: mostly Hebrew, some English. Include overnight shifts, overwritten or corrected digits, two different workers with the same name, the same place spelled differently, and a few arithmetic mistakes. Scan them all as multi-page PDFs. Type the true values into `truth.csv`. No crossed-out tickets and no phone photos: tickets are checked by a person when they are collected (D34). Run it in batch mode to halve the cost.
 
 **G0 Gate**
 Zero unflagged wrong values in date, start, end and total. Names and workplaces are reported separately and reviewed by Liam. If the gate fails: change the ticket layout or the prompts, repeat H0 on a small set. Record the result and cost per ticket in `docs/DECISIONS.md`.

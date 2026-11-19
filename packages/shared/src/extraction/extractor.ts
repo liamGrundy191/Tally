@@ -16,6 +16,12 @@ export const PROMPT_VERSION = 'v3';
 /** A and B are the two independent readings; C is the tie-break read for unclear fields (D27). */
 export type ExtractionPass = 'A' | 'B' | 'C';
 
+/** How long the model thinks before answering; more effort costs more output tokens. */
+export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export type Effort = (typeof EFFORTS)[number];
+/** High read hard digits better than medium for about 10% more (D35). */
+export const DEFAULT_EFFORT: Effort = 'high';
+
 export interface TicketImage {
   data: Buffer;
   mediaType: 'image/jpeg' | 'image/png';
@@ -65,10 +71,13 @@ export type ExtractionFailure = 'invalid_output' | 'refusal' | 'truncated';
 export class ExtractionError extends Error {
   override name = 'ExtractionError';
   readonly reason: ExtractionFailure;
+  /** Tokens the failed attempt still cost (a cut-off answer is billed in full). */
+  readonly usage?: ExtractionSuccess['usage'];
 
-  constructor(reason: ExtractionFailure, message: string) {
+  constructor(reason: ExtractionFailure, message: string, usage?: ExtractionSuccess['usage']) {
     super(message);
     this.reason = reason;
+    this.usage = usage;
   }
 }
 
@@ -101,6 +110,7 @@ export function buildRequest(
   template: TicketTemplate,
   pass: ExtractionPass,
   model: string,
+  effort: Effort = DEFAULT_EFFORT,
 ) {
   const list = (entries: readonly string[] = [], what: string, key: string) =>
     entries.length > 0
@@ -140,7 +150,7 @@ export function buildRequest(
     max_tokens: 16000,
     system: loadPrompt(pass),
     messages: [{ role: 'user' as const, content }],
-    output_config: { effort: 'medium' as const, format: answerFormat(listsOf(input)) },
+    output_config: { effort, format: answerFormat(listsOf(input)) },
   };
 }
 
