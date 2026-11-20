@@ -33,7 +33,7 @@ import { pathToFileURL } from 'node:url';
 import { EFFORT_COST_GUESS, costUsd, estimateUsdPerTicket } from './cost.ts';
 import { toCsv } from './csv.ts';
 import { type GradedTicket, type Report, grade } from './grade.ts';
-import { loadList } from './lists.ts';
+import { loadList, loadWorkplaces } from './lists.ts';
 import { scanPages } from './pages.ts';
 import { type TruthRow, readTruth, truthTemplate } from './truth.ts';
 
@@ -77,6 +77,8 @@ export interface RunOptions {
   extractor: TicketExtractor;
   settings: RuleSettings;
   knownWorkplaces?: readonly string[];
+  /** Each workplace spelling's place name (D36). */
+  placeOf?: ReadonlyMap<string, string>;
   knownNames?: readonly string[];
   onRead?: Parameters<typeof readBatch>[1]['onRead'];
   canSpend?: () => boolean;
@@ -100,7 +102,7 @@ export async function runPoc(
     page: t.page,
     read: reads[i]!,
   }));
-  return { report: grade(graded, truth, opts.knownWorkplaces), graded };
+  return { report: grade(graded, truth, opts.knownWorkplaces, opts.placeOf), graded };
 }
 
 const LABEL: Record<FieldKey, string> = {
@@ -301,6 +303,7 @@ async function main() {
     : (batchReader ?? new AnthropicExtractor({ model, effort }));
   const usage = { input: 0, output: 0 };
   const spent = () => (costUsd(model, usage.input, usage.output) ?? 0) * priceFactor;
+  const workplaces = loadWorkplaces('workplaces.txt');
   const { report, graded } = await runPoc(tickets, truth.rows, {
     extractor,
     settings: {
@@ -309,7 +312,8 @@ async function main() {
       maxShiftHours: DEFAULT_MAX_SHIFT_HOURS,
       maxDateAgeDays: DEFAULT_MAX_DATE_AGE_DAYS,
     },
-    knownWorkplaces: loadList('workplaces.txt'),
+    knownWorkplaces: workplaces.list,
+    placeOf: workplaces.placeOf,
     knownNames: loadList('names.txt'),
     onRead: (_pass, u) => {
       usage.input += u.inputTokens;

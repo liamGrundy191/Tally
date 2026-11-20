@@ -173,6 +173,31 @@ describe('workplaces from the list', () => {
     expect(both.fields.workplace.wrong_not_flagged).toBe(1);
   });
 
+  it('an English spelling is the same place as its Hebrew name (D36)', () => {
+    const spelt = ['Dolev', 'דולב', 'דולפ'];
+    const placeOf = new Map([
+      ['Dolev', 'דולב'],
+      ['דולב', 'דולב'],
+      ['דולפ', 'דולפ'],
+    ]);
+    const r = grade(
+      [
+        { file: 'scan.pdf', page: 1, read: accepted('Dolev') },
+        { file: 'scan.pdf', page: 2, read: accepted('Dolev') },
+        { file: 'scan.pdf', page: 3, read: accepted('Dolev') },
+      ],
+      [
+        truth({ workplace: 'Dolev' }),
+        truth({ workplace: 'Dolv' }, false, 2), // misspelt English
+        truth({ workplace: 'דולפ' }, false, 3), // another place
+      ],
+      spelt,
+      placeOf,
+    );
+    expect(r.fields.workplace.correct).toBe(2);
+    expect(r.fields.workplace.wrong_not_flagged).toBe(1);
+  });
+
   it('without a list, only an exact reading is right', () => {
     const r = one(readAs(answer({ workplace: 'בית הורדים' })), truth({ workplace: 'בית הורדם' }));
     expect(r.fields.workplace.wrong_not_flagged).toBe(1);

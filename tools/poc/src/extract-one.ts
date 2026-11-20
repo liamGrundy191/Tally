@@ -24,7 +24,7 @@ import { prepareTicket } from '@tally/shared/imaging';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { basename, extname, join } from 'node:path';
 import { costUsd } from './cost.ts';
-import { loadList } from './lists.ts';
+import { loadList, loadWorkplaces } from './lists.ts';
 import { scanPages } from './pages.ts';
 
 const path = process.argv[2];
@@ -34,7 +34,7 @@ if (!path) {
 }
 const model = process.env.EXTRACTOR_MODEL || 'claude-opus-5-5';
 const outRoot = join('scan-output', basename(path, extname(path)));
-const knownWorkplaces = loadList('workplaces.txt');
+const knownWorkplaces = loadWorkplaces('workplaces.txt').list;
 const knownNames = loadList('names.txt');
 const report: string[] = [
   `Model: ${model}`,
