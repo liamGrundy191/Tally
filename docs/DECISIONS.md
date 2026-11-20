@@ -225,3 +225,15 @@ Measured on Liam's 12 real tickets in batch mode, then on the two hardest of the
 - **Hours as decimals with two places (8.33).** Minutes stay whole numbers everywhere; only the display has two decimals. The cell keeps the exact value, so totals do not drift.
 - *_Pay rates (such as *57 in a name) are left out*_ for now (Liam).
 - **The details are settled when T3.1 is built.** Until then section 6.2 of the plan describes the old layout.
+
+## D38 · Phase 0 · G0 passed (2026-11-20)
+
+The big test (H0) became 45 real tickets: 33 copied by Liam from the prepared truth file (D36), mostly in his handwriting with his own corrected digits, plus the 12 tickets of the first real test. The helpers could not take part, so it is smaller than the 100 planned. Liam scanned uncut A4 pages; for this test only, Claude cut them into single tickets outside the project and matched each ticket to its truth row by checking every box against the image. Read with Opus at high effort in batch mode.
+
+- **Gate passed: 0 wrong values accepted in any box**, names and workplaces included. All 18 mistakes were flagged to a person.
+- **Workload:** 183 of 270 boxes (68%) accepted on their own; 69 sent to a person with the right guess filled in; 18 to type or fix (about one every 2.5 tickets). 37 of 45 tickets needed a person for at least one box.
+- **Names are most of the work:** 30 of 45 went to a person. Most of them were on the names list and had the right guess, but one read was unsure or a look-alike name exists on the list. 7 of the 10 wrong or missing guesses were names not on the list.
+- **Worked as designed:** English place spellings and a misspelt one matched the right place (D36); shortened place names went to a person instead of being forced onto a list entry; the deliberately wrong total and 12 corrected digits were flagged; the total-from-times rule (D30) was used twice, right both times.
+- **Cost: $6.51, 14.5 cents a ticket in batch mode**, against an estimate of 9 cents: 34 of 45 tickets needed the third read. The estimate in the runner is too low and is to be corrected from this measurement when costs are next shown to a user.
+- **No spending stop in batch mode (Liam).** The stop cannot act in batch mode, since a whole round is sent before any cost is known, and the run went past it ($6.51 against $5.82). Liam: the agency pays per ticket at about the estimate; stopping a job halfway would leave half-read jobs. It is not fixed; the cost is bounded anyway, as each ticket gets at most four reads.
+- **Limits:** 45 tickets, mostly one writer. Strong evidence, not proof; the pilot month (T4.4) is the real test. Next: Phase 1.
