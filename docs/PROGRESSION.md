@@ -159,3 +159,9 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **A test written in advance.** Instead of having people fill in tickets freely and then typing up what they wrote, Claude wrote the contents of 100 tickets and four people copy them. The answers are known before the first ticket is written, so the grading cannot be wrong because of a typing slip.
 - **New facts change the test.** Liam learned that real tickets are about half English. Because the program accepted a workplace only when it looked like a list entry letter by letter, a place written in English would never match its Hebrew name. Each place can now have both spellings, and the Excel uses the Hebrew one.
 - **The real Excel looks different.** The agency's sheet is a grid of workers by days. That clashes with a basic rule of the plan (never combine tickets into one person, since tickets only have first names), so it was written down as an open question, not built.
+
+### 14. The big test passed
+
+- **Smaller than planned, still honest.** The helpers dropped out, so the test was 45 tickets instead of 100. Instead of padding it, the test reused the 12 tickets from the first run, and every ticket was checked box by box against its image before running, so a typing slip in the answers could not pass for a reading mistake.
+- **The result.** Not one wrong value was accepted, in any box. Two thirds of the boxes needed nobody; most of the rest came with the right answer filled in for a person to confirm.
+- **What it revealed.** The cost per ticket was higher than estimated, and the spending stop cannot work in batch mode. Liam decided against a stop: a job stopped halfway causes more trouble than it saves, and the agency pays per ticket anyway.
