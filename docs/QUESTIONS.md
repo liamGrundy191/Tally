@@ -23,3 +23,37 @@ Options: A) NestJS 12 with Vitest, the same test tool as the rest of the repo. B
 Recommendation: A. It follows the reason the plan gave (use the NestJS default), keeps one test tool for the whole repo, and adds no libraries. A test confirms that NestJS dependency injection works under Vitest.
 
 Answer (Liam): A
+
+## Q2 · T3.1 · The agency's Excel layout · answered
+
+Context: The agency's real Excel is a grid, not a list of tickets: one row per worker, one column per day of the month (1–31), hours as decimals (8.25), a total for each worker and for each day, names in English letters. The plan (principle 3) never combines tickets into one worker, because a ticket only has a first name: two different workers with the same name at one place would end up in one row. It does not affect the big test (H0), which measures reading.
+
+Questions:
+
+1. One grid per workplace, or one for everyone?
+2. Two workers with the same first name at one place: how does the agency tell them apart in the grid today?
+3. A name written in Hebrew on the ticket: which English spelling goes in the grid? (A names list with `Hebrew = English` lines would answer it.)
+4. 8:20 is 8.333… hours. How is it written today (8.33)? The plan forbids rounding, so this needs a rule.
+
+Options: A) Keep the plan's layout (one row per ticket). B) Add the grid as well, built from confirmed tickets, with rules from the answers above. C) Only the grid.
+
+Recommendation: decide when building the Excel export (T3.1), after the answers. Pay rates (for example *57 in a name) are left out, as Liam asked.
+
+Answer (Liam): (2026-11-20)
+
+1. One grid for each workplace with its workers, plus one totals grid that shows only the workplaces and their totals.
+2. Today they do it by hand. Never merging stays: the system gives them a filled-in Excel, and at most they copy and paste some totals between rows themselves.
+3. Today every name in the final Excel is in English letters, spelled by ear, which is why spellings differ. The system should do the same.
+4. 8.33: two decimals is fine. "No rounding" was about minutes, which stay whole.
+
+Follow-up for T3.1: which tickets share a row in a workplace grid (see Q3).
+
+## Q3 · T3.1 · Which tickets share a row in the workplace grid · open
+
+Context: A grid row holds one worker's days. Putting two tickets in one row is the merge the plan forbids if the system decides it alone. Liam's rule: never merge; the agency may copy totals by hand.
+
+Options: A) One row per name exactly as confirmed (after the English spelling): the same name on two tickets shares a row, a different spelling gets its own row. Two tickets with the same name on the same day are never added together: the second gets its own row and a flag. B) One row per ticket: nothing is ever combined, but a worker with 20 shifts has 20 rows.
+
+Recommendation: A, with the shared rows listed on the review screen before export, so a person sees every pair the grid combines. Hebrew names get their English spelling from a names list with `Hebrew = English` lines; a name not on it gets a suggested spelling that a person confirms. Each cell keeps the exact hours (500 minutes / 60) and only shows two decimals, so the totals stay exact.
+
+Answer (Liam):

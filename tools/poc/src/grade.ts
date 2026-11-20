@@ -48,20 +48,31 @@ const WORDS: Record<Exclude<Outcome, 'correct' | 'flagged_right_guess'>, string>
 
 /**
  * The list exists to turn a misspelt workplace into its proper name, so a list entry is right when
- * the writing resembles that entry and no other one (D31).
+ * the writing resembles that entry and no other place (D31). Two spellings of one place (Dolev and
+ * דולב) are the same place (D36).
  */
-const rightListEntry = (shown: string | null, written: string | null, list: readonly string[]) =>
+const rightListEntry = (
+  shown: string | null,
+  written: string | null,
+  list: readonly string[],
+  place: (s: string) => string,
+) =>
   shown !== null &&
   written !== null &&
   list.includes(shown) &&
   resemblesEntry(written, shown) &&
-  !list.some((e) => e !== shown && resemblesEntry(written, e));
+  !list.some((e) => place(e) !== place(shown) && resemblesEntry(written, e));
 
 export function grade(
   tickets: readonly GradedTicket[],
   truthRows: readonly TruthRow[],
   knownWorkplaces: readonly string[] = [],
+  placeOf: ReadonlyMap<string, string> = new Map(),
 ) {
+  const place = (s: string) => placeOf.get(s) ?? s;
+  const rightPlace = (shown: string | null, written: string | null) =>
+    (shown !== null && written !== null && same('workplace', place(shown), place(written))) ||
+    rightListEntry(shown, written, knownWorkplaces, place);
   const truth = new Map(truthRows.map((r) => [truthKey(r.file, r.page), r]));
   const tally = Object.fromEntries(
     FIELD_KEYS.map((k) => [
@@ -132,8 +143,7 @@ export function grade(
       if (own.length === 0) {
         shown = c.values[k];
         const right =
-          same(k, shown, truthValue) ||
-          (k === 'workplace' && rightListEntry(shown, truthValue, knownWorkplaces));
+          same(k, shown, truthValue) || (k === 'workplace' && rightPlace(shown, truthValue));
         outcome = right ? 'correct' : 'wrong_not_flagged';
       } else {
         fieldsChecked++;
@@ -141,8 +151,7 @@ export function grade(
         const doubted = own.some((f) => READING.includes(f.code));
         shown = c.suggestions[k] ?? (doubted ? null : c.values[k]);
         const right =
-          same(k, shown, truthValue) ||
-          (k === 'workplace' && rightListEntry(shown, truthValue, knownWorkplaces));
+          same(k, shown, truthValue) || (k === 'workplace' && rightPlace(shown, truthValue));
         outcome = right
           ? 'flagged_right_guess'
           : shown === null

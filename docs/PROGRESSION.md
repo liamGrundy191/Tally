@@ -153,3 +153,9 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Batch mode.** Liam asked whether the big test could use Anthropic's batch service, which costs half. The runner now sends each round of readings as one batch. On the same 12 tickets it gave the same results for half the price.
 - **Comparing models and effort.** Liam asked to compare a cheaper model and higher effort, and to test effort on the two hardest tickets only, to save money. The cheaper model was as safe but sent almost three times as many boxes to a person, so it was dropped. Higher effort fixed the hardest digits for about 10% more and became the default. Maximum effort thought until it ran out of space and returned nothing.
 - **A cost bug found by testing.** That failed run showed a cost of zero, although it was billed. Failed answers now count toward the cost and the spending stop. Only an experiment that went wrong could have revealed this.
+
+### 13. Preparing the big test
+
+- **A test written in advance.** Instead of having people fill in tickets freely and then typing up what they wrote, Claude wrote the contents of 100 tickets and four people copy them. The answers are known before the first ticket is written, so the grading cannot be wrong because of a typing slip.
+- **New facts change the test.** Liam learned that real tickets are about half English. Because the program accepted a workplace only when it looked like a list entry letter by letter, a place written in English would never match its Hebrew name. Each place can now have both spellings, and the Excel uses the Hebrew one.
+- **The real Excel looks different.** The agency's sheet is a grid of workers by days. That clashes with a basic rule of the plan (never combine tickets into one person, since tickets only have first names), so it was written down as an open question, not built.

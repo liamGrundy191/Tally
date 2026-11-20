@@ -207,3 +207,20 @@ Measured on Liam's 12 real tickets in batch mode, then on the two hardest of the
 - **Max effort rejected.** On hard tickets it thought until it ran out of answer space (16,000 tokens) and returned nothing, at about five times the cost. Raising the limit would make each ticket cost dollars, and the ticket it failed on was not readable at high effort either.
 - **Failed answers are counted in the cost.** The max test showed a cut-off answer reported as free. It is billed in full, so it now counts toward the report and the spending stop.
 - **Measured on very few tickets.** The big test (H0) confirms the cost and the benefit.
+
+## D36 · Phase 0 · The big test is copied from a prepared truth file, half in English (Liam)
+
+- **Copied, not invented.** Claude writes the 100 tickets' contents as the truth file, and four people copy them onto real tickets. Typing in the true values afterwards from 100 handwritten tickets would itself introduce mistakes. Results are not split by writer: the goal is how well tickets are read, not who wrote them.
+- **Half in English.** Liam learned that real tickets are about half English and half Hebrew, each ticket entirely in one language. The test has 48 English, 48 Hebrew and 4 mixed tickets, to check that a mixed one does not trip the system.
+- **Two spellings of one place.** `workplaces.txt` lines may give a place in both languages: `Dolev = דולב`. Both spellings are on the list; the place's name is the Hebrew one (the agency's Excel is in Hebrew). Grading counts an English reading of a place as that place.
+- **What the mix contains.** Most names and places come from the real lists. 12 names and 8 places are not on them, 3 places are misspelt by one letter, and there are night shifts, wrong totals, corrected digits and empty totals. Every real place appears at least once. Places longer than the 15 boxes are written past the last box.
+- **To watch in the results.** Many real place names are one or two letters apart (in the style of דולב and דולפ). The look-alike check (D25) sends those to a person even when written clearly; the test measures how often.
+
+## D37 · T3.1 · The agency's Excel layout (Liam, Q2)
+
+- **Grids, as the agency uses today.** One sheet per workplace: a row per worker, a column per day of the month, the hours in each cell, a total per worker and per day. One totals sheet with only the workplaces and their totals.
+- **Never merge, still.** The system does not decide that two tickets are the same person. Which tickets share a row is open (Q3).
+- **Names in English letters**, as the agency writes them now.
+- **Hours as decimals with two places (8.33).** Minutes stay whole numbers everywhere; only the display has two decimals. The cell keeps the exact value, so totals do not drift.
+- *_Pay rates (such as *57 in a name) are left out*_ for now (Liam).
+- **The details are settled when T3.1 is built.** Until then section 6.2 of the plan describes the old layout.

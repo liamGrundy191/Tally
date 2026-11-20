@@ -13,3 +13,20 @@ export function loadList(path: string): string[] {
     .filter((l) => l !== '' && !l.startsWith('#'));
   return [...new Set(lines)];
 }
+
+/**
+ * workplaces.txt, where a line may give one place's spellings: "Dolev = דולב". Every spelling is
+ * on the list; `placeOf` gives each spelling the place's name, the Hebrew one (D36).
+ */
+export function loadWorkplaces(path: string) {
+  const placeOf = new Map<string, string>();
+  for (const line of loadList(path)) {
+    const spellings = line
+      .split('=')
+      .map((s) => s.trim())
+      .filter((s) => s !== '');
+    const name = spellings.find((s) => /[\u0590-\u05FF]/.test(s)) ?? spellings[0];
+    for (const s of spellings) placeOf.set(s, name!);
+  }
+  return { list: [...placeOf.keys()], placeOf };
+}
