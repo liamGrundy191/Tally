@@ -48,7 +48,7 @@ Answer (Liam): (2026-11-20)
 
 Follow-up for T3.1: which tickets share a row in a workplace grid (see Q3).
 
-## Q3 · T3.1 · Which tickets share a row in the workplace grid · open
+## Q3 · T3.1 · Which tickets share a row in the workplace grid · answered
 
 Context: A grid row holds one worker's days. Putting two tickets in one row is the merge the plan forbids if the system decides it alone. Liam's rule: never merge; the agency may copy totals by hand.
 
@@ -56,4 +56,4 @@ Options: A) One row per name exactly as confirmed (after the English spelling): 
 
 Recommendation: A, with the shared rows listed on the review screen before export, so a person sees every pair the grid combines. Hebrew names get their English spelling from a names list with `Hebrew = English` lines; a name not on it gets a suggested spelling that a person confirms. Each cell keeps the exact hours (500 minutes / 60) and only shows two decimals, so the totals stay exact.
 
-Answer (Liam):
+Answer (Liam): B for now (2026-11-20): every ticket gets its own row; it can change later if needed. Hebrew names: Claude's recommendation (a `Hebrew = English` names list, and a suggested spelling a person confirms for a name not on it).

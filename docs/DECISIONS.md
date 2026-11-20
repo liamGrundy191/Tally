@@ -219,7 +219,8 @@ Measured on Liam's 12 real tickets in batch mode, then on the two hardest of the
 ## D37 · T3.1 · The agency's Excel layout (Liam, Q2)
 
 - **Grids, as the agency uses today.** One sheet per workplace: a row per worker, a column per day of the month, the hours in each cell, a total per worker and per day. One totals sheet with only the workplaces and their totals.
-- **Never merge, still.** The system does not decide that two tickets are the same person. Which tickets share a row is open (Q3).
+- **Never merge, still: one row per ticket** (Q3). No two tickets ever share a row; the agency copies totals by hand if it wants to. It can change later.
+- **English spelling of Hebrew names** comes from a names list with `Hebrew = English` lines. A name not on it gets a suggested spelling that a person confirms, so no spelling reaches the Excel unchecked.
 - **Names in English letters**, as the agency writes them now.
 - **Hours as decimals with two places (8.33).** Minutes stay whole numbers everywhere; only the display has two decimals. The cell keeps the exact value, so totals do not drift.
 - *_Pay rates (such as *57 in a name) are left out*_ for now (Liam).
