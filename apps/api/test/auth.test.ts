@@ -176,6 +176,28 @@ describe.skipIf(!databaseUrl)('logging in (T1.2)', () => {
       );
       expect((await b.send('GET', '/api/auth/me')).status).toBe(200);
     });
+
+    it('keeps working after the browser is closed and reopened', async () => {
+      const b = browser();
+      await b.login(OWNER.email, OWNER.password);
+      // Both cookies outlive the browser, so a reopened browser still has its CSRF token.
+      const csrf = b.lastSetCookies.find((c) => c.startsWith('tally_csrf='))!;
+      expect(csrf).toMatch(/Max-Age=\d+/);
+      // A browser that lost it anyway gets a new one from /auth/me, and can make changes again.
+      b.cookies.delete('tally_csrf');
+      expect((await b.send('POST', '/api/auth/logout')).status).toBe(403);
+      expect((await b.send('GET', '/api/auth/me')).status).toBe(200);
+      expect(b.cookies.has('tally_csrf')).toBe(true);
+      expect((await b.send('POST', '/api/auth/logout')).status).toBe(204);
+    });
+
+    it('keeps failed logins, with their addresses, for a day only', async () => {
+      await prisma.loginFailure.create({
+        data: { ip: '203.0.113.9', createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000) },
+      });
+      expect((await browser().login(OWNER.email, OWNER.password)).status).toBe(200);
+      expect(await prisma.loginFailure.count({ where: { ip: '203.0.113.9' } })).toBe(0);
+    });
   });
 
   describe('roles', () => {
@@ -260,6 +282,11 @@ describe.skipIf(!databaseUrl)('logging in (T1.2)', () => {
         role: 'admin',
       });
       expect(inUse.status).toBe(409);
+      // Used and expired invites are not kept, and the audit trail keeps no invited email.
+      expect(await prisma.invite.count({ where: { email: 'late@example.com' } })).toBe(0);
+      expect(await prisma.invite.count({ where: { usedAt: { not: null } } })).toBe(0);
+      const audited = await prisma.auditEntry.findMany({ where: { action: 'invite' } });
+      expect(JSON.stringify(audited)).not.toMatch(/@example\.com/);
     });
   });
 

@@ -54,17 +54,22 @@ export class AuthService {
       where: { id: user.id },
       data: { failedLogins: 0, lockedUntil: null },
     });
+    await this.forgetOldFailures();
     // Logins are not audited: those entries would pile up outside any month (D41).
     const token = await this.openSession(user.id);
     return { token, user: { id: user.id, email: user.email, role: user.role } };
   }
 
-  private async recordFailure(ip: string, userId?: string) {
-    await this.prisma.loginFailure.create({ data: { ip } });
-    // Old entries are no longer needed for the limit.
-    await this.prisma.loginFailure.deleteMany({
+  /** Failed logins (with their IP addresses) are kept for a day only: the limit needs 15 minutes. */
+  private forgetOldFailures() {
+    return this.prisma.loginFailure.deleteMany({
       where: { createdAt: { lt: new Date(Date.now() - 24 * 60 * 60 * 1000) } },
     });
+  }
+
+  private async recordFailure(ip: string, userId?: string) {
+    await this.prisma.loginFailure.create({ data: { ip } });
+    await this.forgetOldFailures();
     if (!userId) return;
     // The counter is raised in the database, so two attempts at once both count.
     const { failedLogins } = await this.prisma.user.update({

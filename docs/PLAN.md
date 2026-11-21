@@ -113,7 +113,7 @@ Three runtime processes from one TypeScript monorepo: the web app, the API, and 
 /tools/poc           Phase 0 command-line scripts
 /fixtures            Test images, fake extractor outputs, ground truth
 /docker              Compose files, Caddyfile, Dockerfiles
-/docs                PLAN.md, QUESTIONS.md, DECISIONS.md
+/docs                PLAN.md, QUESTIONS.md, DECISIONS.md, PROGRESSION.md
 ```
 
 **Interfaces that must stay swappable**
@@ -286,9 +286,10 @@ All tables have `id` (UUID), `createdAt`, `updatedAt`. Durations are integer min
 
 | Model            | Key fields                                                                                                                                                                                                                                                                                                                                                                    |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `User`           | email (unique), passwordHash, role (`admin` / `reviewer`), totpSecret?, disabledAt?                                                                                                                                                                                                                                                                                           |
+| `User`           | email (unique), passwordHash, role (`admin` / `reviewer`), disabledAt?, failedLogins, lockedUntil? (D41)                                                                                                                                                                                                                                                                      |
 | `Invite`         | email, role, tokenHash, expiresAt, usedAt?                                                                                                                                                                                                                                                                                                                                    |
 | `Session`        | userId, tokenHash, expiresAt, lastSeenAt                                                                                                                                                                                                                                                                                                                                      |
+| `LoginFailure`   | ip (kept one day, for the limit per computer, D41)                                                                                                                                                                                                                                                                                                                            |
 | `Month`          | year, month, status, closedAt?, closedById?, summaryTicketCount?, summaryTotalMinutes?, lastActivityAt                                                                                                                                                                                                                                                                        |
 | `Upload`         | uploadedById, originalFilename, s3KeyOriginal? (cleared once split), sha256, mime, pageCount?, failedPages, speed (`batch` / `now`)                                                                                                                                                                                                                                           |
 | `Ticket`         | uploadId, monthId? (set once the date is settled), pageIndex, s3KeyPage, templateVersion?, firstName? (as read), workerName? (confirmed, English letters), workplaceRaw?, workplaceGroupId?, shiftDate?, startMinutes?, endMinutes?, totalMinutes?, totalFromMath, status, verifiedHow?, excludedReason?, excludedById?, replacedById?, version (int, for optimistic locking) |
@@ -408,7 +409,7 @@ Worker concurrency defaults to 4 readings at once for an upload read straight aw
 **Local**
 
 - `docker compose -f docker/compose.dev.yml up -d` starts Postgres and MinIO.
-- `pnpm dev` runs the web app, API and worker with hot reload.
+- `pnpm dev` runs the web app, API and worker with hot reload (added in T2.1, the first task with a screen to run).
 - `pnpm db:migrate` applies the database migrations; `pnpm seed:admin` creates an admin user, asking for the email and password.
 - `EXTRACTOR=fake` runs everything without an API key. `EXTRACTOR=anthropic` with `ANTHROPIC_API_KEY` uses the real model.
 
@@ -493,7 +494,7 @@ Done when: tests cover a correction, a stale save (409), and resolving every fla
 ### Phase 2 — Web app
 
 **T2.1 App shell**
-Routing, layout, login and invite pages, API client with TanStack Query, error and empty states.
+Routing, layout, login and invite pages, API client with TanStack Query, error and empty states; `pnpm dev`.
 Liam checks: log in, log out, open a page without a session; try logging in with a wrong password 11 times (moved from T1.2).
 
 **T2.2 Home, month page and upload**
@@ -518,7 +519,7 @@ Phase 2 gate: one person takes the Phase 0 set from upload to zero open tickets 
 **T3.1 Excel exporter** ⚠ needs Liam's eyes
 Section 6.2 exactly.
 Done when: a test builds a month's file, reopens it with exceljs, and checks every sheet, the rows per worker, a day with two kept tickets, the formulas, RTL view, safe sheet names and formula-injection escaping.
-Liam checks: open it in Excel with his father; it looks like their own file; totals match the paper.
+Liam checks: open it in Excel with the owner; it looks like their own file; totals match the paper.
 
 **T3.2 Workplace PDFs**
 Section 6.3 exactly.

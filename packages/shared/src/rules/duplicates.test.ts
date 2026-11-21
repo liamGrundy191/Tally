@@ -14,7 +14,7 @@ const ticket = (over: Partial<DuplicateCandidate> = {}): DuplicateCandidate => (
 });
 const dupes = (...tickets: DuplicateCandidate[]) => findPossibleDuplicates(tickets);
 
-describe('POSSIBLE_DUPLICATE: same name, same place, same date, overlapping times', () => {
+describe('POSSIBLE_DUPLICATE: same name, same place, same date, whatever the times (D39)', () => {
   it('two Davids at one place with overlapping shifts are asked about (they may be two people)', () => {
     const a = ticket();
     const b = ticket({ startMinutes: at(12), endMinutes: at(20) });
@@ -59,6 +59,16 @@ describe('POSSIBLE_DUPLICATE: same name, same place, same date, overlapping time
     expect(dupes(ticket({ name: 'דוד' }), ticket({ name: 'דוד כהן' }))).toHaveLength(1);
   });
 
+  it('asks about back-to-back shifts too (08:00–16:00 then 16:00–22:00)', () => {
+    expect(dupes(ticket(), ticket({ startMinutes: at(16), endMinutes: at(22) }))).toHaveLength(1);
+  });
+
+  it('asks about a night and a morning shift on the same date (22:00–06:00 and 05:00–09:00)', () => {
+    const night = ticket({ startMinutes: at(22), endMinutes: at(6) });
+    const morning = ticket({ startMinutes: at(5), endMinutes: at(9) });
+    expect(dupes(night, morning)).toHaveLength(1);
+  });
+
   it('asks when either ticket has unknown times but everything else matches', () => {
     const a = ticket({ endMinutes: null });
     const b = ticket({ startMinutes: at(18), endMinutes: at(22) });
@@ -83,10 +93,6 @@ describe('POSSIBLE_DUPLICATE is not raised when the tickets clearly differ', () 
     expect(dupes(ticket(), ticket({ workplaceGroupId: 'shufersal' }))).toEqual([]);
   });
 
-  it('back-to-back shifts (08:00–16:00 then 16:00–22:00)', () => {
-    expect(dupes(ticket(), ticket({ startMinutes: at(16), endMinutes: at(22) }))).toEqual([]);
-  });
-
   it('different dates, even if the hours overlap (same date only)', () => {
     expect(dupes(ticket(), ticket({ shiftDate: '2026-11-11' }))).toEqual([]);
   });
@@ -95,12 +101,6 @@ describe('POSSIBLE_DUPLICATE is not raised when the tickets clearly differ', () 
     const mon = ticket({ shiftDate: '2026-11-09', startMinutes: at(22), endMinutes: at(6) });
     const tue = ticket({ shiftDate: '2026-11-10', startMinutes: at(22), endMinutes: at(6) });
     expect(dupes(mon, tue)).toEqual([]);
-  });
-
-  it('a night shift and a morning shift on the same date (22:00–06:00 and 05:00–09:00)', () => {
-    const night = ticket({ startMinutes: at(22), endMinutes: at(6) });
-    const morning = ticket({ startMinutes: at(5), endMinutes: at(9) });
-    expect(dupes(night, morning)).toEqual([]);
   });
 
   it('tickets without a name, workplace or date are not compared (they are flagged for that already)', () => {

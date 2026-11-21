@@ -24,7 +24,7 @@ Recommendation: A. It follows the reason the plan gave (use the NestJS default),
 
 Answer (Liam): A
 
-## Q2 · T3.1 · The agency's Excel layout · answered
+## Q2 · T3.1 · The agency's Excel layout · answered (later replaced by D39)
 
 Context: The agency's real Excel is a grid, not a list of tickets: one row per worker, one column per day of the month (1–31), hours as decimals (8.25), a total for each worker and for each day, names in English letters. The plan (principle 3) never combines tickets into one worker, because a ticket only has a first name: two different workers with the same name at one place would end up in one row. It does not affect the big test (H0), which measures reading.
 
