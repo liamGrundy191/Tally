@@ -7,7 +7,7 @@ import { PDFDocument } from 'pdf-lib';
 import { PgBoss } from 'pg-boss';
 import type { UploadResult } from '@tally/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { READ_TICKET, SPLIT_UPLOAD } from '../src/queue.ts';
+import { READ_UPLOAD, SPLIT_UPLOAD } from '../src/queue.ts';
 import { createAdmin } from '../src/users/create-admin.ts';
 import { startWorker } from '../src/worker.ts';
 import { Browser } from './helpers/browser.ts';
@@ -108,7 +108,7 @@ describe.skipIf(!databaseUrl || !storageConfigured)('uploading scans (T1.3)', ()
     expect(queued.map((j) => j.data.uploadId).sort()).toEqual(uploads.map((u) => u.id).sort());
   });
 
-  it('splits each file into one ticket per page, queues each ticket and deletes the file', async () => {
+  it('splits each file into one ticket per page, deletes the file and queues it to be read', async () => {
     await startWorker(app);
     await until(async () => (await prisma.upload.count({ where: { s3KeyOriginal: null } })) === 2);
     const tickets = await prisma.ticket.findMany({
@@ -127,8 +127,11 @@ describe.skipIf(!databaseUrl || !storageConfigured)('uploading scans (T1.3)', ()
     const page = await files.storage.get(tickets[0]!.s3KeyPage);
     const bytes = Buffer.concat(await page!.body.toArray());
     expect([...bytes.subarray(0, 3)]).toEqual([0xff, 0xd8, 0xff]); // a JPEG
-    const reads = await jobs(READ_TICKET);
-    expect(reads.map((j) => j.data.ticketId).sort()).toEqual(tickets.map((t) => t.id).sort());
+    // Each upload is then queued to be read, as a whole (T1.4).
+    const reads = await jobs(READ_UPLOAD);
+    expect(reads.map((j) => j.data.uploadId).sort()).toEqual(
+      [...new Set(tickets.map((t) => t.uploadId))].sort(),
+    );
   });
 
   it('detects a file uploaded again and does not read it twice', async () => {

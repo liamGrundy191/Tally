@@ -190,3 +190,9 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Tell the user at once.** Every check on a file (its real type, its size, its pages, whether it was uploaded before) runs the moment the upload is confirmed, so the screen can say straight away what is wrong, in plain words. A refused or repeated file is deleted at once: nothing is kept that will not be used, and a file is never paid for twice.
 - **Built to survive a crash.** A job is queued in the same database transaction as the record it is about, and splitting a 300-page scan resumes where it stopped instead of starting over or leaving stray files.
 - **Less stored, same result.** Each ticket keeps one image, the scan itself; the cleaned-up copy the reader needs is made again in milliseconds each time instead of being stored.
+
+### 19. Reading tickets in the background (T1.4)
+
+- **Reuse what was proven.** The reading steps that passed the big test were already one shared function; the worker feeds it and saves its results instead of copying the logic, so the product reads exactly as the test did.
+- **Never pay twice.** Each answer from the AI is saved the moment it arrives, so a worker that crashes and restarts picks up where it stopped without buying the same reading again. The test stops the worker halfway on purpose and checks that every answer was paid for once.
+- **An outside review before going further.** At Liam's request, three independent reviews checked everything built so far: the API, the reading rules, and the documents against the code. They found real problems, including one way a clearly written name could be silently replaced by a similar one from the list. The fixes go in their own change, before any real ticket is read.

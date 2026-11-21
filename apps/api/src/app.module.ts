@@ -10,6 +10,8 @@ import { ListsController } from './lists/lists.controller.ts';
 import { MonthsController } from './months/months.controller.ts';
 import { MonthsService } from './months/months.service.ts';
 import { createBoss, startQueue } from './queue.ts';
+import { ReadingConfig } from './reading/config.ts';
+import { Reader } from './reading/reader.ts';
 import { Storage } from './storage.ts';
 import { Splitter } from './uploads/splitter.ts';
 import { UploadsController } from './uploads/uploads.controller.ts';
@@ -30,10 +32,12 @@ import { UsersService } from './users/users.service.ts';
     { provide: PrismaClient, useFactory: () => createPrisma(process.env.DATABASE_URL ?? '') },
     { provide: PgBoss, useFactory: () => createBoss(process.env.DATABASE_URL ?? '') },
     { provide: Storage, useFactory: () => Storage.fromEnv() },
+    { provide: ReadingConfig, useFactory: () => ReadingConfig.fromEnv() },
     AuthService,
     UsersService,
     UploadsService,
     Splitter,
+    Reader,
     MonthsService,
     // Every route must declare its access (section 11).
     { provide: APP_GUARD, useClass: AccessGuard },
