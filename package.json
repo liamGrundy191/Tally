@@ -6,6 +6,7 @@
     "node": ">=22.12"
   },
   "scripts": {
+    "dev": "tsc -p apps/api/tsconfig.build.json && pnpm -r --parallel --stream run \"/^dev/\"",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "typecheck": "pnpm -r typecheck",

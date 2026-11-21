@@ -209,3 +209,10 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Two people, one ticket.** Each ticket carries a version number. A save that names an old version is refused with "someone else changed this ticket", instead of silently overwriting the other person's work, or a fresh reading.
 - **Saved values can raise new questions.** Correcting a name or a date may make two tickets look like the same shift. Such a save waits for the month to be checked again before the ticket counts as done.
 - **Privacy in the details.** The audit trail records every change, but for a ticket outside any month it records only which boxes changed, not the names or hours, because nothing would ever delete it.
+
+### 22. The app shell (T2.1)
+
+- **A critique before the code.** The plan was challenged first and the review caught three real flaws: the compiled API would crash when loading the shared package's TypeScript source, a global "you were logged out" redirect would loop forever on the login page itself, and React's double-run of effects in development would make every real invite link look invalid. Each was designed out before anything was written.
+- **Fewer tools, older versions.** One command, `pnpm dev`, starts the website, the API and the worker, using only what was already installed. Testing Library was dropped: React and jsdom alone drive the pages. React Router 8 and jsdom 30 were skipped because they need a newer Node than the repository allows, so the newest versions that run on it were pinned.
+- **Finishing what nobody owned.** The printable ticket template had no task of its own. Liam chose to build the download now, so the app is usable end to end instead of leaving a gap.
+- **Reviews found nothing serious.** Two independent reviewers looked at the result. The small fixes were made: a malformed redirect link could crash the login, a previous user's cached data is now cleared at login, and a "Try again" button appears when the login check fails.

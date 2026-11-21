@@ -19,8 +19,8 @@ export const passwordSchema = z
 
 /** Login checks only that something was typed: the length rule applies when a password is set. */
 export const loginSchema = z.object({
-  email: z.string().trim().toLowerCase().max(320),
-  password: z.string().min(1).max(200),
+  email: z.string().trim().toLowerCase().min(1, 'Type your email address.').max(320),
+  password: z.string().min(1, 'Type your password.').max(200),
 });
 
 export const inviteSchema = z.object({ email: emailSchema, role: z.enum(ROLES) });

@@ -15,6 +15,7 @@ import { createBoss, startQueue } from './queue.ts';
 import { ReadingConfig } from './reading/config.ts';
 import { Reader } from './reading/reader.ts';
 import { Storage } from './storage.ts';
+import { TemplatesController } from './templates/templates.controller.ts';
 import { ProgressController, TicketsController } from './tickets/tickets.controller.ts';
 import { TicketsService } from './tickets/tickets.service.ts';
 import { Splitter } from './uploads/splitter.ts';
@@ -33,6 +34,7 @@ import { UsersService } from './users/users.service.ts';
     FlagsController,
     TicketsController,
     ProgressController,
+    TemplatesController,
   ],
   providers: [
     // Connect on first use or on start; main.ts refuses to start without DATABASE_URL.

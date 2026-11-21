@@ -50,4 +50,6 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm --filter @tally/web build
+      # pnpm dev runs the API from this build (D47); keeps it from breaking unnoticed.
+      - run: pnpm --filter @tally/api exec tsc -p tsconfig.build.json
       - run: pnpm audit --prod --audit-level high
