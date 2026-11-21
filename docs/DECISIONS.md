@@ -312,3 +312,14 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **A pasted list is at most 40,000 characters,** which fits the API's 100 KB request limit even in Hebrew.
 - **Real names out of the repository:** three first names from Liam's test scans, which are on the agency's names list, were replaced in tests and documents. The reading instructions in use (prompts v3) still use one of them as an example; prompt files are never edited once used, so it goes in the next prompt version. Earlier versions of the files keep them in the project history.
 - **Documents brought in line:** removed `totpSecret` from section 7 and added the login-limit fields; old decisions now say what replaced them; `pnpm dev` is marked as arriving in T2.1, the first task with a screen; CI now also builds the web app (section 12). The prompts in use are v3 (pass C added, D27).
+
+## D45 · T1.5 · Workplaces, names and duplicates (Liam: the three answers)
+
+- **"Same place" is remembered (Liam, 1A).** Workplace groups belong to one month, so the answer would otherwise be asked again next month. A "same place" answer adds the other spelling to the workplace list, the way confirmed names join the names list.
+- **Names in block letters are shown as "Kwame" (Liam, 2A):** a capital first letter and the rest small, also after a hyphen ("Mary-Ann"). Rows compare names ignoring capitals and spaces.
+- **No invented English spelling (Liam, 3A).** A clear Hebrew name gets its English spelling only from a `Hebrew = English` line of the names list; otherwise `NAME_NOT_CONFIRMED`, and a person picks one of the names already used at that workplace this month or on the list, or types it. Asking the reader for a spelling would change the reading instructions that passed G0.
+- **Every confirmed name joins the names list,** including English names read clearly (5.4).
+- **When the questions are asked.** After an upload is read, its months are organised: tickets are grouped by workplace (a workplace still in doubt waits for a person), then `WORKPLACE_SIMILAR` and `POSSIBLE_DUPLICATE` are raised once per pair. Only one organiser runs for a month at a time. Answering a question organises the month again, since a merge can bring two tickets of one name together.
+- **A question sends a verified ticket back to a person,** and it returns to verified once its questions are answered. A ticket that was never verified stays for the person to confirm (T1.6).
+- **Duplicates:** "replace" excludes the older ticket ("replaced", pointing at the new one); "ignore" excludes the newer one ("duplicate"); "keep both" keeps both. "Older" is the one uploaded first.
+- **The month summary's rows:** each workplace with one row per confirmed name and the tickets in it; tickets without a confirmed name are listed apart; removed tickets are not shown.

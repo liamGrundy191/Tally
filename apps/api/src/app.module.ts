@@ -8,7 +8,9 @@ import { createPrisma } from './db.ts';
 import { PrismaClient } from './generated/prisma/client.ts';
 import { ListsController } from './lists/lists.controller.ts';
 import { MonthsController } from './months/months.controller.ts';
+import { FlagsController } from './months/flags.controller.ts';
 import { MonthsService } from './months/months.service.ts';
+import { Organiser } from './months/organiser.ts';
 import { createBoss, startQueue } from './queue.ts';
 import { ReadingConfig } from './reading/config.ts';
 import { Reader } from './reading/reader.ts';
@@ -26,6 +28,7 @@ import { UsersService } from './users/users.service.ts';
     UploadsController,
     MonthsController,
     ListsController,
+    FlagsController,
   ],
   providers: [
     // Connect on first use or on start; main.ts refuses to start without DATABASE_URL.
@@ -39,6 +42,7 @@ import { UsersService } from './users/users.service.ts';
     Splitter,
     Reader,
     MonthsService,
+    Organiser,
     // Every route must declare its access (section 11).
     { provide: APP_GUARD, useClass: AccessGuard },
   ],

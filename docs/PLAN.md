@@ -190,8 +190,8 @@ Trim; collapse spaces; remove punctuation, quotes, geresh/gershayim and niqqud; 
 
 There is no worker table. The Excel has one row per worker in each workplace's sheet (6.2), so every ticket gets a **confirmed name in English letters** (the agency writes all names in English):
 
-- **Written in English and read with certainty:** the name as read.
-- **Written in Hebrew:** the English spelling from the names list when the name was settled from a `Hebrew = English` line (5.4); otherwise `NAME_NOT_CONFIRMED`, and a person confirms the system's suggested spelling or types one.
+- **Written in English and read with certainty:** the name as read, with a capital first letter and the rest small ("KWAME" → "Kwame", D45).
+- **Written in Hebrew:** the English spelling from the names list when the name was settled from a `Hebrew = English` line (5.4); otherwise `NAME_NOT_CONFIRMED`, and a person picks a spelling (from the names used at that workplace this month, then the names list) or types one. The system does not invent an English spelling (D45).
 - **Consistent spellings:** when a person confirms a name, the review screen first offers the names already used at that workplace in that month, so one worker is not spelt two ways.
 - **Same confirmed name, same workplace, same month = one row.** Comparison ignores capital letters and extra spaces. Two different workers with the same name are told apart by the person confirming ("Kwame", "Kwame B"); only they can know.
 - The month page lists, for every row, the tickets it is made of.
@@ -208,7 +208,7 @@ The system never chooses for the user.
 
 - The agency's list of workplaces is given to the extractor (D25). When both readings name the same list entry and the handwriting resembles it, the workplace is that entry; otherwise it is flagged, and a workplace on no list is flagged as possibly new. A list line may give a place's spellings in both languages (`Dolev = דולב`); the Hebrew one is the place's name, used for its sheet and PDF (D36).
 - Workplaces with the same normalised name are grouped automatically.
-- A workplace whose normalised name is similar to another group's (Levenshtein distance ≤ 2, or one contains the other) raises `WORKPLACE_SIMILAR`. The user chooses **Same place** (merge, choosing the display name) or **Different place**. The decision applies to every ticket in both groups.
+- A workplace whose normalised name is similar to another group's (Levenshtein distance ≤ 2, or one contains the other) raises `WORKPLACE_SIMILAR`. The user chooses **Same place** (merge, choosing the display name) or **Different place**. The decision applies to every ticket in both groups. **Same place** also adds the other spelling to the workplace list, so the next month recognises it without asking (D45).
 - Workplace groups exist only inside a month and are deleted with it.
 
 ### 5.4 The lists that help reading

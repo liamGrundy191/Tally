@@ -36,3 +36,10 @@ export const completeUploadsSchema = z.object({
 export type UploadResult =
   | { key: string; status: 'queued'; uploadId: string; pages: number }
   | { key: string; status: 'duplicate' | 'rejected'; message: string };
+
+/** Answers to the questions only a person can answer (5.2, 5.3). */
+export const resolveFlagSchema = z.object({
+  decision: z.enum(['same_place', 'different_place', 'replace', 'keep_both', 'ignore']),
+  /** For "same place": the group whose name the place keeps. */
+  keepGroupId: z.uuid().optional(),
+});

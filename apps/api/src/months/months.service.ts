@@ -26,7 +26,40 @@ export class MonthsService {
   async get(id: string) {
     const month = await this.prisma.month.findUnique({ where: { id } });
     if (!month) throw new NotFoundException('There is no such month.');
-    return (await this.withCounts([month]))[0];
+    return { ...(await this.withCounts([month]))[0]!, workplaces: await this.rows(id) };
+  }
+
+  /**
+   * The month page's tickets by workplace and row (section 9): one row per confirmed name, compared
+   * ignoring capitals and spaces (5.2). Tickets with no confirmed name yet are listed apart.
+   */
+  private async rows(monthId: string) {
+    const groups = await this.prisma.workplaceGroup.findMany({
+      where: { monthId, mergedIntoId: null },
+      orderBy: { displayName: 'asc' },
+      include: {
+        tickets: {
+          where: { status: { not: 'excluded' } },
+          orderBy: [{ shiftDate: 'asc' }, { createdAt: 'asc' }],
+          select: { id: true, workerName: true, shiftDate: true, totalMinutes: true, status: true },
+        },
+      },
+    });
+    return groups.map((g) => {
+      const rows = new Map<string, { name: string; tickets: typeof g.tickets }>();
+      for (const t of g.tickets.filter((t) => t.workerName)) {
+        const key = t.workerName!.toLowerCase().replace(/\s+/g, ' ').trim();
+        const row = rows.get(key) ?? { name: t.workerName!, tickets: [] };
+        row.tickets.push(t);
+        rows.set(key, row);
+      }
+      return {
+        groupId: g.id,
+        name: g.displayName,
+        rows: [...rows.values()].sort((a, b) => a.name.localeCompare(b.name)),
+        unnamed: g.tickets.filter((t) => !t.workerName),
+      };
+    });
   }
 
   /** Each month with its tickets counted by status (section 9: "640 tickets, 12 need review"). */

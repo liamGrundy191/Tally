@@ -84,6 +84,7 @@ export const FLAG_CODES = [
   'MATCH_AMBIGUOUS',
   'POSSIBLE_DUPLICATE',
   'MONTH_CLOSED',
+  'NAME_NOT_CONFIRMED',
   'EXTRACTION_ERROR',
 ] as const;
 export const FlagCodeSchema = z.enum(FLAG_CODES);

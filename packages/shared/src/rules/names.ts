@@ -37,3 +37,20 @@ export function nameProblem(raw: string): NameProblem | null {
   if (/[א-ת]/.test(s) && /[A-Za-z]/.test(s)) return 'mixed_scripts';
   return null;
 }
+
+export const hasHebrew = (s: string) => /[֐-׿]/.test(s);
+
+/**
+ * A name written in English letters as it goes in the Excel (5.2, Liam): tickets are filled in
+ * with block letters, so "KWAME B" becomes "Kwame B". Spaces are tidied; nothing else changes.
+ */
+export function englishName(raw: string): string {
+  return stripInvisible(raw)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    .replace(
+      /(^|[\s-])(\p{L})/gu,
+      (_, before: string, letter: string) => before + letter.toUpperCase(),
+    );
+}
