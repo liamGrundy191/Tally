@@ -6,7 +6,10 @@
     "typecheck": "tsc -p .",
     "test": "vitest run --test-timeout=20000",
     "db:migrate": "prisma migrate deploy",
-    "seed:admin": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/seed-admin.ts"
+    "seed:admin": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/seed-admin.ts",
+    "dev:tsc": "tsc -w -p tsconfig.build.json --preserveWatchOutput",
+    "dev:api": "node --experimental-strip-types --disable-warning=ExperimentalWarning --watch --env-file-if-exists=../../.env dist/main.js",
+    "dev:worker": "node --experimental-strip-types --disable-warning=ExperimentalWarning --watch --env-file-if-exists=../../.env --env-file=worker.env dist/main.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.10.0",

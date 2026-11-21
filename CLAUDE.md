@@ -45,7 +45,7 @@ Shift Ticket Processing System: turns scanned paper shift tickets into Excel she
 ```
 docker compose -f docker/compose.dev.yml up -d   # Postgres + MinIO
 pnpm db:migrate                                   # apply database migrations (DATABASE_URL in .env)
-pnpm dev                                          # web, API, worker (from T2.1)
+pnpm dev                                          # web, API, worker
 pnpm seed:admin                                   # create first admin (asks for email and password)
 pnpm lint && pnpm typecheck && pnpm test          # before every PR
 pnpm format                                       # fix formatting (Prettier)
