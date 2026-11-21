@@ -92,6 +92,19 @@ describe('reading a batch', () => {
     expect(t!.checked!.flags.map((f) => f.code)).toContain('FIELD_UNREADABLE');
   });
 
+  it('asks pass C about a total accepted from the times, and flags it if C reads another (D30)', async () => {
+    const unsureTotal = answer({}, { unsure: { totalWorked: '08:30' } });
+    const x = new ScriptedExtractor({
+      't1:A': [unsureTotal],
+      't1:B': [unsureTotal],
+      't1:C': [answer({ totalWorked: '06:30' })],
+    });
+    const [t] = await run(x, [item('t1')]);
+    expect(x.calls).toEqual(['t1:A', 't1:B', 't1:C']);
+    expect(t!.checked!.totalFromMath).toBe(false);
+    expect(t!.checked!.flags.map((f) => f.code)).toContain('FIELD_UNREADABLE');
+  });
+
   it('keeps the two-pass result when pass C fails', async () => {
     const x = new ScriptedExtractor({
       't1:A': [answer({}, { unsure: { endTime: '16:30' } })],

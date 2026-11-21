@@ -201,7 +201,11 @@ export function reconcilePasses(
       );
     if (clearlyOther) {
       if (!flags.some(isReadingFlag(field))) {
-        flags.push({ code: 'MATCH_AMBIGUOUS', field, detail: { match: ma, written } });
+        flags.push({
+          code: 'MATCH_AMBIGUOUS',
+          field,
+          detail: { match: ma, alsoFits: [], written },
+        });
       }
       suggestions[field] = ma!;
       return false;

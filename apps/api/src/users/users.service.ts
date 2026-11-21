@@ -7,7 +7,7 @@ import {
 import type { Role } from '@tally/shared';
 import { argon2id, hash } from 'argon2';
 import { audit } from '../audit.ts';
-import { PrismaClient } from '../generated/prisma/client.ts';
+import { Prisma, PrismaClient } from '../generated/prisma/client.ts';
 import { hashToken, newToken } from '../auth/tokens.ts';
 
 /** An invite link works for 7 days (Liam, D41). */
@@ -102,6 +102,15 @@ export class UsersService {
 
   /** Changes a user's role or disables them; there is always at least one active admin. */
   async update(byUserId: string, id: string, change: { role?: Role; disabled?: boolean }) {
+    return this.updateOnce(byUserId, id, change).catch((e: unknown) => {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2034') {
+        throw new ConflictException('Someone changed this at the same time. Please try again.');
+      }
+      throw e;
+    });
+  }
+
+  private updateOnce(byUserId: string, id: string, change: { role?: Role; disabled?: boolean }) {
     return this.prisma.$transaction(
       async (tx) => {
         const before = await tx.user.findUnique({ where: { id }, select: publicFields });

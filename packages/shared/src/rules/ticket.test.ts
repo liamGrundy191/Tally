@@ -242,7 +242,8 @@ describe('FIELD_EMPTY: a box left blank on the paper', () => {
   });
 
   it('ignores invisible characters copying can add: soft hyphen, Arabic letter mark', () => {
-    expect(check({ firstName: 'Dana\u00ad', workplace: 'סופר פארם\u061c' })).toEqual([]);
+    expect(check({ firstName: 'Dana\u00ad' })).toEqual([]);
+    expect(check({ firstName: 'דנה\u061c' })).toEqual([]);
   });
 
   it('refuses to check with a malformed "today", which would skip the date checks', () => {

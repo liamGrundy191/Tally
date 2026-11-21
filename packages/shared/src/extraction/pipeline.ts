@@ -86,7 +86,9 @@ export async function readBatch(items: readonly BatchItem[], opts: BatchOptions)
       const [a, b] = await Promise.all([read(full, 'A'), read(full, 'B')]);
       out.reads = { A: a, B: b };
       out.checked = checkExtraction(a, b, opts.settings, lists);
-      if (unclearFields(out.checked).length > 0 && (!opts.canSpend || opts.canSpend())) {
+      // Also when the total was accepted from the times (D30): a third read may see another total.
+      const needsThird = unclearFields(out.checked).length > 0 || out.checked.totalFromMath;
+      if (needsThird && (!opts.canSpend || opts.canSpend())) {
         try {
           const c = await read(full, 'C');
           out.reads.C = c;

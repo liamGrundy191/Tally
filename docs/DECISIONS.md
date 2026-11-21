@@ -40,7 +40,7 @@ CI installs `poppler-utils`. On Windows: `winget install oschwartz10612.Poppler`
 
 ## D9 · Ticket · No last name on the ticket (owner)
 
-The owner decided the last name is not needed. The ticket has one name field, first name (12 boxes); the rows below it moved up. The worker column in the export shows the first name, and `POSSIBLE_DUPLICATE` compares first names. (Replaced by D39: the Excel row is the confirmed English name.) Two different workers with the same first name at the same place and overlapping hours will now always be asked about ("Keep both"), since there is no surname to tell them apart.
+The owner decided the last name is not needed. The ticket has one name field, first name (12 boxes); the rows below it moved up. The worker column in the export shows the first name, and `POSSIBLE_DUPLICATE` compares first names. (Replaced by D39: the Excel row is the confirmed English name.) Two different workers with the same first name at the same place on the same day (any hours, D44) will now always be asked about ("Keep both"), since there is no surname to tell them apart.
 
 ## D10 · T0.3 · Two new flags: FIELD_EMPTY and TIME_INVALID (Liam)
 
@@ -48,7 +48,7 @@ A blank box gets "The end time is empty" rather than "Could not read". A time th
 
 ## D11 · T0.3 · Duplicates: same date only; names match in any order or with an extra word (Liam)
 
-Liam chose same date only: a night shift entered twice with two different dates is not caught. Consecutive night shifts never overlap, so they are never flagged either way. Names match if they have the same words in any order ("דוד כהן" / "כהן דוד", Liam: yes), or if every word of one appears in the other ("דוד" / "דוד כהן", since the ticket has one name field). Back-to-back shifts (16:00 end, 16:00 start) do not overlap. If either ticket's times are unknown, it is asked about.
+(Replaced in part by D39 and D44: the same name on the same day always asks, whatever the times.) Liam chose same date only: a night shift entered twice with two different dates is not caught. Consecutive night shifts never overlap, so they are never flagged either way. Names match if they have the same words in any order ("דוד כהן" / "כהן דוד", Liam: yes), or if every word of one appears in the other ("דוד" / "דוד כהן", since the ticket has one name field). Back-to-back shifts (16:00 end, 16:00 start) do not overlap. If either ticket's times are unknown, it is asked about.
 
 ## D12 · T0.3 · Names: Hebrew and English are both fine (Liam)
 
