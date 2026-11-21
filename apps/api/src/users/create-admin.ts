@@ -1,18 +1,6 @@
+import { emailSchema, passwordSchema } from '@tally/shared';
 import { argon2id, hash } from 'argon2';
-import { z } from 'zod';
 import type { PrismaClient } from '../generated/prisma/client.ts';
-
-/** PLAN section 11: at least 12 characters. The upper bound keeps hashing cheap. */
-export const passwordSchema = z
-  .string()
-  .min(12, 'The password needs at least 12 characters.')
-  .max(200, 'The password can have at most 200 characters.');
-
-export const emailSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .pipe(z.email('That is not a valid email address.'));
 
 /** A problem with what the person typed, explained in plain words. */
 export class AccountError extends Error {}

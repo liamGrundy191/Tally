@@ -45,7 +45,7 @@ This system turns scanned tickets into those Excel sheets, in the agency's own l
 | Ticket images     | One PDF per workplace with all its tickets of the month, downloadable any time (6.3).                                                                                                    |
 | Pay and rates     | Not in version 1. Excel shows hours only. Pay columns may be added later.                                                                                                                |
 | Retention         | When the user closes a month, it is deleted. Automatic deletion 60 days after the month ends.                                                                                            |
-| Users             | The owner and a few associates, on laptops, working on the same months. Invite-only accounts.                                                                                            |
+| Users             | For now the owner, on one computer; associates can be invited later. Invite-only accounts.                                                                                               |
 | AI                | Ticket images are sent to the Anthropic API. The owner has approved this.                                                                                                                |
 | Volume and budget | About 900 tickets (7,000 hours) a month. Reading costs about 15 cents a ticket in batch mode (D38), paid by the agency.                                                                  |
 
@@ -339,7 +339,7 @@ REST + JSON under `/api`. Every route except login and invite acceptance require
 
 | Screen                | Content                                                                                                                                                                                                                                                        |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Login / Accept invite | Email and password; optional one-time code                                                                                                                                                                                                                     |
+| Login / Accept invite | Email and password                                                                                                                                                                                                                                             |
 | Home                  | Open months with counts ("November: 640 tickets, 12 need review"); tickets waiting for a date; **Upload** and **Review next** buttons                                                                                                                          |
 | Month                 | Counts; **Review next**; **Download Excel** and **Workplace PDFs**; the tickets by workplace and row, with search and **Remove**; the lists; **Close month**                                                                                                   |
 | Upload                | Drag and drop many files (PDF, JPEG, PNG). Per-file state: uploading, uploaded, failed with Retry. Before reading starts, the user picks **Speed** (Now / Batch) and **Reading quality** (Standard / Best) and sees the estimated price for this upload (D26). |
@@ -388,8 +388,9 @@ Worker concurrency defaults to 4. Every job has a timeout. Related writes run in
 - Invite-only accounts; first admin created by `pnpm seed:admin`.
 - Passwords: argon2id, minimum 12 characters.
 - Sessions: random token, stored hashed, sent in an httpOnly, Secure, SameSite=Lax cookie; idle expiry 12 hours.
-- Login rate-limited per account and per IP; lockout after 10 failures for 15 minutes.
-- Optional TOTP; required for admins before real data is loaded.
+- Login rate-limited per account and per IP; lockout after 10 failures for 15 minutes; 50 failures from one IP in 15 minutes refuse that IP.
+- Invites: the admin gets a link (there is no email sending) and sends it; it works once, for 7 days (D41).
+- No two-step codes for now (Liam, D41).
 - CSRF protection on state-changing requests (double-submit token).
 - Every route declares its role.
 - S3: all public access blocked, encryption at rest, signed URLs valid 5 minutes and bound to one key, object keys are random UUIDs.
@@ -470,9 +471,8 @@ Zero unflagged wrong values in date, start, end and total. Names and workplaces 
 Done when: migrations apply to an empty database; seed creates an admin.
 
 **T1.2 Authentication and users**
-Login, logout, sessions, invites, roles, rate limiting, lockout, CSRF, optional TOTP.
+Login, logout, sessions, invites, roles, rate limiting, lockout, CSRF.
 Done when: tests cover login success and failure, lockout, an expired session, role denial, and invite acceptance.
-Liam checks: try logging in with a wrong password 11 times.
 
 **T1.3 Uploads, months and lists**
 Signed upload URLs; upload completion; intake checks; splitting into page images; queueing; months created from ticket dates; month list and summary; the workplace and names lists (5.4).
@@ -494,7 +494,7 @@ Done when: tests cover a correction, a stale save (409), and resolving every fla
 
 **T2.1 App shell**
 Routing, layout, login and invite pages, API client with TanStack Query, error and empty states.
-Liam checks: log in, log out, open a page without a session.
+Liam checks: log in, log out, open a page without a session; try logging in with a wrong password 11 times (moved from T1.2).
 
 **T2.2 Home, month page and upload**
 Home with open months, month page with live progress and the tickets by workplace and row, multi-file upload with per-file state and retry.
@@ -533,7 +533,7 @@ Phase 3 gate: Excel totals for the Phase 0 set match `truth.csv` exactly. This i
 
 ### Phase 4 — Hardening and deployment
 
-**T4.1** Security pass against section 11; admin TOTP required.
+**T4.1** Security pass against section 11.
 **T4.2** Logging, Sentry, `/health`, backup and restore test, recovery guide in the README.
 **T4.3** `compose.prod.yml`, Caddy, Dockerfiles, deploy workflow.
 **T4.4 Pilot** One real month in parallel with the manual count.

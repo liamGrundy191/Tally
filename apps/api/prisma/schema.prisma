@@ -63,8 +63,10 @@ model User {
   email        String    @unique
   passwordHash String
   role         Role
-  totpSecret   String?
   disabledAt   DateTime?
+  /// Wrong passwords since the last good one; 10 lock the account for 15 minutes (section 11).
+  failedLogins Int       @default(0)
+  lockedUntil  DateTime?
 
   sessions        Session[]
   uploads         Upload[]
@@ -97,6 +99,16 @@ model Session {
   lastSeenAt DateTime
 
   @@index([userId])
+}
+
+/// One failed login, for the limit per IP address (section 11). Kept for a day.
+model LoginFailure {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ip        String
+
+  @@index([ip, createdAt])
 }
 
 /// One calendar month, open about six weeks (6.1). Its summary row outlives the purge.
