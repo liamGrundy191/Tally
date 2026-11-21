@@ -5,7 +5,7 @@
 import type { INestApplication } from '@nestjs/common';
 import type { UploadResult } from '@tally/shared';
 import { FakeExtractor, type TicketExtractor } from '@tally/shared/extraction';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { ReadingConfig } from '../src/reading/config.ts';
 import { createAdmin } from '../src/users/create-admin.ts';
 import { startWorker } from '../src/worker.ts';
@@ -95,8 +95,13 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
     ({ app, base } = await testApp(db, { storage: files.storage, reading: config }));
     owner = new Browser(base);
     await owner.login(OWNER.email, OWNER.password);
+    // The fixtures' worker, so a clear Hebrew name has its English spelling (5.2).
+    await prisma.listEntry.create({ data: { kind: 'name', name: 'Yael', spellings: ['יעל'] } });
     await startWorker(app);
   }, 120_000);
+
+  // Each test starts without the others' tickets, which would be possible duplicates of its own.
+  beforeEach(() => prisma.upload.deleteMany());
 
   afterAll(async () => {
     await app?.close();
@@ -116,6 +121,7 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
       status: 'verified',
       verifiedHow: 'auto',
       firstName: 'יעל',
+      workerName: 'Yael',
       workplaceRaw: 'סופר פארם',
       shiftDate: new Date('2026-11-10'),
       startMinutes: 8 * 60,
@@ -146,6 +152,20 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
     }
   });
 
+  it('does not pick between two listed names that share a Hebrew spelling', async () => {
+    const other = await prisma.listEntry.create({
+      data: { kind: 'name', name: 'Yaelle', spellings: ['יעל'] },
+    });
+    try {
+      const [t] = await read('shared spelling.pdf', ['clean']);
+      expect(t).toMatchObject({ workerName: null });
+      expect(t!.status).not.toBe('verified');
+      expect(codes(t!)).toContain('NAME_NOT_CONFIRMED:firstName');
+    } finally {
+      await prisma.listEntry.delete({ where: { id: other.id } });
+    }
+  });
+
   it('reads in batch mode the same way', async () => {
     const [t] = await read('week 3.pdf', ['clean'], 'batch');
     expect(t).toMatchObject({ status: 'verified' });
@@ -171,8 +191,8 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
   it('finishes after the worker stops mid-run, without paying twice or duplicating', async () => {
     answered.length = 0;
     stopAfter = 3; // dies after three answers, in the middle of the first round
-    const tickets = await read('restart.pdf', ['clean', 'disputed', 'clean']);
-    expect(tickets.map((t) => t.status)).toEqual(['verified', 'needs_review', 'verified']);
+    const tickets = await read('restart.pdf', ['clean', 'disputed', 'voided']);
+    expect(tickets.map((t) => t.status)).toEqual(['verified', 'needs_review', 'needs_review']);
     // Every answer was paid for once: the restarted job reused the saved ones.
     expect(new Set(answered).size).toBe(answered.length);
     const readings = await prisma.reading.count({
@@ -191,6 +211,7 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
 const EXPECTED_DISPUTED = [
   'CORRECTION_MARKS:totalWorked',
   'FIELD_UNREADABLE:endTime',
+  'NAME_NOT_CONFIRMED:firstName', // a clear Hebrew name with no English spelling on the list
   'PASS_DISAGREEMENT:totalWorked',
   'TIME_MATH_MISMATCH:totalWorked',
 ];

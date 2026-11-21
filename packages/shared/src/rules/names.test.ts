@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { nameProblem, normaliseName } from './names.ts';
+import { englishName, hasHebrew, nameProblem, normaliseName } from './names.ts';
 
 const RLM = String.fromCharCode(0x200f);
 const NBSP = String.fromCharCode(0xa0);
@@ -73,5 +73,19 @@ describe('SCRIPT_UNEXPECTED: names that are not plain Hebrew or English', () => 
   it('flags Hebrew and English letters mixed in one name', () => {
     expect(nameProblem('Davidכהן')).toBe('mixed_scripts');
     expect(nameProblem('David כהן')).toBe('mixed_scripts');
+  });
+});
+
+describe('englishName: a name as the Excel shows it (5.2)', () => {
+  it('turns block letters into a capital and small letters', () => {
+    expect(englishName('KWAME')).toBe('Kwame');
+    expect(englishName('  kwame   b ')).toBe('Kwame B');
+    expect(englishName('MARY-ANN')).toBe('Mary-Ann');
+    expect(englishName('McDonald')).toBe('McDonald'); // mixed case is kept as written
+  });
+
+  it('tells a Hebrew name from an English one', () => {
+    expect(hasHebrew('דנה')).toBe(true);
+    expect(hasHebrew('Dana')).toBe(false);
   });
 });

@@ -164,8 +164,8 @@ Each step writes its result before the next starts and checks for its own saved 
 | `WORKPLACE_NOT_ON_LIST`                             | A workplace list is in use and neither reading matches an entry (D25)                                                          | "Is 'X' a new workplace?"                           |
 | `MATCH_AMBIGUOUS`                                   | Both readings match a list entry, but the writing also resembles another entry (D25, D28)                                      | "Is this בית נוי or בית נוף?"                       |
 | `POSSIBLE_DUPLICATE`                                | See 5.2                                                                                                                        | "There is already a ticket for Kwame here on 13/11" |
-| `NAME_NOT_CONFIRMED`                                | The name has no confirmed spelling in English letters yet (5.2)                                                                | "Confirm the name in English letters"               |
-| `MONTH_CLOSED`                                      | The ticket's date is in a month that is already closed (6.1)                                                                   | "November is already closed"                        |
+| `NAME_NOT_CONFIRMED`                                | A clear Hebrew name has no `Hebrew = English` line on the names list (5.2, D45)                                                | "Confirm the name in English letters"               |
+| `MONTH_CLOSED`                                      | The ticket's date is in a month that is already closed (6.1); the ticket stays outside any month                               | "November is already closed"                        |
 | `EXTRACTION_ERROR`                                  | Extractor failed after retries                                                                                                 | "Could not read this ticket. Please type it in."    |
 
 A flag is resolved only by a person: correcting the value, confirming it ("the paper really says this", logged), or excluding the ticket with a reason. Saving re-runs all rule checks on the saved values.
@@ -190,8 +190,8 @@ Trim; collapse spaces; remove punctuation, quotes, geresh/gershayim and niqqud; 
 
 There is no worker table. The Excel has one row per worker in each workplace's sheet (6.2), so every ticket gets a **confirmed name in English letters** (the agency writes all names in English):
 
-- **Written in English and read with certainty:** the name as read.
-- **Written in Hebrew:** the English spelling from the names list when the name was settled from a `Hebrew = English` line (5.4); otherwise `NAME_NOT_CONFIRMED`, and a person confirms the system's suggested spelling or types one.
+- **Written in English and read with certainty:** the name as read, with a capital first letter and the rest small ("KWAME" → "Kwame", D45).
+- **Written in Hebrew:** the English spelling from the names list when the name was settled from a `Hebrew = English` line (5.4); otherwise `NAME_NOT_CONFIRMED`, and a person picks a spelling (from the names used at that workplace this month, then the names list) or types one. The system does not invent an English spelling (D45).
 - **Consistent spellings:** when a person confirms a name, the review screen first offers the names already used at that workplace in that month, so one worker is not spelt two ways.
 - **Same confirmed name, same workplace, same month = one row.** Comparison ignores capital letters and extra spaces. Two different workers with the same name are told apart by the person confirming ("Kwame", "Kwame B"); only they can know.
 - The month page lists, for every row, the tickets it is made of.
@@ -208,7 +208,7 @@ The system never chooses for the user.
 
 - The agency's list of workplaces is given to the extractor (D25). When both readings name the same list entry and the handwriting resembles it, the workplace is that entry; otherwise it is flagged, and a workplace on no list is flagged as possibly new. A list line may give a place's spellings in both languages (`Dolev = דולב`); the Hebrew one is the place's name, used for its sheet and PDF (D36).
 - Workplaces with the same normalised name are grouped automatically.
-- A workplace whose normalised name is similar to another group's (Levenshtein distance ≤ 2, or one contains the other) raises `WORKPLACE_SIMILAR`. The user chooses **Same place** (merge, choosing the display name) or **Different place**. The decision applies to every ticket in both groups.
+- A workplace whose normalised name is similar to another group's (Levenshtein distance ≤ 2, or one contains the other) raises `WORKPLACE_SIMILAR`. The user chooses **Same place** (merge, choosing the display name) or **Different place**. The decision applies to every ticket in both groups. **Same place** also adds the other spelling to the workplace list, so the next month recognises it without asking (D45).
 - Workplace groups exist only inside a month and are deleted with it.
 
 ### 5.4 The lists that help reading
@@ -313,26 +313,25 @@ All tables have `id` (UUID), `createdAt`, `updatedAt`. Durations are integer min
 
 REST + JSON under `/api`. Every route except login and invite acceptance requires a session. Every body is validated with shared Zod schemas. Every state-changing route writes an `AuditEntry`.
 
-| Method and path                                            | Purpose                                                                    | Role     |
-| ---------------------------------------------------------- | -------------------------------------------------------------------------- | -------- |
-| `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`    | Session                                                                    | any      |
-| `POST /auth/accept-invite`                                 | Set password from invite token                                             | public   |
-| `GET /users`, `POST /users/invite`, `PATCH /users/:id`     | Manage users                                                               | admin    |
-| `GET /months`, `GET /months/:id`                           | List; month summary with counts per status and its rows                    | reviewer |
-| `POST /uploads/sign`                                       | Signed S3 PUT URLs for a number of files                                   | reviewer |
-| `POST /uploads/complete`                                   | Confirm arrival, run the intake checks, queue processing                   | reviewer |
-| `GET /progress`                                            | Counts by status, polled every 3 s                                         | reviewer |
-| `GET /tickets?month=&status=&flag=`                        | Paged list; `month=none` for tickets waiting for a date                    | reviewer |
-| `GET /tickets/:id`                                         | Ticket, flags, related tickets, signed image URL (5 min)                   | reviewer |
-| `PUT /tickets/:id`                                         | Save values; re-runs checks; requires `version` (409 if stale)             | reviewer |
-| `POST /tickets/:id/exclude`, `POST /tickets/:id/reprocess` | Exclude with reason; run pipeline again                                    | reviewer |
-| `POST /flags/:id/resolve`                                  | Resolve duplicate (replace, keep both, ignore) or workplace decisions      | reviewer |
-| `GET /months/:id/workplaces`                               | Workplace groups with ticket counts                                        | reviewer |
-| `GET`, `PUT /lists/:kind`                                  | Read or replace the workplace or names list (pasted text)                  | reviewer |
-| `GET /months/:id/excel`, `GET /months/:id/pdfs`            | Build and download; records the download                                   | reviewer |
-| `POST /months/:id/close`                                   | Body: typed month name. 409 if the Excel or the PDFs were never downloaded | reviewer |
-| `GET /templates/v1/pdf`                                    | Blank printable ticket PDF                                                 | reviewer |
-| `GET /health`                                              | DB, S3 and queue check                                                     | public   |
+| Method and path                                            | Purpose                                                                                                                                                                                                                                            | Role     |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`    | Session                                                                                                                                                                                                                                            | any      |
+| `POST /auth/accept-invite`                                 | Set password from invite token                                                                                                                                                                                                                     | public   |
+| `GET /users`, `POST /users/invite`, `PATCH /users/:id`     | Manage users                                                                                                                                                                                                                                       | admin    |
+| `GET /months`, `GET /months/:id`                           | List; month summary with counts per status and, per workplace, one row per confirmed name with its tickets (tickets with no confirmed name apart; removed tickets left out)                                                                        | reviewer |
+| `POST /uploads/sign`                                       | Signed S3 PUT URLs for a number of files                                                                                                                                                                                                           | reviewer |
+| `POST /uploads/complete`                                   | Confirm arrival, run the intake checks, queue processing                                                                                                                                                                                           | reviewer |
+| `GET /progress`                                            | Counts by status, polled every 3 s                                                                                                                                                                                                                 | reviewer |
+| `GET /tickets?month=&status=&flag=`                        | Paged list; `month=none` for tickets waiting for a date                                                                                                                                                                                            | reviewer |
+| `GET /tickets/:id`                                         | Ticket, flags, related tickets, signed image URL (5 min)                                                                                                                                                                                           | reviewer |
+| `PUT /tickets/:id`                                         | Save values; re-runs checks; requires `version` (409 if stale)                                                                                                                                                                                     | reviewer |
+| `POST /tickets/:id/exclude`, `POST /tickets/:id/reprocess` | Exclude with reason; run pipeline again                                                                                                                                                                                                            | reviewer |
+| `POST /flags/:id/resolve`                                  | Body `{ decision, keepGroupId? }`: `same_place` (keeping the chosen group's name) or `different_place` for `WORKPLACE_SIMILAR`; `replace`, `keep_both` or `ignore` for `POSSIBLE_DUPLICATE`. 204; 409 if already answered or the month is not open | reviewer |
+| `GET`, `PUT /lists/:kind`                                  | Read or replace the workplace or names list (pasted text)                                                                                                                                                                                          | reviewer |
+| `GET /months/:id/excel`, `GET /months/:id/pdfs`            | Build and download; records the download                                                                                                                                                                                                           | reviewer |
+| `POST /months/:id/close`                                   | Body: typed month name. 409 if the Excel or the PDFs were never downloaded                                                                                                                                                                         | reviewer |
+| `GET /templates/v1/pdf`                                    | Blank printable ticket PDF                                                                                                                                                                                                                         | reviewer |
+| `GET /health`                                              | DB, S3 and queue check                                                                                                                                                                                                                             | public   |
 
 ---
 
