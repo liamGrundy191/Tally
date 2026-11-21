@@ -1,9 +1,16 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module.js';
+import { startWorker } from './worker.js';
 
 async function bootstrap() {
   if (!process.env.DATABASE_URL) throw new Error('DATABASE_URL is not set (see .env.example).');
+  if (process.env.MODE === 'worker') {
+    const worker = await NestFactory.createApplicationContext(AppModule);
+    worker.enableShutdownHooks();
+    await startWorker(worker);
+    return;
+  }
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
   app.enableShutdownHooks();

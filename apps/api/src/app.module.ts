@@ -1,28 +1,56 @@
-import { Module, type OnModuleDestroy } from '@nestjs/common';
+import { Module, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { PgBoss } from 'pg-boss';
 import { AccessGuard } from './auth/access.ts';
 import { AuthController } from './auth/auth.controller.ts';
 import { AuthService } from './auth/auth.service.ts';
 import { createPrisma } from './db.ts';
 import { PrismaClient } from './generated/prisma/client.ts';
+import { ListsController } from './lists/lists.controller.ts';
+import { MonthsController } from './months/months.controller.ts';
+import { MonthsService } from './months/months.service.ts';
+import { createBoss, startQueue } from './queue.ts';
+import { Storage } from './storage.ts';
+import { Splitter } from './uploads/splitter.ts';
+import { UploadsController } from './uploads/uploads.controller.ts';
+import { UploadsService } from './uploads/uploads.service.ts';
 import { UsersController } from './users/users.controller.ts';
 import { UsersService } from './users/users.service.ts';
 
 @Module({
-  controllers: [AuthController, UsersController],
+  controllers: [
+    AuthController,
+    UsersController,
+    UploadsController,
+    MonthsController,
+    ListsController,
+  ],
   providers: [
-    // Connects on the first query; main.ts refuses to start without DATABASE_URL.
+    // Connect on first use or on start; main.ts refuses to start without DATABASE_URL.
     { provide: PrismaClient, useFactory: () => createPrisma(process.env.DATABASE_URL ?? '') },
+    { provide: PgBoss, useFactory: () => createBoss(process.env.DATABASE_URL ?? '') },
+    { provide: Storage, useFactory: () => Storage.fromEnv() },
     AuthService,
     UsersService,
+    UploadsService,
+    Splitter,
+    MonthsService,
     // Every route must declare its access (section 11).
     { provide: APP_GUARD, useClass: AccessGuard },
   ],
 })
-export class AppModule implements OnModuleDestroy {
-  constructor(private readonly prisma: PrismaClient) {}
+export class AppModule implements OnModuleInit, OnModuleDestroy {
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly boss: PgBoss,
+  ) {}
 
-  onModuleDestroy() {
-    return this.prisma.$disconnect();
+  onModuleInit() {
+    return startQueue(this.boss);
+  }
+
+  async onModuleDestroy() {
+    await this.boss.stop();
+    await this.prisma.$disconnect();
   }
 }

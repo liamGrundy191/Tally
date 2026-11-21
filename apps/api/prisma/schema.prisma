@@ -128,7 +128,6 @@ model Month {
 
   tickets         Ticket[]
   workplaceGroups WorkplaceGroup[]
-  listEntries     ListEntry[]
   auditEntries    AuditEntry[]
   downloads       Download[]
 
@@ -163,8 +162,8 @@ model Ticket {
   monthId          String?         @db.Uuid
   month            Month?          @relation(fields: [monthId], references: [id], onDelete: Cascade)
   pageIndex        Int
+  /// The page as scanned (JPEG), used in the workplace PDFs; normalised again for each reading.
   s3KeyPage        String
-  s3KeyNormalised  String?
   templateVersion  String?
   /// As read from the ticket.
   firstName        String?
@@ -214,20 +213,19 @@ model WorkplaceGroup {
   @@index([monthId])
 }
 
-/// The lists that help reading (5.4). They never put a worker or workplace in the Excel.
+/// The lists that help reading (5.4), shared by all months (D42). They never put a worker or
+/// workplace in the Excel.
 model ListEntry {
   id        String   @id @default(uuid()) @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  monthId   String   @db.Uuid
-  month     Month    @relation(fields: [monthId], references: [id], onDelete: Cascade)
   kind      ListKind
   /// A place's Hebrew name, or the English spelling of a worker's name.
   name      String
   /// Every other spelling (e.g. the place in English, the name in Hebrew).
   spellings String[]
 
-  @@unique([monthId, kind, name])
+  @@unique([kind, name])
 }
 
 /// One field as one pass read it. Insert-only for the application.

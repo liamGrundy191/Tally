@@ -270,3 +270,17 @@ Liam learned how the agency really works: it updates its Excel through the month
 - **There is always one active admin:** the last one cannot be disabled or made a reviewer.
 - **Logins are not written to the audit trail.** Those entries would belong to no month, so they would pile up forever against the principle of keeping data for the shortest time. Changes to accounts (invites, accepted invites, role and disable changes) are audited.
 - **Liam's check moves to T2.1,** where there is a login page to try it on.
+
+## D42 · T1.3 · Uploads, months and the shared lists (lists: Liam)
+
+- **One shared set of lists (Liam).** The plan gave each month its own copy of the workplace and names lists. But the lists are needed while a ticket is read, and its month is known only once its date is read, so they cannot belong to a month. There is now one workplace list and one names list, used by every month, and deleted only when no month is open. For the user it works the same.
+- **The lists are pasted,** one entry per line. `A = B`, or two columns copied from Excel (which arrive separated by a tab), gives one entry's two spellings. A workplace is named by its Hebrew spelling (D36), a worker by the English one; a name on several lines is kept once. Up to 2000 entries of 200 characters. Replacing a list is audited with the number of entries only, since the audit trail outlives the lists.
+- **Files are checked when the upload is confirmed,** not later in the background, so the upload screen can say at once what is wrong: not a PDF, JPEG or PNG (judged by content), over 50 MB, over 300 pages, damaged, or already uploaded. A refused or duplicate file is deleted at once. A duplicate's message names the first file and the day it came.
+- **The upload's id is the random part of its upload key,** so a file confirmed twice (say, after a lost answer) gets the same answer, not a "duplicate".
+- **Jobs are queued in the same transaction** as the upload or ticket they are about (pg-boss's Prisma adapter), so neither exists without the other.
+- **Page images.** PDF pages are rendered one at a time, at 200 dpi as in the Phase 0 tests, as colour JPEGs; photos are turned the right way up and re-saved without their camera details. The greyscale copy the reader needs is not stored: it takes milliseconds to make again each time, and saves one file per ticket. The `s3KeyNormalised` column was removed.
+- **Storage keys** are `uploads/<random UUID>` and `pages/<upload id>/<page>.jpg`: built from random UUIDs, with no names in them. Fixed page keys mean a split that is retried after a crash overwrites its pages instead of leaving stray files.
+- **For the production bucket (Phase 4):** a rule that deletes files under `uploads/` after 2 days, which removes uploads that were never confirmed or that a crash left behind, and a CORS rule so the browser can upload. A signed upload link cannot limit the file's size, so the size is checked on confirmation.
+- **One reading job per ticket** is queued when the ticket is created. T1.4 may group them for batch mode (D26) and the second look at names (6a).
+- **The month summary's rows** (section 8) come in T1.5, when tickets have confirmed names and workplaces.
+- **New libraries:** pg-boss 12.38.1 and the AWS SDK 3.1162.0 (both in the plan), pinned to releases about two weeks old. The tests use their own storage bucket and queue tables; CI starts MinIO as a step, because the image needs its `server` arguments.
