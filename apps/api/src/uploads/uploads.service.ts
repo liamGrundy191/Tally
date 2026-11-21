@@ -2,7 +2,13 @@
 // file straight to storage, then confirms it. Confirming runs the intake checks (step 1) and
 // queues the file to be split.
 import { Injectable } from '@nestjs/common';
-import { MAX_PDF_PAGES, MAX_UPLOAD_BYTES, UPLOAD_KEY, type UploadResult } from '@tally/shared';
+import {
+  MAX_PDF_PAGES,
+  MAX_UPLOAD_BYTES,
+  type ReadSpeed,
+  UPLOAD_KEY,
+  type UploadResult,
+} from '@tally/shared';
 import { inspectUpload } from '@tally/shared/imaging';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -52,13 +58,18 @@ export class UploadsService {
     );
   }
 
-  async complete(userId: string, files: { key: string; name: string }[]) {
+  async complete(userId: string, speed: ReadSpeed, files: { key: string; name: string }[]) {
     const results: UploadResult[] = [];
-    for (const f of files) results.push(await this.completeOne(userId, f.key, f.name));
+    for (const f of files) results.push(await this.completeOne(userId, speed, f.key, f.name));
     return results;
   }
 
-  private async completeOne(userId: string, key: string, name: string): Promise<UploadResult> {
+  private async completeOne(
+    userId: string,
+    speed: ReadSpeed,
+    key: string,
+    name: string,
+  ): Promise<UploadResult> {
     const id = UPLOAD_KEY.exec(key)![1]!;
     const done = await this.prisma.upload.findUnique({ where: { id } });
     if (done) return queued(key, done); // confirmed again, e.g. after a lost answer
@@ -100,6 +111,7 @@ export class UploadsService {
               sha256,
               mime: found.mime,
               pageCount: found.pages,
+              speed,
             },
           });
           await this.boss.send(SPLIT_UPLOAD, { uploadId: id }, { db: fromPrisma(tx) });
@@ -108,7 +120,7 @@ export class UploadsService {
             action: 'upload',
             entity: 'Upload',
             entityId: id,
-            after: { mime: found.mime, pages: found.pages },
+            after: { mime: found.mime, pages: found.pages, speed },
           });
           return upload;
         });

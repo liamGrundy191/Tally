@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./extraction": "./src/extraction/index.ts",
-    "./imaging": "./src/imaging/index.ts"
+    "./imaging": "./src/imaging/index.ts",
+    "./ticket-pdf": "./src/templates/pdf.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",

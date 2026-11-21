@@ -83,6 +83,7 @@ export const FLAG_CODES = [
   'WORKPLACE_NOT_ON_LIST',
   'MATCH_AMBIGUOUS',
   'POSSIBLE_DUPLICATE',
+  'MONTH_CLOSED',
   'EXTRACTION_ERROR',
 ] as const;
 export const FlagCodeSchema = z.enum(FLAG_CODES);

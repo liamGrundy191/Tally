@@ -1,0 +1,196 @@
+// T1.4 "Done when": the worker reads the fixture tickets with the fake reader, and every ticket
+// ends in the expected status with the expected flags; a worker stopped mid-run finishes after
+// a restart without duplicates. Plus tickets joining their month (6c). Runs the real API and
+// worker against a throwaway database schema and storage bucket; never the real reader.
+import type { INestApplication } from '@nestjs/common';
+import type { UploadResult } from '@tally/shared';
+import { FakeExtractor, type TicketExtractor } from '@tally/shared/extraction';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { ReadingConfig } from '../src/reading/config.ts';
+import { createAdmin } from '../src/users/create-admin.ts';
+import { startWorker } from '../src/worker.ts';
+import { Browser } from './helpers/browser.ts';
+import { slipsPdf } from './helpers/slips.ts';
+import { testApp } from './helpers/test-app.ts';
+import { databaseUrl, testDatabase } from './helpers/test-db.ts';
+import { storageConfigured, testStorage } from './helpers/test-storage.ts';
+
+const OWNER = { email: 'owner@example.com', password: 'owner password 1' };
+const fixtures = new FakeExtractor(new URL('../../../fixtures/extractions/', import.meta.url));
+
+async function until<T>(check: () => Promise<T | null | undefined | false>, ms = 60_000) {
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    const result = await check();
+    if (result) return result;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error('Timed out waiting.');
+}
+
+describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', () => {
+  const db = testDatabase();
+  const prisma = db.prisma;
+  const files = testStorage();
+  let app: INestApplication;
+  let owner: Browser;
+
+  /** Which prepared answers each test file's pages get, by file name. */
+  const script: Record<string, string[]> = {};
+  /** Every answer the fake reader gave ("<ticket id>:A"): what would have been paid for. */
+  const answered: string[] = [];
+  let stopAfter: number | null = null; // the worker "dies" after this many answers
+  const extractor: TicketExtractor = {
+    async extract(input, template, pass) {
+      const ticket = await prisma.ticket.findUniqueOrThrow({
+        where: { id: input.id },
+        include: { upload: true },
+      });
+      const name = script[ticket.upload.originalFilename]![ticket.pageIndex]!;
+      if (stopAfter !== null && answered.length >= stopAfter) {
+        stopAfter = null;
+        throw Object.assign(new Error('the worker stopped'), { status: 401 }); // ends the job
+      }
+      const answer = await fixtures.extract({ ...input, id: name }, template, pass);
+      answered.push(`${input.id}:${pass}`);
+      return answer;
+    },
+  };
+  const config = new ReadingConfig(
+    () => extractor,
+    () => ({ today: '2026-11-21', minShiftHours: 2, maxShiftHours: 16, maxDateAgeDays: 45 }),
+    false,
+    1, // retry quickly in tests
+  ) as ReadingConfig & { reviewEverything: boolean };
+
+  /** Uploads a scan whose pages get the named prepared answers, and waits until it is read. */
+  async function read(name: string, answers: string[], speed: 'now' | 'batch' = 'now') {
+    script[name] = answers;
+    const [{ key, url }] = (await owner.send('POST', '/api/uploads/sign', { count: 1 })).body;
+    await fetch(url, { method: 'PUT', body: await slipsPdf(answers.length, name) });
+    const done = await owner.send('POST', '/api/uploads/complete', {
+      speed,
+      files: [{ key, name }],
+    });
+    const result = (done.body as UploadResult[])[0]!;
+    expect(result.status).toBe('queued');
+    const uploadId = (result as { uploadId: string }).uploadId;
+    await until(
+      async () =>
+        (await prisma.ticket.count({ where: { uploadId, status: { not: 'processing' } } })) ===
+        answers.length,
+    );
+    return prisma.ticket.findMany({
+      where: { uploadId },
+      include: { flags: { orderBy: [{ code: 'asc' }, { field: 'asc' }] }, month: true },
+      orderBy: { pageIndex: 'asc' },
+    });
+  }
+  const codes = (t: { flags: { code: string; field: string | null }[] }) =>
+    t.flags.map((f) => (f.field ? `${f.code}:${f.field}` : f.code));
+
+  beforeAll(async () => {
+    await Promise.all([db.migrate(), files.create()]);
+    await createAdmin(prisma, OWNER.email, OWNER.password);
+    let base: string;
+    ({ app, base } = await testApp(db, { storage: files.storage, reading: config }));
+    owner = new Browser(base);
+    await owner.login(OWNER.email, OWNER.password);
+    await startWorker(app);
+  }, 120_000);
+
+  afterAll(async () => {
+    await app?.close();
+    await files.drop();
+    await db.drop();
+  });
+
+  it('reads every ticket and saves its status, values, flags and month', async () => {
+    const [clean, disputed, broken, voided] = await read('week 1.pdf', [
+      'clean',
+      'disputed',
+      'broken',
+      'voided',
+    ]);
+    // Clear on both readings, nothing wrong: verified, in November.
+    expect(clean).toMatchObject({
+      status: 'verified',
+      verifiedHow: 'auto',
+      firstName: 'יעל',
+      workplaceRaw: 'סופר פארם',
+      shiftDate: new Date('2026-11-10'),
+      startMinutes: 8 * 60,
+      endMinutes: 16 * 60 + 30,
+      totalMinutes: 8 * 60 + 30,
+      month: { year: 2026, month: 11 },
+    });
+    expect(codes(clean!)).toEqual([]);
+    // The readings disagree and the total is overwritten: a person decides.
+    expect(disputed).toMatchObject({ status: 'needs_review', verifiedHow: null });
+    expect(codes(disputed!)).toEqual(EXPECTED_DISPUTED);
+    // An answer that never fits the format, even after retries: typed in by a person.
+    expect(broken).toMatchObject({ status: 'needs_manual_entry', monthId: null });
+    expect(codes(broken!)).toEqual(['EXTRACTION_ERROR']);
+    // Crossed out: a person confirms it should be excluded.
+    expect(voided).toMatchObject({ status: 'needs_review' });
+    expect(codes(voided!)).toContain('VOIDED_TICKET');
+  });
+
+  it('with REVIEW_EVERYTHING, a ticket with no flags still waits for one click', async () => {
+    config.reviewEverything = true;
+    try {
+      const [t] = await read('week 2.pdf', ['clean']);
+      expect(t).toMatchObject({ status: 'needs_review', verifiedHow: null });
+      expect(codes(t!)).toEqual([]);
+    } finally {
+      config.reviewEverything = false;
+    }
+  });
+
+  it('reads in batch mode the same way', async () => {
+    const [t] = await read('week 3.pdf', ['clean'], 'batch');
+    expect(t).toMatchObject({ status: 'verified' });
+  });
+
+  it('keeps a ticket dated in a closed month out of it, with MONTH_CLOSED', async () => {
+    await prisma.month.update({
+      where: { year_month: { year: 2026, month: 11 } },
+      data: { status: 'closed' },
+    });
+    try {
+      const [t] = await read('late.pdf', ['clean']);
+      expect(t).toMatchObject({ status: 'needs_review', monthId: null });
+      expect(codes(t!)).toEqual(['MONTH_CLOSED:date']);
+    } finally {
+      await prisma.month.update({
+        where: { year_month: { year: 2026, month: 11 } },
+        data: { status: 'open' },
+      });
+    }
+  });
+
+  it('finishes after the worker stops mid-run, without paying twice or duplicating', async () => {
+    answered.length = 0;
+    stopAfter = 3; // dies after three answers, in the middle of the first round
+    const tickets = await read('restart.pdf', ['clean', 'disputed', 'clean']);
+    expect(tickets.map((t) => t.status)).toEqual(['verified', 'needs_review', 'verified']);
+    // Every answer was paid for once: the restarted job reused the saved ones.
+    expect(new Set(answered).size).toBe(answered.length);
+    const readings = await prisma.reading.count({
+      where: { ticketId: { in: tickets.map((t) => t.id) } },
+    });
+    expect(readings).toBe(answered.length);
+    expect(codes(tickets[1]!)).toEqual(EXPECTED_DISPUTED);
+    expect(tickets[0]!.flags).toEqual([]);
+  }, 90_000);
+});
+
+/**
+ * The "disputed" answers: pass A sees the total overwritten, pass B cannot read the end time, the
+ * two read the total differently, and 22:00 to 06:00 is 8:00, not the 8:30 written.
+ */
+const EXPECTED_DISPUTED = [
+  'CORRECTION_MARKS:totalWorked',
+  'FIELD_UNREADABLE:endTime',
+  'PASS_DISAGREEMENT:totalWorked',
+  'TIME_MATH_MISMATCH:totalWorked',
+];

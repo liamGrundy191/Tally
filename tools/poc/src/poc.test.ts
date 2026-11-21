@@ -32,7 +32,7 @@ beforeAll(async () => {
       HEADER,
       // The clean ticket's start really says 09:00, but both readings agree on 08:00 (planted).
       'clean.png,1,יעל,סופר פארם,10/11/26,09:00,16:30,08:30,',
-      'disputed.png,1,עומר,שופרסל,12/11/26,22:00,06:00,08:00,',
+      'disputed.png,1,זיו,שופרסל,12/11/26,22:00,06:00,08:00,',
       'voided.png,1,נועה,רמי לוי,14/11/26,07:00,15:00,08:00,yes',
       'broken.png,1,יעל,סופר פארם,10/11/26,08:00,16:30,08:30,',
       'ghost.png,1,דנה,x,10/11/26,08:00,16:30,08:30,',

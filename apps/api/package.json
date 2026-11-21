@@ -9,6 +9,7 @@
     "seed:admin": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/seed-admin.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "1.10.0",
     "@aws-sdk/client-s3": "3.1162.0",
     "@aws-sdk/s3-request-presigner": "3.1162.0",
     "@nestjs/common": "12.5.1",

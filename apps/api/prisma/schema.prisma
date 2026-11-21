@@ -46,6 +46,11 @@ enum ExtractionPass {
   C
 }
 
+enum ReadSpeed {
+  now
+  batch
+}
+
 enum ListKind {
   workplace
   name
@@ -137,17 +142,21 @@ model Month {
 
 /// An uploaded file. Not tied to a month: its tickets join the months of their dates (6c).
 model Upload {
-  id               String   @id @default(uuid()) @db.Uuid
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  uploadedById     String   @db.Uuid
-  uploadedBy       User     @relation(fields: [uploadedById], references: [id])
+  id               String    @id @default(uuid()) @db.Uuid
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  uploadedById     String    @db.Uuid
+  uploadedBy       User      @relation(fields: [uploadedById], references: [id])
   originalFilename String
   /// Cleared once the file is split into page images and deleted.
   s3KeyOriginal    String?
-  sha256           String   @unique
+  sha256           String    @unique
   mime             String
   pageCount        Int?
+  /// Pages that could not be turned into an image, even after retries: scan them again.
+  failedPages      Int[]
+  /// Read straight away, or through the batch service at half the price (D26, D43).
+  speed            ReadSpeed @default(batch)
 
   tickets Ticket[]
 }
@@ -176,6 +185,8 @@ model Ticket {
   startMinutes     Int?
   endMinutes       Int?
   totalMinutes     Int?
+  /// The total was unclear and accepted because start and end confirm it (D30); shown to reviewers.
+  totalFromMath    Boolean         @default(false)
   status           TicketStatus    @default(processing)
   verifiedHow      VerifiedHow?
   excludedReason   String?
@@ -188,9 +199,9 @@ model Ticket {
   /// Optimistic locking: a save must name the version it read (409 if stale).
   version          Int             @default(0)
 
-  extractions  FieldExtraction[]
-  flags        Flag[]            @relation("flagTicket")
-  relatedFlags Flag[]            @relation("relatedTicket")
+  readings     Reading[]
+  flags        Flag[]    @relation("flagTicket")
+  relatedFlags Flag[]    @relation("relatedTicket")
 
   @@unique([uploadId, pageIndex])
   @@index([monthId, status])
@@ -229,22 +240,25 @@ model ListEntry {
 }
 
 /// One field as one pass read it. Insert-only for the application.
-model FieldExtraction {
+/// One answer from the reader for one pass, kept whole, so a restarted job reuses it instead of
+/// paying for it again (D43). Insert-only; deleted with its ticket.
+model Reading {
   id            String         @id @default(uuid()) @db.Uuid
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   ticketId      String         @db.Uuid
   ticket        Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  field         String
   pass          ExtractionPass
-  value         String?
-  legible       Boolean
-  /// The best guess, shown to the reviewer and never used as a value (D24).
-  suggestion    String?
+  /// Which lists the reader was given: the second look at names (D28) has a longer names list.
+  listsKey      String
+  /// The validated answer: every field's value, legibility and suggestion (D24), and more.
+  answer        Json
   model         String
   promptVersion String
+  inputTokens   Int
+  outputTokens  Int
 
-  @@index([ticketId])
+  @@unique([ticketId, pass, listsKey])
 }
 
 /// A flag code is one of FLAG_CODES in @tally/shared; the database keeps it as text so the list

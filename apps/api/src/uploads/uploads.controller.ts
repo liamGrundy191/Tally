@@ -19,6 +19,7 @@ export class UploadsController {
   @Post('complete')
   @HttpCode(200)
   complete(@CurrentUser() user: SessionUser, @Body() body: unknown) {
-    return this.uploads.complete(user.id, validate(completeUploadsSchema, body).files);
+    const { speed, files } = validate(completeUploadsSchema, body);
+    return this.uploads.complete(user.id, speed, files);
   }
 }

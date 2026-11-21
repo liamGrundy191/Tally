@@ -17,12 +17,12 @@ describe.skipIf(!databaseUrl)('the database', () => {
     expect(tables.map((t) => t.table_name)).toEqual([
       'AuditEntry',
       'Download',
-      'FieldExtraction',
       'Flag',
       'Invite',
       'ListEntry',
       'LoginFailure',
       'Month',
+      'Reading',
       'Session',
       'Ticket',
       'Upload',

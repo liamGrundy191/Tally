@@ -15,7 +15,12 @@ export const signUploadsSchema = z.object({
   count: z.int().min(1).max(MAX_FILES_PER_REQUEST),
 });
 
+/** Now: read straight away. Batch: Anthropic's batch service, half the price, usually within an hour (D26). */
+export const READ_SPEEDS = ['batch', 'now'] as const;
+export type ReadSpeed = (typeof READ_SPEEDS)[number];
+
 export const completeUploadsSchema = z.object({
+  speed: z.enum(READ_SPEEDS).default('batch'),
   files: z
     .array(
       z.object({
