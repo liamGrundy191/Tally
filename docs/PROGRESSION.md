@@ -202,3 +202,10 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Asked once, answered once.** Is this the same place? Are these two tickets the same shift? The system groups what is certain, asks about the rest once per pair, and applies each answer everywhere it belongs. It never answers for the user.
 - **Remembered where it saves time.** A "same place" answer and every confirmed name go into the lists, so next month asks fewer questions. Liam chose this over asking again each month.
 - **Cheaper help where it fits.** From this task on, routine work such as writing tests goes to a cheaper model, while reviews of the rules and the security stay on the strongest one.
+
+### 21. The review API (T1.6)
+
+- **A person settles every doubt, and the rules still check them.** Saving a ticket runs every rule again on the new values, so a correction can never bring in a new mistake unnoticed. A person can say "I checked the paper" only where the paper can really be right (very long hours, an old date); an empty box or an impossible time must be corrected.
+- **Two people, one ticket.** Each ticket carries a version number. A save that names an old version is refused with "someone else changed this ticket", instead of silently overwriting the other person's work, or a fresh reading.
+- **Saved values can raise new questions.** Correcting a name or a date may make two tickets look like the same shift. Such a save waits for the month to be checked again before the ticket counts as done.
+- **Privacy in the details.** The audit trail records every change, but for a ticket outside any month it records only which boxes changed, not the names or hours, because nothing would ever delete it.

@@ -46,6 +46,13 @@ export class Storage {
     });
   }
 
+  /** A link the browser can show one file from, e.g. a ticket's scan on the review screen. */
+  signGet(key: string) {
+    return getSignedUrl(this.s3, new GetObjectCommand({ Bucket: this.bucket, Key: key }), {
+      expiresIn: SIGNED_URL_SECONDS,
+    });
+  }
+
   /** The file and its size, or null when there is no such file. */
   async get(key: string): Promise<{ body: Readable; size: number } | null> {
     try {

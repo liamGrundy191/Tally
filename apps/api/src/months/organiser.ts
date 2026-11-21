@@ -34,7 +34,7 @@ const LONG = { timeout: 120_000, maxWait: 60_000 };
  * One organiser or answer per month at a time: two uploads finishing together, or an answer
  * while an upload is organised, must not interleave (a ticket could join a group as it is merged).
  */
-const lockMonth = (tx: Tx, monthId: string) =>
+export const lockMonth = (tx: Tx, monthId: string) =>
   tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${monthId}))`;
 
 /** The group a group was merged into, following merges to the end. */
@@ -58,6 +58,8 @@ export class Organiser {
       await this.group(tx, monthId);
       await this.askSamePlace(tx, monthId);
       await this.askDuplicates(tx, monthId);
+      // A saved ticket waits here until its questions are asked; or a question went away with a save.
+      await this.backToVerified(tx, monthId);
     }, LONG);
   }
 
@@ -90,7 +92,19 @@ export class Organiser {
 
   /** WORKPLACE_SIMILAR on every ticket of two similar groups, unless already answered. */
   private async askSamePlace(tx: Tx, monthId: string) {
-    const groups = await tx.workplaceGroup.findMany({ where: { monthId, mergedIntoId: null } });
+    const all = await tx.workplaceGroup.findMany({
+      where: { monthId, mergedIntoId: null },
+      include: { _count: { select: { tickets: { where: { status: { not: 'excluded' } } } } } },
+    });
+    const groups = all.filter((g) => g._count.tickets > 0);
+    // A place whose tickets were all corrected, removed or read again is no longer asked about.
+    const empty = new Set(all.filter((g) => g._count.tickets === 0).map((g) => g.id));
+    const stale = (
+      await tx.flag.findMany({
+        where: { code: 'WORKPLACE_SIMILAR', resolvedAt: null, ticket: { monthId } },
+      })
+    ).filter((f) => (f.detail as { groups: string[] }).groups.some((id) => empty.has(id)));
+    await tx.flag.deleteMany({ where: { id: { in: stale.map((f) => f.id) } } });
     for (const [a, b] of findSimilarWorkplaces(groups)) {
       const groups2 = pairKey(a, b);
       const answered = await tx.flag.findFirst({
@@ -183,10 +197,12 @@ export class Organiser {
       if (!found.ticket.monthId) throw new ConflictException('This ticket is in no month yet.');
       await lockMonth(tx, found.ticket.monthId);
       // Read again under the lock: the question may have been answered meanwhile.
-      const flag = await tx.flag.findUniqueOrThrow({
+      const flag = await tx.flag.findUnique({
         where: { id: flagId },
         include: { ticket: { include: { month: true } } },
       });
+      // A save changed what it was about, and the question went (or was asked anew).
+      if (!flag) throw new ConflictException('This question changed. Reload the page.');
       if (flag.resolvedAt) throw new ConflictException('This question was already answered.');
       const month = flag.ticket.month;
       if (!month || month.status !== 'open') throw new ConflictException('This month is closed.');
@@ -269,7 +285,15 @@ export class Organiser {
         action: 'resolve-flag',
         entity: 'Flag',
         entityId: flag.id,
-        after: { code: flag.code, decision },
+        after: {
+          code: flag.code,
+          decision,
+          // Which name the place kept, with both groups and their names (5.3).
+          ...(decision === 'same_place' && {
+            ...(flag.detail as { groups: string[]; names: string[] }),
+            keepGroupId: keepGroupId!,
+          }),
+        },
       });
       await this.backToVerified(tx, month.id);
       return month.id;

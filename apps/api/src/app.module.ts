@@ -15,6 +15,8 @@ import { createBoss, startQueue } from './queue.ts';
 import { ReadingConfig } from './reading/config.ts';
 import { Reader } from './reading/reader.ts';
 import { Storage } from './storage.ts';
+import { ProgressController, TicketsController } from './tickets/tickets.controller.ts';
+import { TicketsService } from './tickets/tickets.service.ts';
 import { Splitter } from './uploads/splitter.ts';
 import { UploadsController } from './uploads/uploads.controller.ts';
 import { UploadsService } from './uploads/uploads.service.ts';
@@ -29,6 +31,8 @@ import { UsersService } from './users/users.service.ts';
     MonthsController,
     ListsController,
     FlagsController,
+    TicketsController,
+    ProgressController,
   ],
   providers: [
     // Connect on first use or on start; main.ts refuses to start without DATABASE_URL.
@@ -43,6 +47,7 @@ import { UsersService } from './users/users.service.ts';
     Reader,
     MonthsService,
     Organiser,
+    TicketsService,
     // Every route must declare its access (section 11).
     { provide: APP_GUARD, useClass: AccessGuard },
   ],

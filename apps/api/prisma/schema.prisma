@@ -198,6 +198,10 @@ model Ticket {
   replaces         Ticket[]        @relation("replacedBy")
   /// Optimistic locking: a save must name the version it read (409 if stale).
   version          Int             @default(0)
+  /// Times the ticket was sent to be read again; a new round is never answered from kept readings.
+  readRound        Int             @default(0)
+  /// The reader's best guesses for flagged fields (D24), shown to the reviewer, never used as values.
+  suggestions      Json            @default("{}")
 
   readings     Reading[]
   flags        Flag[]    @relation("flagTicket")

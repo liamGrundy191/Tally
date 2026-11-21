@@ -38,14 +38,17 @@ export class Reader {
     private readonly organiser: Organiser,
   ) {}
 
-  /** Safe to run again after a crash: saved tickets are skipped, saved answers are reused. */
-  async read(uploadId: string) {
+  /**
+   * Safe to run again after a crash: saved tickets are skipped, saved answers are reused. A ticket
+   * sent to be read again is read straight away (`speed`), whatever its upload's speed.
+   */
+  async read(uploadId: string, speed?: ReadSpeed) {
     const upload = await this.prisma.upload.findUnique({
       where: { id: uploadId },
       include: { tickets: { where: { status: 'processing' }, orderBy: { pageIndex: 'asc' } } },
     });
     if (!upload) return;
-    if (upload.tickets.length > 0) await this.readTickets(upload.tickets, upload.speed);
+    if (upload.tickets.length > 0) await this.readTickets(upload.tickets, speed ?? upload.speed);
     // Also after a restart that finds every ticket saved: the month may not be organised yet.
     const months = await this.prisma.ticket.findMany({
       where: { uploadId, monthId: { not: null } },
@@ -55,7 +58,10 @@ export class Reader {
     for (const m of months) await this.organiser.organise(m.monthId!);
   }
 
-  private async readTickets(tickets: { id: string; s3KeyPage: string }[], speed: ReadSpeed) {
+  private async readTickets(
+    tickets: { id: string; s3KeyPage: string; readRound: number }[],
+    speed: ReadSpeed,
+  ) {
     const lists = await this.prisma.listEntry.findMany();
     const placeOf = new Map<string, string>();
     for (const l of lists.filter((l) => l.kind === 'workplace')) {
@@ -95,6 +101,7 @@ export class Reader {
         withRetries(this.config.extractor(speed), {
           firstWaitMs: this.config.firstRetryWaitMs,
         }),
+        new Map(tickets.map((t) => [t.id, t.readRound])),
       ),
       template: TEMPLATE_V1,
       settings: this.config.settings(),
@@ -107,13 +114,16 @@ export class Reader {
 
   /**
    * Keeps every answer as it arrives, and gives back a kept answer instead of asking again, so a
-   * job restarted after a crash pays for no reading twice (D43).
+   * job restarted after a crash pays for no reading twice (D43). A ticket sent to be read again
+   * starts a new round, which the kept answers of earlier rounds do not answer.
    */
-  private saved(extractor: TicketExtractor): TicketExtractor {
+  private saved(extractor: TicketExtractor, rounds: ReadonlyMap<string, number>): TicketExtractor {
     return {
       extract: async (input, template, pass) => {
+        const round = rounds.get(input.id) ?? 0;
+        const lists = [input.knownWorkplaces ?? [], input.knownNames ?? []];
         const listsKey = createHash('sha256')
-          .update(JSON.stringify([input.knownWorkplaces ?? [], input.knownNames ?? []]))
+          .update(JSON.stringify(round > 0 ? [...lists, round] : lists)) // round 0 keeps its old keys
           .digest('hex');
         const where = { ticketId_pass_listsKey: { ticketId: input.id, pass, listsKey } };
         const kept = await this.prisma.reading.findUnique({ where });
@@ -206,8 +216,10 @@ export class Reader {
           endMinutes: c?.fields.endMinutes ?? null,
           totalMinutes: c?.fields.totalMinutes ?? null,
           totalFromMath: c?.totalFromMath ?? false,
+          suggestions: c?.suggestions ?? {},
           status,
           verifiedHow: status === 'verified' ? 'auto' : null,
+          version: { increment: 1 }, // a review opened before this reading cannot overwrite it
         },
       });
       if (saved.count === 0) return;
