@@ -48,7 +48,7 @@ Answer (Liam): (2026-11-20)
 
 Follow-up for T3.1: which tickets share a row in a workplace grid (see Q3).
 
-## Q3 · T3.1 · Which tickets share a row in the workplace grid · answered
+## Q3 · T3.1 · Which tickets share a row in the workplace grid · answered, then replaced by D39
 
 Context: A grid row holds one worker's days. Putting two tickets in one row is the merge the plan forbids if the system decides it alone. Liam's rule: never merge; the agency may copy totals by hand.
 

@@ -165,3 +165,9 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Smaller than planned, still honest.** The helpers dropped out, so the test was 45 tickets instead of 100. Instead of padding it, the test reused the 12 tickets from the first run, and every ticket was checked box by box against its image before running, so a typing slip in the answers could not pass for a reading mistake.
 - **The result.** Not one wrong value was accepted, in any box. Two thirds of the boxes needed nobody; most of the rest came with the right answer filled in for a person to confirm.
 - **What it revealed.** The cost per ticket was higher than estimated, and the spending stop cannot work in batch mode. Liam decided against a stop: a job stopped halfway causes more trouble than it saves, and the agency pays per ticket anyway.
+
+### 15. Fitting the agency's real way of working
+
+- **New facts, new design.** Liam learned that the agency builds its Excel through the month, edits it freely, and sends each workplace its tickets. The plan's "one job, one export" model no longer fit.
+- **Many options, one choice.** Updating the agency's own file, syncing it by uploads, and a spreadsheet inside the website were each weighed and dropped as too fragile or too heavy. Looking at the agency's real file settled it: the system owns a strict file layout, months stay open about six weeks, and hours change only through tickets, so the Excel and the tickets sent to workplaces can never disagree.
+- **Saying no to the system doing too much.** Liam's rule: some things are better left to people. The system fills the agency's layout, and the final file is theirs to change.
