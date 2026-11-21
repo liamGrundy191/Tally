@@ -1,6 +1,7 @@
 // The background worker (MODE=worker): the same app, taking jobs from the queue instead of
 // answering requests.
 import type { INestApplicationContext } from '@nestjs/common';
+import type { ReadSpeed } from '@tally/shared';
 import { PgBoss } from 'pg-boss';
 import { READ_UPLOAD, RETRY_LIMIT, SPLIT_UPLOAD } from './queue.ts';
 import { Reader } from './reading/reader.ts';
@@ -14,7 +15,9 @@ export async function startWorker(app: INestApplicationContext) {
     splitter.split(job!.data.uploadId, { lastAttempt: job!.retryCount >= RETRY_LIMIT }),
   );
   // Several uploads at once: one in batch mode mostly waits, and must not hold up the next.
-  await boss.work<{ uploadId: string }>(READ_UPLOAD, { localConcurrency: 4 }, ([job]) =>
-    reader.read(job!.data.uploadId),
+  await boss.work<{ uploadId: string; speed?: ReadSpeed }>(
+    READ_UPLOAD,
+    { localConcurrency: 4 },
+    ([job]) => reader.read(job!.data.uploadId, job!.data.speed),
   );
 }

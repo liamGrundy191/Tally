@@ -55,8 +55,9 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
       return answer;
     },
   };
+  const speeds: string[] = []; // the speed each reading job asked for
   const config = new ReadingConfig(
-    () => extractor,
+    (speed) => (speeds.push(speed), extractor),
     () => ({ today: '2026-11-21', minShiftHours: 2, maxShiftHours: 16, maxDateAgeDays: 45 }),
     false,
     1, // retry quickly in tests
@@ -202,6 +203,66 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
     expect(codes(tickets[1]!)).toEqual(EXPECTED_DISPUTED);
     expect(tickets[0]!.flags).toEqual([]);
   }, 90_000);
+
+  describe('reading a ticket again (T1.6)', () => {
+    const reprocess = (t: { id: string; version: number }) =>
+      owner.send('POST', `/api/tickets/${t.id}/reprocess`, { version: t.version });
+    const readAgain = (id: string) =>
+      until(async () => {
+        const t = await prisma.ticket.findUniqueOrThrow({
+          where: { id },
+          include: { flags: true },
+        });
+        return t.status !== 'processing' && t;
+      });
+
+    it('reads it straight away from its scan, paying for new answers', async () => {
+      const [t] = await read('again.pdf', ['voided'], 'batch');
+      expect(t!.version).toBe(1); // the reading itself is a change a review must not overwrite
+      expect(codes(t!)).toContain('VOIDED_TICKET');
+      script['again.pdf'] = ['clean'];
+      answered.length = 0;
+      speeds.length = 0;
+      expect((await reprocess(t!)).status).toBe(204);
+      const again = await readAgain(t!.id);
+      expect(again).toMatchObject({ status: 'verified', readRound: 1, version: 3 });
+      expect(again.flags).toEqual([]); // the open question went with the old reading
+      expect(answered.sort()).toEqual([`${t!.id}:A`, `${t!.id}:B`]);
+      expect(speeds).toEqual(['now']);
+
+      // A review opened before the new reading cannot save over it.
+      const save = await owner.send('PUT', `/api/tickets/${t!.id}`, {
+        version: 2,
+        values: {
+          firstName: 'יעל',
+          workplace: 'סופר פארם',
+          date: '10/11/2026',
+          startTime: '08:00',
+          endTime: '16:30',
+          totalWorked: '08:30',
+        },
+        workerName: 'Yael',
+      });
+      expect(save.status).toBe(409);
+      const audit = await prisma.auditEntry.findMany({ where: { action: 'reprocess-ticket' } });
+      expect(audit.map((a) => a.entityId)).toEqual([t!.id]);
+    });
+
+    it('reads one ticket of an upload again at a time, and never a removed one', async () => {
+      const [a, b] = await read('two.pdf', ['clean', 'disputed']);
+      const answers = await Promise.all([reprocess(a!), reprocess(b!)]);
+      expect(answers.map((r) => r.status).sort()).toEqual([204, 409]);
+      expect(JSON.stringify(answers)).toContain('This upload is still being read.');
+      await readAgain(a!.id);
+      await readAgain(b!.id);
+
+      const removed = await prisma.ticket.update({
+        where: { id: b!.id },
+        data: { status: 'excluded' },
+      });
+      expect((await reprocess(removed)).status).toBe(409);
+    });
+  });
 });
 
 /**
