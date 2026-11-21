@@ -177,3 +177,9 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **The plan first, then the tables.** The database was designed only after the months-and-Excel decisions settled, because every table depends on them: months instead of jobs, a confirmed English name on each ticket, the helper lists, and a record of downloads.
 - **Deleting a month deletes everything in it,** enforced by the database itself, and tested: closing November leaves December untouched.
 - **Supply-chain care.** The usual local file-storage image had been withdrawn by its makers, and a security audit found a known bug in a library Prisma depends on. Both were handled openly: a pinned, maintained replacement, and a pinned fixed version, each recorded with the reason.
+
+### 17. Logging in (T1.2)
+
+- **Standard, not overboard.** Liam set the bar: the app serves one person on one computer, so it gets the industry-standard protections (hashed passwords, lockout, secure sessions, CSRF protection, deny-by-default access) and skips two-step codes for now.
+- **Tested from the outside.** The tests run the real API over HTTP, the way a browser would, including the attacks the protections are for: guessing passwords, forging a request from another site, reusing an old session or invite link.
+- **Privacy over habit.** Logging every login in the audit trail is common, but those records would outlive every month's data. They were left out on purpose.

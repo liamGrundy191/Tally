@@ -1,45 +1,14 @@
 // T1.1 "Done when": the migrations apply to an empty database, and the seed creates an admin.
-// Needs Postgres: locally `docker compose -f docker/compose.dev.yml up -d` and DATABASE_URL in
-// .env; CI provides one. Each run uses its own empty schema and drops it afterwards.
+// Each run uses its own empty schema and drops it afterwards (helpers/test-db.ts).
 import { verify } from 'argon2';
-import { execFile } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createPrisma } from '../src/db.ts';
-import type { PrismaClient } from '../src/generated/prisma/client.ts';
+import { afterAll, describe, expect, it } from 'vitest';
 import { AccountError, createAdmin } from '../src/users/create-admin.ts';
+import { databaseUrl, testDatabase } from './helpers/test-db.ts';
 
-try {
-  process.loadEnvFile(new URL('../../../.env', import.meta.url));
-} catch {
-  // No .env: DATABASE_URL comes from the environment.
-}
-const url = process.env.DATABASE_URL;
-if (!url && process.env.CI) throw new Error('CI must provide DATABASE_URL for the database tests.');
-
-const apiDir = fileURLToPath(new URL('..', import.meta.url));
-const schema = `test_${randomBytes(4).toString('hex')}`;
-const withSchema = (u: string) => `${u}${u.includes('?') ? '&' : '?'}schema=${schema}`;
-const migrate = async () =>
-  (
-    await promisify(execFile)(
-      process.execPath,
-      ['node_modules/prisma/build/index.js', 'migrate', 'deploy'],
-      { cwd: apiDir, env: { ...process.env, DATABASE_URL: withSchema(url!) } },
-    )
-  ).stdout;
-
-describe.skipIf(!url)('the database', () => {
-  let prisma: PrismaClient;
-  beforeAll(() => {
-    prisma = createPrisma(url!, schema);
-  });
-  afterAll(async () => {
-    await prisma?.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
-    await prisma?.$disconnect();
-  });
+describe.skipIf(!databaseUrl)('the database', () => {
+  const db = testDatabase();
+  const { prisma, schema, migrate } = db;
+  afterAll(() => db.drop());
 
   it('applies the migrations to an empty database, and a second run changes nothing', async () => {
     expect(await migrate()).toMatch(/applied|Applying/i);
@@ -52,6 +21,7 @@ describe.skipIf(!url)('the database', () => {
       'Flag',
       'Invite',
       'ListEntry',
+      'LoginFailure',
       'Month',
       'Session',
       'Ticket',

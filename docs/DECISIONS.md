@@ -260,3 +260,13 @@ Liam learned how the agency really works: it updates its Excel through the month
 - **Flag codes are text in the database,** checked against the one list in `@tally/shared`, so the list of codes is not kept in two places.
 - **A patched dependency.** Prisma's command-line settings loader pins `effect` 3.20.0, which has a published high-severity bug (a slow regular expression). It is overridden to the fixed 3.22.4; Prisma was re-tested with it. Remove the override when Prisma updates.
 - **Database tests use their own empty schema** each run and drop it afterwards. Without a database they are skipped locally, and in CI a missing database fails the run instead of skipping.
+
+## D41 · T1.2 · Logging in, kept to the standard and no further (Liam)
+
+- **No two-step codes for now.** Liam: the app is for his father on one computer; it should meet industry standards without going overboard. The `totpSecret` column was removed. They can be added later if more people or computers use it.
+- **Invites are links the admin sends himself.** The plan has no email sending, so creating an invite shows a link; it works once, for 7 days, and a new invite for the same email replaces the old link. The token is in the link's `#` part, so it never reaches server or proxy logs.
+- **What is in place:** passwords hashed with argon2id; a wrong email and a wrong password get the same answer and take about as long; 10 wrong passwords lock the account for 15 minutes; 50 failed logins from one IP address in 15 minutes refuse that address; sessions are long random keys stored only as hashes, in an HttpOnly, Secure, SameSite=Lax cookie, ended after 12 idle hours, on logout, or when the account is disabled; a double-submit CSRF check on every change made while logged in; every route declares who may use it, and a route that does not is refused.
+- **Accepted limits:** after 10 tries an attacker can tell that an account is locked, so that the email exists; login and invite acceptance (the only routes used without a session) have no CSRF check, as SameSite cookies already protect them. Behind the production proxy (T4.3) Express must be told to trust it, or every login would seem to come from one address.
+- **There is always one active admin:** the last one cannot be disabled or made a reviewer.
+- **Logins are not written to the audit trail.** Those entries would belong to no month, so they would pile up forever against the principle of keeping data for the shortest time. Changes to accounts (invites, accepted invites, role and disable changes) are audited.
+- **Liam's check moves to T2.1,** where there is a login page to try it on.
