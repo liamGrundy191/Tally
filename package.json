@@ -10,6 +10,8 @@
     "format": "prettier --write .",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test",
+    "db:migrate": "pnpm --filter @tally/api db:migrate",
+    "seed:admin": "pnpm --filter @tally/api seed:admin",
     "ticket:pdf": "node --experimental-strip-types --disable-warning=ExperimentalWarning packages/shared/src/templates/ticket-pdf.ts",
     "extract": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file-if-exists=.env tools/poc/src/extract-one.ts",
     "crops": "node --experimental-strip-types --disable-warning=ExperimentalWarning tools/poc/src/crops.ts",
@@ -21,5 +23,10 @@
     "prettier": "3.10.1",
     "typescript": "6.0.3",
     "typescript-eslint": "8.73.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "effect@3.20.0": "3.22.4"
+    }
   }
 }

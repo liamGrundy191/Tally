@@ -408,7 +408,7 @@ Worker concurrency defaults to 4. Every job has a timeout. Related writes run in
 
 - `docker compose -f docker/compose.dev.yml up -d` starts Postgres and MinIO.
 - `pnpm dev` runs the web app, API and worker with hot reload.
-- `pnpm seed:admin` creates an admin user.
+- `pnpm db:migrate` applies the database migrations; `pnpm seed:admin` creates an admin user, asking for the email and password.
 - `EXTRACTOR=fake` runs everything without an API key. `EXTRACTOR=anthropic` with `ANTHROPIC_API_KEY` uses the real model.
 
 **Production (Phase 4)**

@@ -1,0 +1,291 @@
+// The data model of docs/PLAN.md section 7. Durations are integer minutes; every table has a
+// UUID id, createdAt and updatedAt. A month's rows are deleted with it (section 6.4), so its
+// children cascade.
+
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  moduleFormat           = "esm"
+  importFileExtension    = "ts"
+  generatedFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  admin
+  reviewer
+}
+
+enum MonthStatus {
+  open
+  closing
+  closed
+}
+
+enum TicketStatus {
+  processing
+  verified
+  needs_review
+  needs_manual_entry
+  excluded
+}
+
+enum VerifiedHow {
+  auto
+  confirmed
+  corrected
+  manual
+}
+
+enum ExtractionPass {
+  A
+  B
+  C
+}
+
+enum ListKind {
+  workplace
+  name
+}
+
+enum DownloadKind {
+  excel
+  pdfs
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  email        String    @unique
+  passwordHash String
+  role         Role
+  totpSecret   String?
+  disabledAt   DateTime?
+
+  sessions        Session[]
+  uploads         Upload[]
+  closedMonths    Month[]      @relation("closedBy")
+  excludedTickets Ticket[]     @relation("excludedBy")
+  resolvedFlags   Flag[]       @relation("resolvedBy")
+  auditEntries    AuditEntry[]
+  downloads       Download[]
+}
+
+model Invite {
+  id        String    @id @default(uuid()) @db.Uuid
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  email     String
+  role      Role
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+}
+
+model Session {
+  id         String   @id @default(uuid()) @db.Uuid
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  userId     String   @db.Uuid
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  lastSeenAt DateTime
+
+  @@index([userId])
+}
+
+/// One calendar month, open about six weeks (6.1). Its summary row outlives the purge.
+model Month {
+  id                  String      @id @default(uuid()) @db.Uuid
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  year                Int
+  month               Int
+  status              MonthStatus @default(open)
+  closedAt            DateTime?
+  closedById          String?     @db.Uuid
+  closedBy            User?       @relation("closedBy", fields: [closedById], references: [id])
+  summaryTicketCount  Int?
+  summaryTotalMinutes Int?
+  lastActivityAt      DateTime    @default(now())
+
+  tickets         Ticket[]
+  workplaceGroups WorkplaceGroup[]
+  listEntries     ListEntry[]
+  auditEntries    AuditEntry[]
+  downloads       Download[]
+
+  /// A closed month is never reopened, so a month exists at most once.
+  @@unique([year, month])
+}
+
+/// An uploaded file. Not tied to a month: its tickets join the months of their dates (6c).
+model Upload {
+  id               String   @id @default(uuid()) @db.Uuid
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  uploadedById     String   @db.Uuid
+  uploadedBy       User     @relation(fields: [uploadedById], references: [id])
+  originalFilename String
+  /// Cleared once the file is split into page images and deleted.
+  s3KeyOriginal    String?
+  sha256           String   @unique
+  mime             String
+  pageCount        Int?
+
+  tickets Ticket[]
+}
+
+model Ticket {
+  id               String          @id @default(uuid()) @db.Uuid
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  uploadId         String          @db.Uuid
+  upload           Upload          @relation(fields: [uploadId], references: [id], onDelete: Cascade)
+  /// Set once the date is settled; until then the ticket waits outside any month.
+  monthId          String?         @db.Uuid
+  month            Month?          @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  pageIndex        Int
+  s3KeyPage        String
+  s3KeyNormalised  String?
+  templateVersion  String?
+  /// As read from the ticket.
+  firstName        String?
+  /// Confirmed, in English letters: the worker's row in the Excel (5.2).
+  workerName       String?
+  workplaceRaw     String?
+  workplaceGroupId String?         @db.Uuid
+  workplaceGroup   WorkplaceGroup? @relation(fields: [workplaceGroupId], references: [id])
+  shiftDate        DateTime?       @db.Date
+  startMinutes     Int?
+  endMinutes       Int?
+  totalMinutes     Int?
+  status           TicketStatus    @default(processing)
+  verifiedHow      VerifiedHow?
+  excludedReason   String?
+  excludedById     String?         @db.Uuid
+  excludedBy       User?           @relation("excludedBy", fields: [excludedById], references: [id])
+  /// The ticket that replaced this one (5.2).
+  replacedById     String?         @db.Uuid
+  replacedBy       Ticket?         @relation("replacedBy", fields: [replacedById], references: [id], onDelete: SetNull)
+  replaces         Ticket[]        @relation("replacedBy")
+  /// Optimistic locking: a save must name the version it read (409 if stale).
+  version          Int             @default(0)
+
+  extractions  FieldExtraction[]
+  flags        Flag[]            @relation("flagTicket")
+  relatedFlags Flag[]            @relation("relatedTicket")
+
+  @@unique([uploadId, pageIndex])
+  @@index([monthId, status])
+}
+
+model WorkplaceGroup {
+  id             String           @id @default(uuid()) @db.Uuid
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  monthId        String           @db.Uuid
+  month          Month            @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  displayName    String
+  normalisedName String
+  mergedIntoId   String?          @db.Uuid
+  mergedInto     WorkplaceGroup?  @relation("mergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  merged         WorkplaceGroup[] @relation("mergedInto")
+
+  tickets Ticket[]
+
+  @@index([monthId])
+}
+
+/// The lists that help reading (5.4). They never put a worker or workplace in the Excel.
+model ListEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  monthId   String   @db.Uuid
+  month     Month    @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  kind      ListKind
+  /// A place's Hebrew name, or the English spelling of a worker's name.
+  name      String
+  /// Every other spelling (e.g. the place in English, the name in Hebrew).
+  spellings String[]
+
+  @@unique([monthId, kind, name])
+}
+
+/// One field as one pass read it. Insert-only for the application.
+model FieldExtraction {
+  id            String         @id @default(uuid()) @db.Uuid
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  ticketId      String         @db.Uuid
+  ticket        Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  field         String
+  pass          ExtractionPass
+  value         String?
+  legible       Boolean
+  /// The best guess, shown to the reviewer and never used as a value (D24).
+  suggestion    String?
+  model         String
+  promptVersion String
+
+  @@index([ticketId])
+}
+
+/// A flag code is one of FLAG_CODES in @tally/shared; the database keeps it as text so the list
+/// lives in one place.
+model Flag {
+  id              String    @id @default(uuid()) @db.Uuid
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  ticketId        String    @db.Uuid
+  ticket          Ticket    @relation("flagTicket", fields: [ticketId], references: [id], onDelete: Cascade)
+  field           String?
+  code            String
+  detail          Json
+  relatedTicketId String?   @db.Uuid
+  relatedTicket   Ticket?   @relation("relatedTicket", fields: [relatedTicketId], references: [id], onDelete: SetNull)
+  resolvedAt      DateTime?
+  resolvedById    String?   @db.Uuid
+  resolvedBy      User?     @relation("resolvedBy", fields: [resolvedById], references: [id])
+  resolution      String?
+
+  @@index([ticketId])
+}
+
+/// Insert-only for the application; only the purge deletes entries.
+model AuditEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  monthId   String?  @db.Uuid
+  month     Month?   @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String
+  before    Json?
+  after     Json?
+
+  @@index([monthId])
+}
+
+/// Downloads are built on request and never stored; closing needs at least one of each (6.1).
+model Download {
+  id        String       @id @default(uuid()) @db.Uuid
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  monthId   String       @db.Uuid
+  month     Month        @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  kind      DownloadKind
+  userId    String       @db.Uuid
+  user      User         @relation(fields: [userId], references: [id])
+
+  @@index([monthId])
+}
