@@ -64,10 +64,18 @@ export class Reader {
     const nameEntries = lists.filter((l) => l.kind === 'name');
     const knownNames = nameEntries.flatMap((l) => [l.name, ...l.spellings]);
     // Every spelling of a listed worker gives the English name the Excel uses (5.2).
+    // A spelling that two workers share ("יעל = Yael", "יעל = Yaelle") is left out: a person
+    // decides which of them a ticket is.
     const englishOf = new Map<string, string>();
+    const shared = new Set<string>();
     for (const l of nameEntries) {
-      for (const s of [l.name, ...l.spellings]) englishOf.set(normaliseName(s), l.name);
+      for (const s of [l.name, ...l.spellings]) {
+        const key = normaliseName(s);
+        if (englishOf.has(key) && englishOf.get(key) !== l.name) shared.add(key);
+        englishOf.set(key, l.name);
+      }
     }
+    for (const key of shared) englishOf.delete(key);
 
     const items: BatchItem[] = [];
     for (const t of tickets) {
@@ -148,13 +156,17 @@ export class Reader {
     const flags: Flag[] = c
       ? [...c.flags]
       : [{ code: 'EXTRACTION_ERROR', detail: { error: r.error } }];
-    // 5.2: the name in English letters, for the worker's Excel row. A name in doubt is settled
-    // by a person anyway; a clear Hebrew name with no English spelling on the list is asked.
+    // 5.2: the name in English letters, for the worker's Excel row.
     const written = c?.fields.firstName ?? null;
     let workerName: string | null = null;
-    if (written && !flags.some((f) => f.field === 'firstName')) {
-      workerName =
-        englishOf.get(normaliseName(written)) ?? (hasHebrew(written) ? null : englishName(written));
+    if (written) {
+      // A name in doubt gets no English spelling yet; the person settles both at once.
+      const clear = !flags.some((f) => f.field === 'firstName');
+      workerName = !clear
+        ? null
+        : (englishOf.get(normaliseName(written)) ??
+          (hasHebrew(written) ? null : englishName(written)));
+      // Without it the ticket has no Excel row, so it is always asked (flags more, assumes less).
       if (!workerName) {
         flags.push({ code: 'NAME_NOT_CONFIRMED', field: 'firstName', detail: { written } });
       }

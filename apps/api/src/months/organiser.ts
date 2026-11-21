@@ -27,6 +27,24 @@ const WORKPLACE_DOUBTS = [
   'MATCH_AMBIGUOUS',
 ];
 const pairKey = (a: string, b: string) => [a, b].sort();
+/** A big month's organising takes longer than Prisma's default 5 seconds. */
+const LONG = { timeout: 120_000, maxWait: 60_000 };
+
+/**
+ * One organiser or answer per month at a time: two uploads finishing together, or an answer
+ * while an upload is organised, must not interleave (a ticket could join a group as it is merged).
+ */
+const lockMonth = (tx: Tx, monthId: string) =>
+  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${monthId}))`;
+
+/** The group a group was merged into, following merges to the end. */
+async function topGroup(tx: Tx, id: string) {
+  let group = await tx.workplaceGroup.findUniqueOrThrow({ where: { id } });
+  while (group.mergedIntoId) {
+    group = await tx.workplaceGroup.findUniqueOrThrow({ where: { id: group.mergedIntoId } });
+  }
+  return group;
+}
 
 @Injectable()
 export class Organiser {
@@ -34,13 +52,13 @@ export class Organiser {
 
   async organise(monthId: string) {
     await this.prisma.$transaction(async (tx) => {
-      // One organiser per month at a time: two uploads finishing together must not both add
-      // the same group or question.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${monthId}))`;
+      await lockMonth(tx, monthId);
+      const month = await tx.month.findUniqueOrThrow({ where: { id: monthId } });
+      if (month.status !== 'open') return; // a month being deleted gets nothing new
       await this.group(tx, monthId);
       await this.askSamePlace(tx, monthId);
       await this.askDuplicates(tx, monthId);
-    });
+    }, LONG);
   }
 
   /** Each ticket joins the group of its normalised workplace name, following merges. */
@@ -160,11 +178,15 @@ export class Organiser {
   /** Answers a WORKPLACE_SIMILAR or POSSIBLE_DUPLICATE question (5.2, 5.3). */
   async resolve(userId: string, flagId: string, decision: Decision, keepGroupId?: string) {
     const monthId = await this.prisma.$transaction(async (tx) => {
-      const flag = await tx.flag.findUnique({
+      const found = await tx.flag.findUnique({ where: { id: flagId }, include: { ticket: true } });
+      if (!found) throw new NotFoundException('There is no such question.');
+      if (!found.ticket.monthId) throw new ConflictException('This ticket is in no month yet.');
+      await lockMonth(tx, found.ticket.monthId);
+      // Read again under the lock: the question may have been answered meanwhile.
+      const flag = await tx.flag.findUniqueOrThrow({
         where: { id: flagId },
         include: { ticket: { include: { month: true } } },
       });
-      if (!flag) throw new NotFoundException('There is no such question.');
       if (flag.resolvedAt) throw new ConflictException('This question was already answered.');
       const month = flag.ticket.month;
       if (!month || month.status !== 'open') throw new ConflictException('This month is closed.');
@@ -185,16 +207,24 @@ export class Organiser {
         // Two answers at once: the second finds the question already answered.
         if (answered.count === 0)
           throw new ConflictException('This question was already answered.');
-        if (decision === 'same_place') await this.merge(tx, groups, keepGroupId ?? groups[0]!);
+        if (decision === 'same_place') {
+          // The person chooses the name the place keeps (5.3); the system does not pick one.
+          if (!keepGroupId) throw new BadRequestException('Choose which name the place keeps.');
+          await this.merge(tx, groups, keepGroupId);
+        }
       } else if (flag.code === 'POSSIBLE_DUPLICATE') {
         if (!['replace', 'keep_both', 'ignore'].includes(decision))
           throw new BadRequestException('Answer "replace", "keep both" or "ignore".');
         const pair = await tx.ticket.findMany({
           where: { id: { in: [flag.ticketId, flag.relatedTicketId!] } },
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ createdAt: 'asc' }, { pageIndex: 'asc' }, { id: 'asc' }],
         });
         const [older, newer] = pair;
         if (!older || !newer) throw new ConflictException('One of the two tickets is gone.');
+        // A removed ticket cannot replace or be replaced: that could leave the shift with none.
+        if (older.status === 'excluded' || newer.status === 'excluded') {
+          throw new ConflictException('One of the two tickets was already removed.');
+        }
         const answered = await tx.flag.updateMany({
           where: {
             code: 'POSSIBLE_DUPLICATE',
@@ -209,20 +239,25 @@ export class Organiser {
         // Two answers at once: the second finds the question already answered.
         if (answered.count === 0)
           throw new ConflictException('This question was already answered.');
-        if (decision === 'replace') {
+        const removed = decision === 'replace' ? older : decision === 'ignore' ? newer : null;
+        if (removed) {
           await tx.ticket.update({
-            where: { id: older.id },
+            where: { id: removed.id },
             data: {
               status: 'excluded',
-              excludedReason: 'replaced',
+              excludedReason: decision === 'replace' ? 'replaced' : 'duplicate',
               excludedById: userId,
-              replacedById: newer.id,
+              replacedById: decision === 'replace' ? newer.id : null,
             },
           });
-        } else if (decision === 'ignore') {
-          await tx.ticket.update({
-            where: { id: newer.id },
-            data: { status: 'excluded', excludedReason: 'duplicate', excludedById: userId },
+          // Other duplicate questions about the removed ticket no longer need an answer.
+          await tx.flag.updateMany({
+            where: {
+              code: 'POSSIBLE_DUPLICATE',
+              resolvedAt: null,
+              OR: [{ ticketId: removed.id }, { relatedTicketId: removed.id }],
+            },
+            data: { ...at, resolution: 'ticket_removed' },
           });
         }
       } else {
@@ -238,7 +273,7 @@ export class Organiser {
       });
       await this.backToVerified(tx, month.id);
       return month.id;
-    });
+    }, LONG);
     // A merge can bring two tickets of one name into one group: ask about them.
     await this.organise(monthId);
   }
@@ -246,16 +281,26 @@ export class Organiser {
   /** "Same place": one group, with the other spelling added to the workplace list (Liam, 1A). */
   private async merge(tx: Tx, groups: string[], keepId: string) {
     if (!groups.includes(keepId)) throw new BadRequestException('Choose one of the two names.');
-    const otherId = groups.find((g) => g !== keepId)!;
-    const [keep, other] = await Promise.all([
-      tx.workplaceGroup.findUniqueOrThrow({ where: { id: keepId } }),
-      tx.workplaceGroup.findUniqueOrThrow({ where: { id: otherId } }),
-    ]);
-    await tx.workplaceGroup.update({ where: { id: otherId }, data: { mergedIntoId: keepId } });
+    // Either group may already have been merged into a third: merge the groups they ended in.
+    const keep = await topGroup(tx, keepId);
+    const other = await topGroup(
+      tx,
+      groups.find((g) => g !== keepId)!,
+    );
+    if (keep.id === other.id) return;
+    await tx.workplaceGroup.update({ where: { id: other.id }, data: { mergedIntoId: keep.id } });
     await tx.ticket.updateMany({
-      where: { workplaceGroupId: otherId },
-      data: { workplaceGroupId: keepId },
+      where: { workplaceGroupId: other.id },
+      data: { workplaceGroupId: keep.id },
     });
+    // A spelling already on the list (for any place) is left alone: one spelling, one place.
+    const listed = await tx.listEntry.findFirst({
+      where: {
+        kind: 'workplace',
+        OR: [{ name: other.displayName }, { spellings: { has: other.displayName } }],
+      },
+    });
+    if (listed) return;
     const entry = await tx.listEntry.findFirst({
       where: {
         kind: 'workplace',
@@ -266,7 +311,7 @@ export class Organiser {
       await tx.listEntry.create({
         data: { kind: 'workplace', name: keep.displayName, spellings: [other.displayName] },
       });
-    } else if (entry.name !== other.displayName && !entry.spellings.includes(other.displayName)) {
+    } else {
       await tx.listEntry.update({
         where: { id: entry.id },
         data: { spellings: { push: other.displayName } },

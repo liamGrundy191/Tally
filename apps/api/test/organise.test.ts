@@ -164,6 +164,109 @@ describe.skipIf(!databaseUrl)('organising a month (T1.5)', () => {
     expect(await openFlags('WORKPLACE_SIMILAR')).toHaveLength(0);
   });
 
+  it('follows a chain of merges: all three spellings end in one group with no ticket lost', async () => {
+    const a = await ticket('בית הדר');
+    const b = await ticket('בית הדרים', { workerName: 'Dana', firstName: 'Dana' });
+    const c = await ticket('בית הדרי', { workerName: 'Yossi', firstName: 'Yossi' });
+    await organiser.organise(monthId);
+    const [ga, gb, gc] = await Promise.all(
+      [a, b, c].map(async (t) => (await get(t.id)).workplaceGroupId!),
+    );
+    const question = async (ticketId: string, x: string, y: string) =>
+      (await prisma.flag.findMany({ where: { ticketId, code: 'WORKPLACE_SIMILAR' } })).find((f) => {
+        const ids = (f.detail as { groups: string[] }).groups;
+        return ids.includes(x) && ids.includes(y);
+      })!;
+
+    const ab = await question(a.id, ga!, gb!);
+    expect((await resolve(ab.id, { decision: 'same_place', keepGroupId: gb })).status).toBe(204);
+    const ac = await question(a.id, ga!, gc!);
+    expect((await resolve(ac.id, { decision: 'same_place', keepGroupId: ga })).status).toBe(204);
+
+    const top = (await groups()).filter((g) => g.mergedIntoId === null);
+    expect(top).toHaveLength(1);
+    for (const t of [a, b, c]) expect((await get(t.id)).workplaceGroupId).toBe(top[0]!.id);
+    const { body } = await owner.send('GET', `/api/months/${monthId}`);
+    const shown = body.workplaces.flatMap(
+      (w: { rows: { tickets: unknown[] }[]; unnamed: unknown[] }) => [
+        ...w.rows.flatMap((r) => r.tickets),
+        ...w.unnamed,
+      ],
+    );
+    expect(body.workplaces).toHaveLength(1);
+    expect(shown).toHaveLength(3);
+  });
+
+  it('refuses "same place" without saying which name the place keeps, and merges nothing', async () => {
+    const { a } = await similarPair();
+    const flag = await similarFlag(a.id);
+    const res = await resolve(flag.id, { decision: 'same_place' });
+    expect(res.status).toBe(400);
+    expect(JSON.stringify(res.body)).toContain('Choose which name the place keeps.');
+    expect((await groups()).every((g) => g.mergedIntoId === null)).toBe(true);
+    expect((await prisma.flag.findUniqueOrThrow({ where: { id: flag.id } })).resolvedAt).toBeNull();
+  });
+
+  it('does nothing for a month that is closing', async () => {
+    await ticket('בית הדר');
+    await ticket('בית הדרים', { workerName: 'Dana', firstName: 'Dana' });
+    await prisma.month.update({ where: { id: monthId }, data: { status: 'closing' } });
+    await organiser.organise(monthId);
+    expect(await groups()).toHaveLength(0);
+    expect(await prisma.flag.count()).toBe(0);
+  });
+
+  describe('possible duplicates', () => {
+    it('settles the other questions about a ticket once it is removed', async () => {
+      const base = { workerName: 'Kwame' };
+      const a = await ticket('Golan Farm', {
+        ...base,
+        startMinutes: 480,
+        endMinutes: 720,
+        createdAt: new Date('2026-11-14T08:00:00Z'),
+      });
+      const b = await ticket('Golan Farm', {
+        ...base,
+        startMinutes: 840,
+        endMinutes: 1080,
+        createdAt: new Date('2026-11-15T08:00:00Z'),
+      });
+      const c = await ticket('Golan Farm', {
+        ...base,
+        startMinutes: 1140,
+        endMinutes: 1320,
+        createdAt: new Date('2026-11-16T08:00:00Z'),
+      });
+      await organiser.organise(monthId);
+      const open = await openFlags('POSSIBLE_DUPLICATE');
+      expect(open).toHaveLength(6);
+      const bc = open.find((f) => f.ticketId === b.id && f.relatedTicketId === c.id)!;
+      expect((await resolve(bc.id, { decision: 'ignore' })).status).toBe(204);
+
+      expect((await get(c.id)).status).toBe('excluded');
+      for (const t of [a, b]) expect((await get(t.id)).status).not.toBe('excluded');
+      const ac = await prisma.flag.findMany({
+        where: {
+          code: 'POSSIBLE_DUPLICATE',
+          OR: [
+            { ticketId: a.id, relatedTicketId: c.id },
+            { ticketId: c.id, relatedTicketId: a.id },
+          ],
+        },
+      });
+      expect(ac).toHaveLength(2);
+      for (const f of ac) expect(f).toMatchObject({ resolution: 'ticket_removed' });
+      // Only the question between A and B is left.
+      const left = await openFlags('POSSIBLE_DUPLICATE');
+      expect(left.map((f) => f.ticketId).sort()).toEqual([a.id, b.id].sort());
+
+      // Any question that still names the removed ticket is refused.
+      const res = await resolve(ac[0]!.id, { decision: 'keep_both' });
+      expect(res.status).toBe(409);
+      expect(JSON.stringify(res.body)).toContain('This question was already answered.');
+    });
+  });
+
   describe('possible duplicates', () => {
     async function pair() {
       const older = await ticket('Golan Farm', {

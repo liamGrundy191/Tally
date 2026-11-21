@@ -152,6 +152,20 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
     }
   });
 
+  it('does not pick between two listed names that share a Hebrew spelling', async () => {
+    const other = await prisma.listEntry.create({
+      data: { kind: 'name', name: 'Yaelle', spellings: ['יעל'] },
+    });
+    try {
+      const [t] = await read('shared spelling.pdf', ['clean']);
+      expect(t).toMatchObject({ workerName: null });
+      expect(t!.status).not.toBe('verified');
+      expect(codes(t!)).toContain('NAME_NOT_CONFIRMED:firstName');
+    } finally {
+      await prisma.listEntry.delete({ where: { id: other.id } });
+    }
+  });
+
   it('reads in batch mode the same way', async () => {
     const [t] = await read('week 3.pdf', ['clean'], 'batch');
     expect(t).toMatchObject({ status: 'verified' });

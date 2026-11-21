@@ -79,8 +79,9 @@ describe('SCRIPT_UNEXPECTED: names that are not plain Hebrew or English', () => 
 describe('englishName: a name as the Excel shows it (5.2)', () => {
   it('turns block letters into a capital and small letters', () => {
     expect(englishName('KWAME')).toBe('Kwame');
-    expect(englishName('  kwame   B ')).toBe('Kwame B');
+    expect(englishName('  kwame   b ')).toBe('Kwame B');
     expect(englishName('MARY-ANN')).toBe('Mary-Ann');
+    expect(englishName('McDonald')).toBe('McDonald'); // mixed case is kept as written
   });
 
   it('tells a Hebrew name from an English one', () => {
