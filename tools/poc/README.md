@@ -47,12 +47,12 @@ month swapped), and shows the estimated cost. It reads nothing and spends nothin
 pnpm poc --input C:\tally-test --yes --batch
 ```
 
-`--batch` uses Anthropic's batch service at **half the price**, about 8.5 cents per ticket. It is
+`--batch` uses Anthropic's batch service at **half the price**, about 14.5 cents per ticket (D38). It is
 slower: the reading happens in up to three rounds, and each round usually finishes within an hour
 (at most 24 hours). Leave the window open until it is done. If you stop it with Ctrl+C, it cancels
 the batch so it stops costing.
 
-Without `--batch` it reads straight away, at about 17 cents per ticket. It stops by itself at 1.5 times the estimate. When it
+Without `--batch` it reads straight away, at about twice that. It stops by itself at 1.5 times the estimate. When it
 finishes, it prints the report and saves three files in `scan-output\poc-<date and time>\`:
 
 - `report.txt`: the summary.

@@ -215,7 +215,7 @@ describe('the workplace list', () => {
 
   it('sends the names list too, and limits nameMatch to it', () => {
     const req = buildRequest(
-      input('t1', { knownNames: ['זכריה', 'מוברטו'] }),
+      input('t1', { knownNames: ['זהריה', 'מוברטו'] }),
       TEMPLATE_V1,
       'A',
       'm',
@@ -223,10 +223,10 @@ describe('the workplace list', () => {
     const text = (req.messages[0]!.content as Anthropic.ContentBlockParam[]).find(
       (b) => b.type === 'text',
     ) as Anthropic.TextBlockParam;
-    expect(text.text).toContain(['- זכריה', '- מוברטו'].join(String.fromCharCode(10)));
+    expect(text.text).toContain(['- זהריה', '- מוברטו'].join(String.fromCharCode(10)));
     expect(text.text).toContain('workplaceMatch must be null');
-    const named = { ...answer(null), nameMatch: 'זכריה' };
-    expect(validateAnswer(named, { names: ['זכריה'] }).nameMatch).toBe('זכריה');
+    const named = { ...answer(null), nameMatch: 'זהריה' };
+    expect(validateAnswer(named, { names: ['זהריה'] }).nameMatch).toBe('זהריה');
     expect(() => validateAnswer(named, { workplaces: list })).toThrow(ExtractionError);
   });
 

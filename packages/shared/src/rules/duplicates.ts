@@ -1,6 +1,5 @@
 // POSSIBLE_DUPLICATE (plan section 5.2): the system never merges people. It only asks.
 import { normaliseName } from './names.ts';
-import { shiftMinutes } from './time.ts';
 
 export interface DuplicateCandidate {
   id: string;
@@ -35,22 +34,9 @@ export function namesMatch(a: string | null, b: string | null): boolean {
 }
 
 /**
- * Shifts on the same date overlap if they share any minute. Back-to-back shifts (one ends as
- * the other starts) do not. Identical start times always overlap, even for 0-minute shifts.
- * If either ticket's times are unknown, assume they overlap so a person is asked.
- */
-export function shiftsOverlap(a: DuplicateCandidate, b: DuplicateCandidate): boolean {
-  if (a.startMinutes == null || a.endMinutes == null) return true;
-  if (b.startMinutes == null || b.endMinutes == null) return true;
-  if (a.startMinutes === b.startMinutes) return true;
-  const aEnd = a.startMinutes + shiftMinutes(a.startMinutes, a.endMinutes);
-  const bEnd = b.startMinutes + shiftMinutes(b.startMinutes, b.endMinutes);
-  return a.startMinutes < bEnd && b.startMinutes < aEnd;
-}
-
-/**
- * Pairs of tickets in a job with matching names, the same workplace group, the same date
- * (Liam: same date only) and overlapping times. Callers leave out excluded tickets.
+ * Pairs of tickets in a month with matching names, the same workplace group and the same date,
+ * whatever their times (5.2, D39): two shifts of one name on one day are never added together
+ * without asking. Callers leave out excluded tickets.
  */
 export function findPossibleDuplicates(tickets: readonly DuplicateCandidate[]): [string, string][] {
   const byPlaceAndDate = new Map<string, DuplicateCandidate[]>();
@@ -65,7 +51,7 @@ export function findPossibleDuplicates(tickets: readonly DuplicateCandidate[]): 
       for (let j = i + 1; j < group.length; j++) {
         const a = group[i]!;
         const b = group[j]!;
-        if (namesMatch(a.name, b.name) && shiftsOverlap(a, b)) pairs.push([a.id, b.id]);
+        if (namesMatch(a.name, b.name)) pairs.push([a.id, b.id]);
       }
     }
   }

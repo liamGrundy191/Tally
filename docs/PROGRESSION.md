@@ -6,7 +6,7 @@ A record of how this project was built: what we decided, why, and how the work w
 
 A staffing agency sends temporary workers to many workplaces. After every shift, the shift leader fills in a paper ticket per worker. Each month the owner and his associates counted hundreds of these tickets by hand to produce Excel sheets of hours per workplace, which took many hours.
 
-**Tally** turns scanned tickets into those Excel sheets. An AI model reads the handwriting, but nothing it reads is trusted on its own: every value passes rule checks or is confirmed by a person before it reaches the spreadsheet. Once the final file is exported and confirmed, all data for that batch is deleted.
+**Tally** turns scanned tickets into those Excel sheets. An AI model reads the handwriting, but nothing it reads is trusted on its own: every value passes rule checks or is confirmed by a person before it reaches the spreadsheet. When a month is closed, after its final Excel and workplace PDFs are downloaded, all its data is deleted.
 
 ## How the work is run
 
@@ -112,7 +112,7 @@ The AI now gives a best guess for every unclear box. The guess is always flagged
 
 A workplace is accepted only when both readings name the same entry and the handwriting resembles it. Anything else is flagged, so a nearby entry can never be forced onto the writing.
 
-Before handing it over, it was tested on Liam's tickets with a deliberately wrong list of workplaces. Every reading correctly answered "none of these", and the guesses for names and times matched what a careful human reading found (for example זכריה, and a start time of 02:50 that also makes the total add up).
+Before handing it over, it was tested on Liam's tickets with a deliberately wrong list of workplaces. Every reading correctly answered "none of these", and the guesses for names and times matched what a careful human reading found (for example זהריה, and a start time of 02:50 that also makes the total add up).
 
 **Result with the real list.** With the agency's 32 workplaces, all four workplaces on Liam's test tickets were matched by both readings, up from none. Three went straight through. The fourth looked corrected on paper, so it is still shown to a person. No wrong value got through unflagged. One reading was confidently wrong about a name again, but the two readings disagreed, so it was flagged. Names remain the weak field.
 
@@ -130,7 +130,7 @@ Workplaces were solved by the list; names remained the weakest field. Liam and C
 - **A third read.** When the two readings disagree or are unsure, a third independent reading breaks the tie. It only improves the suggestion the reviewer sees and never approves anything by itself, because the tests showed a reading can be confidently wrong.
 - **Price as a feature.** Liam raised cost as a real factor: about 8 cents a ticket. The user will choose between reading now or in batch mode (about half price, results within hours), and between a stronger and a cheaper model. The price is shown before reading starts.
 
-**Liam's challenge on "KOIN".** One reading kept returning the English word "KOIN" for a Hebrew name. Liam found it suspicious and asked why that reading saw only the cut-out boxes. The cause: in cursive, א, ס, ו and מ look like K, O, I and N, and read left to right the Hebrew name מוסא becomes "KOIN". On its own, a cut-out box gives no hint that the ticket is in Hebrew. That reading now sees the whole ticket as well as the enlarged boxes, and every instruction warns about Hebrew that looks like English. The same test also showed the look-alike check was too strict for short names, and it was tightened for names only.
+**Liam's challenge on "KOIN".** One reading kept returning the English word "KOIN" for a Hebrew name. Liam found it suspicious and asked why that reading saw only the cut-out boxes. The cause: in cursive, the four Hebrew letters of the name look like K, O, I and N, and read left to right the name becomes "KOIN". On its own, a cut-out box gives no hint that the ticket is in Hebrew. That reading now sees the whole ticket as well as the enlarged boxes, and every instruction warns about Hebrew that looks like English. The same test also showed the look-alike check was too strict for short names, and it was tightened for names only.
 
 **Result.** On the next run, three of the four names were accepted correctly, including the "KOIN" one. The fourth was correctly held back because a planted look-alike was on the list. Three of four workplaces were accepted, and the fourth was shown to a person because it looked corrected on paper. Nothing wrong was accepted. The cost was about 15 cents a ticket, including the third read.
 

@@ -92,7 +92,7 @@ export function resemblesEntry(written: string, entry: string): boolean {
 /**
  * Could the handwriting be this other entry instead? Stricter than `resemblesEntry`: one letter
  * different for entries up to 7 letters, two for longer ones. With two letters allowed, short
- * names that are clearly different (הבן and הדס) counted as look-alikes. Workplaces keep the
+ * names that are clearly different (הלן and הדס) counted as look-alikes. Workplaces keep the
  * looser `resemblesEntry` as their look-alike test (Liam: the list is short, and pairs two letters apart exist on it).
  */
 export function looksAlike(written: string, entry: string): boolean {
@@ -191,6 +191,21 @@ export function reconcilePasses(
     );
     const agreed =
       ma !== null && ma === mb && written.length > 0 && written.every((t) => resemblesEntry(t, ma));
+    // A name read clearly as something else ("Dina" for the list's "Dana") may be a new worker:
+    // the list only settles a name the readings were unsure of, or read exactly as the entry.
+    const clearlyOther =
+      agreed &&
+      field === 'firstName' &&
+      [a.fields[field], b.fields[field]].some(
+        (f) => f.legible && !isBlank(f.value) && normaliseName(f.value!) !== normaliseName(ma),
+      );
+    if (clearlyOther) {
+      if (!flags.some(isReadingFlag(field))) {
+        flags.push({ code: 'MATCH_AMBIGUOUS', field, detail: { match: ma, written } });
+      }
+      suggestions[field] = ma!;
+      return false;
+    }
     // Handwriting that also fits another entry (בית נוי / בית נוף) could be either: a person decides.
     const alsoFits = agreed
       ? list.filter(
@@ -232,8 +247,13 @@ export function reconcilePasses(
   );
   const nameFromList = settleFromList('firstName', a.nameMatch, b.nameMatch, opts.knownNames ?? []);
 
-  if (a.voided || b.voided) flags.push({ code: 'VOIDED_TICKET' });
-  const overwritten = new Set([...a.overwrittenFields, ...b.overwrittenFields]);
+  // Pass C may raise a doubt, never clear one (D27).
+  if (a.voided || b.voided || c?.voided) flags.push({ code: 'VOIDED_TICKET' });
+  const overwritten = new Set([
+    ...a.overwrittenFields,
+    ...b.overwrittenFields,
+    ...(c?.overwrittenFields ?? []),
+  ]);
   for (const field of FIELD_KEYS) {
     if (overwritten.has(field)) flags.push({ code: 'CORRECTION_MARKS', field });
   }
@@ -252,9 +272,17 @@ export function checkTicketValues(
   const flags: Flag[] = [];
   const clean = (v: string | null) => (isBlank(v) ? null : stripInvisible(v!).trim());
   const v = Object.fromEntries(FIELD_KEYS.map((k) => [k, clean(raw[k])])) as RawTicketValues;
-  // A name or workplace with no letters or digits (just "-" or ".") counts as empty.
-  for (const k of ['firstName', 'workplace'] as const) {
-    if (v[k] !== null && normaliseName(v[k]) === '') v[k] = null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(settings.today)) {
+    // Otherwise every date-age check would silently pass.
+    throw new Error(`settings.today must be YYYY-MM-DD, not "${settings.today}"`);
+  }
+  // A box with only a dash or a dot counts as empty (4.1).
+  for (const k of FIELD_KEYS) {
+    const onlyMarks =
+      k === 'firstName' || k === 'workplace'
+        ? v[k] !== null && normaliseName(v[k]) === ''
+        : v[k] !== null && /^[\p{P}\p{S}\s]*$/u.test(v[k]);
+    if (onlyMarks) v[k] = null;
   }
 
   for (const field of FIELD_KEYS) {
@@ -355,6 +383,7 @@ function totalConfirmedByMath(
   a: ExtractionResult,
   b: ExtractionResult,
   r: ReturnType<typeof reconcilePasses>,
+  c?: ExtractionResult,
 ): string | null {
   const on = (field: FieldKey) => r.flags.filter((f) => f.field === field);
   const total = on('totalWorked');
@@ -366,6 +395,9 @@ function totalConfirmedByMath(
   if (start === null || end === null) return null;
   const offers = [offered(a.fields.totalWorked), offered(b.fields.totalWorked)];
   const expected = shiftMinutes(start, end);
+  // A third read that sees another total is a doubt the shortcut must not hide (D27).
+  const third = c ? offered(c.fields.totalWorked) : null;
+  if (!isBlank(third) && parseDuration(third!) !== expected) return null;
   return offers.every((o) => !isBlank(o) && parseDuration(o!) === expected) ? offers[0]! : null;
 }
 
@@ -376,7 +408,7 @@ export function checkExtraction(
   opts: ReconcileOptions = {},
 ) {
   const reconciled = reconcilePasses(a, b, opts);
-  const byMath = totalConfirmedByMath(a, b, reconciled);
+  const byMath = totalConfirmedByMath(a, b, reconciled, opts.thirdRead);
   if (byMath !== null) {
     reconciled.values.totalWorked = byMath;
     reconciled.flags = reconciled.flags.filter((f) => f.field !== 'totalWorked');

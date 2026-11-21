@@ -1,5 +1,8 @@
-/** Invisible characters a reader or keyboard may insert: bidi marks, zero-width spaces, BOM. */
-const INVISIBLE = /[\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
+/**
+ * Invisible formatting characters a reader or keyboard may insert: bidi marks (including the
+ * Arabic letter mark), zero-width spaces and joiners, soft hyphens, BOM.
+ */
+const INVISIBLE = /\p{Cf}/gu;
 
 export const stripInvisible = (s: string) => s.replace(INVISIBLE, '');
 

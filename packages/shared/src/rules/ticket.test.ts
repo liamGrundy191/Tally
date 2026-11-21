@@ -232,6 +232,25 @@ describe('FIELD_EMPTY: a box left blank on the paper', () => {
     ]);
   });
 
+  it('treats a date or time of only a dash or a dot as empty, not as an invalid value', () => {
+    expect(check({ date: '-', startTime: '.', endTime: ' - ', totalWorked: '--:--' })).toEqual([
+      'FIELD_EMPTY:date',
+      'FIELD_EMPTY:startTime',
+      'FIELD_EMPTY:endTime',
+      'FIELD_EMPTY:totalWorked',
+    ]);
+  });
+
+  it('ignores invisible characters copying can add: soft hyphen, Arabic letter mark', () => {
+    expect(check({ firstName: 'Dana\u00ad', workplace: 'סופר פארם\u061c' })).toEqual([]);
+  });
+
+  it('refuses to check with a malformed "today", which would skip the date checks', () => {
+    expect(() => checkTicketValues(goodValues, { ...settings, today: '21/11/2026' })).toThrow(
+      /YYYY-MM-DD/,
+    );
+  });
+
   it('does not work out a missing total from start and end (no guessing)', () => {
     const r = checkTicketValues({ ...goodValues, totalWorked: null }, settings);
     expect(r.fields.totalMinutes).toBeNull();
@@ -433,30 +452,30 @@ describe('SCRIPT_UNEXPECTED: a name that is not plain Hebrew or English', () => 
 describe('suggestions: best guesses for unclear boxes, never used as values', () => {
   it('passes on a suggestion both readings agree on', () => {
     const r = checkExtraction(
-      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זכריה' } }),
-      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זכריה' } }),
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זהריה' } }),
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זהריה' } }),
       settings,
     );
-    expect(r.suggestions).toEqual({ firstName: 'זכריה' });
+    expect(r.suggestions).toEqual({ firstName: 'זהריה' });
     expect(r.fields.firstName).toBeNull(); // still empty until a person confirms
     expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:firstName']);
   });
 
   it('passes on the only suggestion when one reading has none', () => {
     const r = reconcilePasses(
-      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זכריה' } }),
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זהריה' } }),
       pass({ firstName: null }, { unreadable: ['firstName'] }),
     );
-    expect(r.suggestions).toEqual({ firstName: 'זכריה' });
+    expect(r.suggestions).toEqual({ firstName: 'זהריה' });
   });
 
   it('offers no suggestion when the two guesses differ, but keeps both for the reviewer', () => {
     const r = reconcilePasses(
-      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זכריה' } }),
-      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'לכריה' } }),
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'זהריה' } }),
+      pass({ firstName: null }, { unreadable: ['firstName'], suggestions: { firstName: 'להריה' } }),
     );
     expect(r.suggestions).toEqual({});
-    expect(r.flags[0]!.detail).toMatchObject({ suggestionA: 'זכריה', suggestionB: 'לכריה' });
+    expect(r.flags[0]!.detail).toMatchObject({ suggestionA: 'זהריה', suggestionB: 'להריה' });
   });
 
   it('uses the clear reading of one pass as the suggestion when the other could not read it', () => {
@@ -605,7 +624,7 @@ describe('workplace list (D25)', () => {
 });
 
 describe('known names list (D28)', () => {
-  const names = { knownNames: ['זכריה', 'מוברטו', 'אוסף', 'דנה', 'דינה'] };
+  const names = { knownNames: ['זהריה', 'מוברטו', 'אוסף', 'דנה', 'דינה'] };
   const unreadableName = (suggestion: string | null, match: string | null) =>
     pass(
       { firstName: null },
@@ -614,13 +633,13 @@ describe('known names list (D28)', () => {
 
   it('accepts the name when both readings pick the same entry and the writing resembles it', () => {
     const r = checkExtraction(
-      unreadableName('זכריה', 'זכריה'),
-      unreadableName('לכריה', 'זכריה'),
+      unreadableName('זהריה', 'זהריה'),
+      unreadableName('להריה', 'זהריה'),
       settings,
       names,
     );
     expect(r.flags).toEqual([]);
-    expect(r.fields.firstName).toBe('זכריה');
+    expect(r.fields.firstName).toBe('זהריה');
     expect(r.nameFromList).toBe(true);
   });
 
@@ -636,10 +655,10 @@ describe('known names list (D28)', () => {
   });
 
   it('does not count short names two letters apart as look-alikes', () => {
-    // Liam's tickets: הבן was blocked by הדס, and זכריה by זכאי.
+    // Liam's tickets: הלן was blocked by הדס, and זהריה by זהאי.
     for (const [name, other] of [
-      ['הבן', 'הדס'],
-      ['זכריה', 'זכאי'],
+      ['הלן', 'הדס'],
+      ['זהריה', 'זהאי'],
     ]) {
       const r = checkExtraction(
         pass({ firstName: name }, { nameMatch: name }),
@@ -650,6 +669,31 @@ describe('known names list (D28)', () => {
       expect(r.flags).toEqual([]);
       expect(r.nameFromList).toBe(true);
     }
+  });
+
+  it('never replaces a name both readings read clearly with another list entry', () => {
+    // "Dina" may be a new worker, not "Dana": a person decides, with the entry suggested.
+    const r = checkExtraction(
+      pass({ firstName: 'Dina' }, { nameMatch: 'Dana' }),
+      pass({ firstName: 'Dina' }, { nameMatch: 'Dana' }),
+      settings,
+      { knownNames: ['Dana'] },
+    );
+    expect(r.fields.firstName).toBe('Dina');
+    expect(codes(r.flags)).toEqual(['MATCH_AMBIGUOUS:firstName']);
+    expect(r.suggestions.firstName).toBe('Dana');
+    expect(r.nameFromList).toBe(false);
+  });
+
+  it('keeps a disagreement between two clear readings, even when both pick one entry', () => {
+    const r = checkExtraction(
+      pass({ firstName: 'Dana' }, { nameMatch: 'Dana' }),
+      pass({ firstName: 'Dina' }, { nameMatch: 'Dana' }),
+      settings,
+      { knownNames: ['Dana'] },
+    );
+    expect(codes(r.flags)).toEqual(['PASS_DISAGREEMENT:firstName']);
+    expect(r.nameFromList).toBe(false);
   });
 
   it('does not flag a clearly read name that is not on the list: new workers are normal', () => {
@@ -736,6 +780,25 @@ describe('a total confirmed by the times (D30, risky)', () => {
 });
 
 describe('third read (pass C, D27)', () => {
+  it('can raise a doubt the first two missed: crossed out, or overwritten', () => {
+    const r = checkExtraction(pass(), pass(), settings, {
+      thirdRead: pass({}, { voided: true, overwritten: ['endTime'] }),
+    });
+    expect(codes(r.flags)).toEqual(['VOIDED_TICKET', 'CORRECTION_MARKS:endTime']);
+  });
+
+  it('stops a total being confirmed by the times when it reads another total (D30)', () => {
+    const unsureTotal = pass(
+      { totalWorked: null },
+      { unreadable: ['totalWorked'], suggestions: { totalWorked: '08:30' } },
+    );
+    const r = checkExtraction(unsureTotal, unsureTotal, settings, {
+      thirdRead: pass({ totalWorked: '06:30' }),
+    });
+    expect(r.totalFromMath).toBe(false);
+    expect(codes(r.flags)).toContain('FIELD_UNREADABLE:totalWorked');
+  });
+
   const unreadable = (suggestion: string | null) =>
     pass(
       { firstName: null },
@@ -743,11 +806,11 @@ describe('third read (pass C, D27)', () => {
     );
 
   it('breaks a tie between two guesses, but the field stays flagged', () => {
-    const r = checkExtraction(unreadable('זכריה'), unreadable('לכריה'), settings, {
-      thirdRead: unreadable('זכריה'),
+    const r = checkExtraction(unreadable('זהריה'), unreadable('להריה'), settings, {
+      thirdRead: unreadable('זהריה'),
     });
     expect(codes(r.flags)).toEqual(['FIELD_UNREADABLE:firstName']);
-    expect(r.suggestions.firstName).toBe('זכריה');
+    expect(r.suggestions.firstName).toBe('זהריה');
     expect(r.fields.firstName).toBeNull();
   });
 
@@ -760,14 +823,14 @@ describe('third read (pass C, D27)', () => {
   });
 
   it('offers no suggestion when all three readings differ', () => {
-    const r = checkExtraction(unreadable('זכריה'), unreadable('לכריה'), settings, {
+    const r = checkExtraction(unreadable('זהריה'), unreadable('להריה'), settings, {
       thirdRead: unreadable('זבריה'),
     });
     expect(r.suggestions.firstName).toBeUndefined();
   });
 
   it('is asked only about the fields the two passes could not settle', () => {
-    const r = checkExtraction(unreadable('זכריה'), pass({ firstName: null }), settings);
+    const r = checkExtraction(unreadable('זהריה'), pass({ firstName: null }), settings);
     expect(unclearFields(r)).toEqual(['firstName']);
     expect(unclearFields(checkExtraction(pass(), pass(), settings))).toEqual([]);
   });

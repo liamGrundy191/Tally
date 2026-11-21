@@ -10,8 +10,9 @@ export type ListKind = (typeof LIST_KINDS)[number];
 export const MAX_LIST_ENTRIES = 2000;
 export const MAX_LIST_LINE = 200;
 
+/** Fits the API's 100 KB request limit even in Hebrew (2 bytes a letter); real lists are far shorter. */
 export const putListSchema = z.object({
-  text: z.string().max(MAX_LIST_ENTRIES * MAX_LIST_LINE, 'The list is too long.'),
+  text: z.string().max(40_000, 'The list is too long.'),
 });
 
 export interface ListLine {

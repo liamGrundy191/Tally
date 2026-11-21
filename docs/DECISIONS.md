@@ -40,7 +40,7 @@ CI installs `poppler-utils`. On Windows: `winget install oschwartz10612.Poppler`
 
 ## D9 · Ticket · No last name on the ticket (owner)
 
-The owner decided the last name is not needed. The ticket has one name field, first name (12 boxes); the rows below it moved up. The worker column in the export shows the first name, and `POSSIBLE_DUPLICATE` compares first names. Two different workers with the same first name at the same place and overlapping hours will now always be asked about ("Keep both"), since there is no surname to tell them apart.
+The owner decided the last name is not needed. The ticket has one name field, first name (12 boxes); the rows below it moved up. The worker column in the export shows the first name, and `POSSIBLE_DUPLICATE` compares first names. (Replaced by D39: the Excel row is the confirmed English name.) Two different workers with the same first name at the same place and overlapping hours will now always be asked about ("Keep both"), since there is no surname to tell them apart.
 
 ## D10 · T0.3 · Two new flags: FIELD_EMPTY and TIME_INVALID (Liam)
 
@@ -127,7 +127,7 @@ Changes plan principle 2. The extractor still returns `legible: false` whenever 
 
 - **Speed.** _Now_: tickets are read straight away. _Batch_: Anthropic's batch service, about half the price, with results usually within an hour and at most 24 hours. Tickets are reviewed later anyway, so batch suits most uploads.
 - **Reading quality.** _Best_ uses the strongest model; _Standard_ uses a cheaper one. Each option says in plain words how it affects reading ("Standard: cheaper, more tickets may need a person"). Which model sits behind each option, and the per-ticket prices, are set from Phase 0 measurements, not assumed.
-- **Price.** Before reading starts, the upload screen shows the estimated cost ("about $6 for 150 tickets"), from the measured average cost per ticket for the chosen options. The spending caps still apply.
+- **Price.** Before reading starts, the upload screen shows the estimated cost ("about $6 for 150 tickets"), from the measured average cost per ticket for the chosen options. The spending caps still apply. (Replaced by D38: no spending stop in batch mode.)
 - **Measured so far.** The strongest model, read immediately, costs about 8 cents per ticket on Liam's four test tickets.
 
 ## D27 · Planning · A third read for unclear fields (Liam)
@@ -139,15 +139,15 @@ When either reading is unsure of a field, or the two disagree, a third independe
 Names were the weakest field on Liam's tickets. The name decides who gets paid, so a wrong name must never slip through, but a flagged name only costs the reviewer a few seconds.
 
 - **An uploaded names list, not a register.** The user uploads a list of first names (for now `names.txt`, later an Excel upload). Names are matched exactly like workplaces (D25): both passes must name the same entry, the writing must resemble it, and it must resemble no other entry. Many names have look-alikes (דנה / דינה), so those still go to a person, with the guess filled in. A name missing from the list is normal (workers change every month or two) and is not flagged.
-- **Nothing is kept between jobs.** Saving names automatically was considered and rejected: too much for too little. Instead the export has a `שמות` sheet with each confirmed name once, and the user uploads it next time. The list lives in the user's own files.
+- **Nothing is kept between jobs.** Saving names automatically was considered and rejected: too much for too little. Instead the export has a `שמות` sheet with each confirmed name once, and the user uploads it next time. The list lives in the user's own files. (Replaced by D42: the lists are stored, shared by all months.)
 - **Names from the same batch.** One worker usually has several tickets in an upload. After the whole upload is read, names that raised no flag form a temporary list. An unclear name that resembles one of them is read again with those names on the list. Only names that came out of a clean reading are used, so one misread cannot spread to other tickets. The temporary list goes with the job.
 - **Rejected or deferred.** A general list of common Israeli names (the workers' names are mostly not common ones, and a big list has look-alikes everywhere). Printing "block letters" on the ticket (not realistic for the shift leaders). One-click name buttons in the review screen (a maybe, to decide with the review screen).
 - **Known limit.** Two workers really called the same name cannot be told apart by the name. The agency already handles this today.
 
 ## D29 · Planning · Read 2 sees the whole ticket as well as the boxes; look-alike tests (Liam)
 
-- **Read 2.** It used to see only the cut-out boxes. On its own, a cut-out of the cursive name מוסא was read as the English "KOIN": cursive א, ס, ו, מ look like K, O, I, N, and reading them left to right reverses the word. Read 2 now gets the whole ticket for context, then each box enlarged. Its different wording keeps it independent from read 1. All prompts now warn that cursive Hebrew can look like Latin letters.
-- **Look-alikes.** For names, only entries one letter apart count as look-alikes (two for names of 8 letters or more); two letters apart blocked clearly different short names such as הבן and הדס. Workplaces keep the stricter test, at Liam's request, because the list is short and two-letter pairs exist on it.
+- **Read 2.** It used to see only the cut-out boxes. On its own, a cut-out of a cursive four-letter Hebrew name was read as the English "KOIN": its cursive letters look like K, O, I, N, and reading them left to right reverses the word. Read 2 now gets the whole ticket for context, then each box enlarged. Its different wording keeps it independent from read 1. All prompts now warn that cursive Hebrew can look like Latin letters.
+- **Look-alikes.** For names, only entries one letter apart count as look-alikes (two for names of 8 letters or more); two letters apart blocked clearly different short names such as הלן and הדס. Workplaces keep the stricter test, at Liam's request, because the list is short and two-letter pairs exist on it.
 
 ## D30 · ⚠ RISKY · An unclear total can be accepted when the times confirm it (Liam)
 
@@ -219,12 +219,12 @@ Measured on Liam's 12 real tickets in batch mode, then on the two hardest of the
 ## D37 · T3.1 · The agency's Excel layout (Liam, Q2)
 
 - **Grids, as the agency uses today.** One sheet per workplace: a row per worker, a column per day of the month, the hours in each cell, a total per worker and per day. One totals sheet with only the workplaces and their totals.
-- **Never merge, still: one row per ticket** (Q3). No two tickets ever share a row; the agency copies totals by hand if it wants to. It can change later.
+- **Never merge, still: one row per ticket** (Q3). No two tickets ever share a row; the agency copies totals by hand if it wants to. It can change later. (Replaced by D39: one row per confirmed name.)
 - **English spelling of Hebrew names** comes from a names list with `Hebrew = English` lines. A name not on it gets a suggested spelling that a person confirms, so no spelling reaches the Excel unchecked.
 - **Names in English letters**, as the agency writes them now.
 - **Hours as decimals with two places (8.33).** Minutes stay whole numbers everywhere; only the display has two decimals. The cell keeps the exact value, so totals do not drift.
 - *_Pay rates (such as *57 in a name) are left out*_ for now (Liam).
-- **The details are settled when T3.1 is built.** Until then section 6.2 of the plan describes the old layout.
+- **The details are settled when T3.1 is built.** Until then section 6.2 of the plan describes the old layout. (Replaced by D39: section 6.2 now has the agency's layout.)
 
 ## D38 · Phase 0 · G0 passed (2026-11-20)
 
@@ -248,7 +248,7 @@ Liam learned how the agency really works: it updates its Excel through the month
 - **Hours change only through tickets.** A correction is a new ticket; the duplicate question offers **Replace the old one**, **Keep both** or **Ignore the new one**. No hours without a ticket, so the Excel and the tickets sent to workplaces always agree.
 - **Rows per worker, by person-confirmed name.** Every ticket gets a confirmed name in English letters; the same confirmed name at the same workplace shares a row. This replaces "never merge people" (principle 3) and Q3's "one row per ticket": the system still never decides by itself that two differently written names are one person, and the same name on the same day always asks. Two workers with one name are told apart by the person confirming. The remaining risk (two same-named workers never on the same day) is the same as in today's manual Excel.
 - **Workplace PDFs:** one per workplace with all its tickets of the month, downloadable any time; sent by email and WhatsApp.
-- **The lists carry on between months** (5.4): a new month copies the latest month's workplace and names lists, and confirmed names are added. They are deleted with their month. They only help reading and suggest spellings, and never put a worker or workplace in the Excel: rows come only from that month's tickets (Liam).
+- **The lists carry on between months** (5.4): a new month copies the latest month's workplace and names lists, and confirmed names are added. They are deleted with their month. (Replaced by D42: one shared set of lists.) They only help reading and suggest spellings, and never put a worker or workplace in the Excel: rows come only from that month's tickets (Liam).
 - **Dropped:** Excel import (old 6.3, T3.2), locking a job, the hidden `_meta` sheet, spending caps (D38).
 - **Resources:** about 900 tickets a month; each page is kept as one image and the uploaded file is deleted once split; downloads are built on request and never stored.
 
@@ -263,7 +263,7 @@ Liam learned how the agency really works: it updates its Excel through the month
 
 ## D41 · T1.2 · Logging in, kept to the standard and no further (Liam)
 
-- **No two-step codes for now.** Liam: the app is for his father on one computer; it should meet industry standards without going overboard. The `totpSecret` column was removed. They can be added later if more people or computers use it.
+- **No two-step codes for now.** Liam: the app is for the owner, on one computer; it should meet industry standards without going overboard. The `totpSecret` column was removed. They can be added later if more people or computers use it.
 - **Invites are links the admin sends himself.** The plan has no email sending, so creating an invite shows a link; it works once, for 7 days, and a new invite for the same email replaces the old link. The token is in the link's `#` part, so it never reaches server or proxy logs.
 - **What is in place:** passwords hashed with argon2id; a wrong email and a wrong password get the same answer and take about as long; 10 wrong passwords lock the account for 15 minutes; 50 failed logins from one IP address in 15 minutes refuse that address; sessions are long random keys stored only as hashes, in an HttpOnly, Secure, SameSite=Lax cookie, ended after 12 idle hours, on logout, or when the account is disabled; a double-submit CSRF check on every change made while logged in; every route declares who may use it, and a route that does not is refused.
 - **Accepted limits:** after 10 tries an attacker can tell that an account is locked, so that the email exists; login and invite acceptance (the only routes used without a session) have no CSRF check, as SameSite cookies already protect them. Behind the production proxy (T4.3) Express must be told to trust it, or every login would seem to come from one address.
@@ -297,3 +297,18 @@ Liam learned how the agency really works: it updates its Excel through the month
 - **D30 is stored** on the ticket (`totalFromMath`), so the review screen can show that the total was accepted because the times confirm it.
 - **A page that cannot be split does not stop the others** (principle 4, from the code review). It is retried with the job; on the last attempt the rest of the file is read and the page is recorded on the upload (`failedPages`), for the progress screen (T1.6) to show.
 - **`EXTRACTOR` must be set** to `anthropic` or `fake`: the worker never falls back to the fake reader by itself, which would "read" real tickets. The fake reader gives every ticket the same prepared clean answer, for local runs without a key.
+
+## D44 · Review · Fixes from three independent reviews (Liam asked for them)
+
+At Liam's request, three reviewers checked everything built so far: the API, the reading rules, and the documents against the code. Each finding was checked again before fixing.
+
+- **A clearly read name is never replaced by a list entry.** The list used to settle a name whenever the writing resembled an entry, so two clear readings of "Dina" became the list's "Dana" with no flag. The list now settles a name only when the readings were unsure of it, or read it exactly as the entry; otherwise a person decides (`MATCH_AMBIGUOUS`, with the entry suggested). Workplaces keep D25/D36: a misspelt place still matches its list entry. This can only send more names to a person.
+- **Same name, same place, same day always asks** (5.2, D39), whatever the times. The rule still followed D11 and asked only when the shifts overlapped, so two non-overlapping shifts would have been added together silently.
+- **The third read can raise a doubt, never clear one** (D27): its "crossed out" and "overwritten" marks now count, and a third read seeing another total stops the D30 shortcut.
+- **Smaller rule fixes:** every invisible formatting character is removed (soft hyphens, the Arabic letter mark); a date or time box with only a dash is empty, as 4.1 says; the checks refuse a malformed "today" instead of silently skipping the date checks.
+- **The CSRF cookie lives as long as the login**, and `/auth/me` gives a lost one back. Before, closing and reopening the browser made every change fail until the session expired.
+- **Less kept:** failed logins are deleted after a day on every login, not only on the next failure; used and expired invites are deleted; the invite audit entry keeps the role, not the email.
+- **Two admins cannot disable each other at once:** that change now runs in a serializable transaction.
+- **A pasted list is at most 40,000 characters,** which fits the API's 100 KB request limit even in Hebrew.
+- **Real names out of the repository:** three first names from Liam's test scans, which are on the agency's names list, were replaced in tests and documents. The reading instructions in use (prompts v3) still use one of them as an example; prompt files are never edited once used, so it goes in the next prompt version. Earlier versions of the files keep them in the project history.
+- **Documents brought in line:** removed `totpSecret` from section 7 and added the login-limit fields; old decisions now say what replaced them; `pnpm dev` is marked as arriving in T2.1, the first task with a screen; CI now also builds the web app (section 12). The prompts in use are v3 (pass C added, D27).

@@ -47,7 +47,9 @@ export const sessionCookie: CookieOptions = {
   httpOnly: true,
   maxAge: 30 * 24 * 60 * 60 * 1000,
 };
-export const csrfCookie: CookieOptions = { ...base, httpOnly: false };
+/** Lives as long as the session cookie: without it, every change would be refused after the
+ * browser is closed and reopened. */
+export const csrfCookie: CookieOptions = { ...base, httpOnly: false, maxAge: sessionCookie.maxAge };
 
 export function readCookie(req: Req, name: string): string | undefined {
   const header = req.headers.cookie;

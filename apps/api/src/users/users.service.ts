@@ -22,6 +22,11 @@ const publicFields = {
   createdAt: true,
 } as const;
 
+/** Invites no longer needed: used, expired, or (with an email) any other one for that email. */
+const staleInvites = (email?: string) => ({
+  OR: [{ usedAt: { not: null } }, { expiresAt: { lt: new Date() } }, ...(email ? [{ email }] : [])],
+});
+
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaClient) {}
@@ -40,7 +45,8 @@ export class UsersService {
     }
     const token = newToken();
     const invite = await this.prisma.$transaction(async (tx) => {
-      await tx.invite.deleteMany({ where: { email, usedAt: null } }); // an older link stops working
+      // An older link for this email stops working; used and expired invites are not kept.
+      await tx.invite.deleteMany({ where: staleInvites(email) });
       const created = await tx.invite.create({
         data: {
           email,
@@ -54,7 +60,7 @@ export class UsersService {
         action: 'invite',
         entity: 'Invite',
         entityId: created.id,
-        after: { email, role },
+        after: { role }, // not the email: this entry outlives the invite
       });
       return created;
     });
@@ -89,46 +95,51 @@ export class UsersService {
         entityId: user.id,
         after: { email: user.email, role: user.role },
       });
+      await tx.invite.deleteMany({ where: staleInvites() });
       return user;
     });
   }
 
   /** Changes a user's role or disables them; there is always at least one active admin. */
   async update(byUserId: string, id: string, change: { role?: Role; disabled?: boolean }) {
-    return this.prisma.$transaction(async (tx) => {
-      const before = await tx.user.findUnique({ where: { id }, select: publicFields });
-      if (!before) throw new NotFoundException('There is no such user.');
-      const role = change.role ?? before.role;
-      const disabledAt =
-        change.disabled === undefined ? before.disabledAt : change.disabled ? new Date() : null;
-      if (before.role === 'admin' && !before.disabledAt && (role !== 'admin' || disabledAt)) {
-        const otherAdmins = await tx.user.count({
-          where: { role: 'admin', disabledAt: null, id: { not: id } },
-        });
-        if (otherAdmins === 0) {
-          throw new ConflictException('There must always be at least one active admin.');
+    return this.prisma.$transaction(
+      async (tx) => {
+        const before = await tx.user.findUnique({ where: { id }, select: publicFields });
+        if (!before) throw new NotFoundException('There is no such user.');
+        const role = change.role ?? before.role;
+        const disabledAt =
+          change.disabled === undefined ? before.disabledAt : change.disabled ? new Date() : null;
+        if (before.role === 'admin' && !before.disabledAt && (role !== 'admin' || disabledAt)) {
+          const otherAdmins = await tx.user.count({
+            where: { role: 'admin', disabledAt: null, id: { not: id } },
+          });
+          if (otherAdmins === 0) {
+            throw new ConflictException('There must always be at least one active admin.');
+          }
         }
-      }
-      const after = await tx.user.update({
-        where: { id },
-        // Enabling a user again also clears a wrong-password lock.
-        data: {
-          role,
-          disabledAt,
-          ...(change.disabled === false ? { failedLogins: 0, lockedUntil: null } : {}),
-        },
-        select: publicFields,
-      });
-      if (disabledAt) await tx.session.deleteMany({ where: { userId: id } }); // logged out at once
-      await audit(tx, {
-        userId: byUserId,
-        action: 'update-user',
-        entity: 'User',
-        entityId: id,
-        before: { role: before.role, disabled: before.disabledAt !== null },
-        after: { role: after.role, disabled: after.disabledAt !== null },
-      });
-      return after;
-    });
+        const after = await tx.user.update({
+          where: { id },
+          // Enabling a user again also clears a wrong-password lock.
+          data: {
+            role,
+            disabledAt,
+            ...(change.disabled === false ? { failedLogins: 0, lockedUntil: null } : {}),
+          },
+          select: publicFields,
+        });
+        if (disabledAt) await tx.session.deleteMany({ where: { userId: id } }); // logged out at once
+        await audit(tx, {
+          userId: byUserId,
+          action: 'update-user',
+          entity: 'User',
+          entityId: id,
+          before: { role: before.role, disabled: before.disabledAt !== null },
+          after: { role: after.role, disabled: after.disabledAt !== null },
+        });
+        return after;
+        // Serializable: two admins disabling each other at once cannot both pass the last-admin check.
+      },
+      { isolationLevel: 'Serializable' },
+    );
   }
 }

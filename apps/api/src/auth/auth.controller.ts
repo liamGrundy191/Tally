@@ -45,9 +45,15 @@ export class AuthController {
     res.clearCookie(SESSION_COOKIE, sessionCookie);
   }
 
+  /** The web app asks this first; it also gives back a CSRF cookie the browser has lost. */
   @Get('me')
   @Access('reviewer')
-  me(@CurrentUser() user: SessionUser) {
+  me(
+    @CurrentUser() user: SessionUser,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!readCookie(req, CSRF_COOKIE)) res.cookie(CSRF_COOKIE, newToken(), csrfCookie);
     return user;
   }
 
