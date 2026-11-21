@@ -1,8 +1,8 @@
 import { Alert, Box, Button, Paper, TextField, Typography } from '@mui/material';
 import { loginSchema } from '@tally/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, type ReactNode, useState } from 'react';
-import { Navigate, useNavigate, useSearchParams } from 'react-router';
+import { type FormEvent, type ReactNode, useEffect, useState } from 'react';
+import { Navigate, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { api, type ApiError, safeNext, type User, useMe } from '../api.ts';
 
 /** The narrow centred card shared by the login and invite pages. */
@@ -25,6 +25,7 @@ export function Login() {
   const navigate = useNavigate();
   const client = useQueryClient();
   const me = useMe();
+  const loggingOut = (useLocation().state as { logOut?: boolean } | null)?.logOut === true;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [problem, setProblem] = useState<string>();
@@ -38,6 +39,19 @@ export function Login() {
     onError: (e) => setProblem(e.message),
   });
 
+  useEffect(() => {
+    if (!loggingOut) return;
+    void api('/api/auth/logout', 'POST')
+      // Already logged out on the server (expired) or unreachable: the login page follows anyway.
+      .catch(() => {})
+      .then(async () => {
+        // Cleared only here, off the guarded pages, which would ask the server again and bounce.
+        client.clear();
+        await navigate('/login', { replace: true });
+      });
+  }, [loggingOut, client, navigate]);
+
+  if (loggingOut) return <Typography sx={{ m: 4 }}>Logging out…</Typography>;
   if (me.data) return <Navigate to={next} replace />;
 
   function submit(e: FormEvent) {

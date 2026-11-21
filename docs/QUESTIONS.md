@@ -57,3 +57,23 @@ Options: A) One row per name exactly as confirmed (after the English spelling): 
 Recommendation: A, with the shared rows listed on the review screen before export, so a person sees every pair the grid combines. Hebrew names get their English spelling from a names list with `Hebrew = English` lines; a name not on it gets a suggested spelling that a person confirms. Each cell keeps the exact hours (500 minutes / 60) and only shows two decimals, so the totals stay exact.
 
 Answer (Liam): B for now (2026-11-20): every ticket gets its own row; it can change later if needed. Hebrew names: Claude's recommendation (a `Hebrew = English` names list, and a suggested spelling a person confirms for a name not on it).
+
+## Q4 · T2.2 · The price on the upload screen · answered
+
+Context: Section 9 and D26 ask for the estimated price before reading starts. Only batch mode was measured (14.5 cents a ticket, D38); the price of reading straight away is an inference.
+
+Options: A) Show an estimate per ticket beside each speed, and a running "N tickets, about $X" for what was uploaded. B) Leave the price out until real costs are known.
+
+Recommendation: A, labelled as estimates, with the numbers kept in one place so they are easy to correct.
+
+Answer (Liam): A (2026-11-21): "about 15 cents a ticket" for Batch (measured, D38) and "about 30 cents a ticket, not yet measured" for Now, plus the running total.
+
+## Q5 · T2.2 · Remove and search on the month page · answered
+
+Context: Section 9 lists search and **Remove** on the month page, but the T2.2 task text does not, and the month summary's tickets carry no `version`, which removing needs.
+
+Options: A) Leave them to T2.3, with the review screen. B) Add the version to the summary and build Remove with a confirmation now.
+
+Recommendation: A, so T2.2 stays the size the task describes.
+
+Answer (Liam): A (2026-11-21): deferred to T2.3.

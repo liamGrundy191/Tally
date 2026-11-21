@@ -1,6 +1,5 @@
 // The pages and who may open them. The API checks access again on every request.
 import { AppBar, Box, Button, Container, Toolbar, Typography } from '@mui/material';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   NavLink,
   Navigate,
@@ -9,13 +8,14 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router';
-import { api, useMe } from './api.ts';
+import { useMe } from './api.ts';
 import { AcceptInvite } from './pages/AcceptInvite.tsx';
 import { Login } from './pages/Login.tsx';
+import { Home, Month } from './pages/Months.tsx';
+import { Upload } from './pages/Upload.tsx';
 import {
   Admin,
   ErrorMessage,
-  Home,
   NotFound,
   RouteError,
   TicketTemplate,
@@ -42,18 +42,9 @@ function RequireAdmin() {
 
 function Layout() {
   const { data: me } = useMe();
-  const client = useQueryClient();
   const navigate = useNavigate();
-  async function logOut() {
-    try {
-      await api('/api/auth/logout', 'POST');
-    } catch {
-      // Already logged out on the server (expired) or unreachable: the login page follows anyway.
-    }
-    // Leave first: clearing while a guarded page is open would ask the server again and bounce.
-    await navigate('/login');
-    client.clear();
-  }
+  // The login page logs out, so a page that asks before leaving (uploads running) can stop it.
+  const logOut = () => navigate('/login', { state: { logOut: true } });
   const links = [
     ['/', 'Home'],
     ['/workplaces', 'Workplaces'],
@@ -99,6 +90,8 @@ export const routes: RouteObject[] = [
             element: <Layout />,
             children: [
               { path: '/', element: <Home /> },
+              { path: '/upload', element: <Upload /> },
+              { path: '/months/:id', element: <Month /> },
               { path: '/workplaces', element: <Workplaces /> },
               { path: '/template', element: <TicketTemplate /> },
               { element: <RequireAdmin />, children: [{ path: '/admin', element: <Admin /> }] },

@@ -32,6 +32,10 @@ export const completeUploadsSchema = z.object({
     .max(MAX_FILES_PER_REQUEST),
 });
 
+/** Server messages the web app shows itself or acts on. */
+export const NOT_ARRIVED = 'This file did not arrive. Please upload it again.';
+export const TOO_LARGE = 'This file is larger than 50 MB. Please split it into smaller files.';
+
 /** What happened to each file. `duplicate` and `rejected` come with a message for the user. */
 export type UploadResult =
   | { key: string; status: 'queued'; uploadId: string; pages: number }

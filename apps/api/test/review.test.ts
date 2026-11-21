@@ -404,7 +404,10 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
   it('counts each upload’s tickets by status, including a file still being split', async () => {
     await ticket({ status: 'verified' });
     await ticket({ status: 'verified' });
-    await ticket({ status: 'processing' });
+    const reading = await ticket({ status: 'processing' });
+    // An old upload with a ticket sent to be read again: its last activity is that ticket's.
+    await prisma.upload.update({ where: { id: uploadId }, data: { updatedAt: new Date(0) } });
+    const { updatedAt } = await prisma.ticket.findUniqueOrThrow({ where: { id: reading.id } });
     const user = await prisma.user.findFirstOrThrow();
     const splitting = await prisma.upload.create({
       data: {
@@ -423,6 +426,7 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
     expect(res.body[1]).toMatchObject({
       splitting: false,
       failedPages: [],
+      activeAt: updatedAt.toISOString(),
       tickets: { processing: 1, verified: 2, needs_review: 0, needs_manual_entry: 0, excluded: 0 },
     });
   });
