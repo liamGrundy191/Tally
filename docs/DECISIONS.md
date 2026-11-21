@@ -251,3 +251,12 @@ Liam learned how the agency really works: it updates its Excel through the month
 - **The lists carry on between months** (5.4): a new month copies the latest month's workplace and names lists, and confirmed names are added. They are deleted with their month. They only help reading and suggest spellings, and never put a worker or workplace in the Excel: rows come only from that month's tickets (Liam).
 - **Dropped:** Excel import (old 6.3, T3.2), locking a job, the hidden `_meta` sheet, spending caps (D38).
 - **Resources:** about 900 tickets a month; each page is kept as one image and the uploaded file is deleted once split; downloads are built on request and never stored.
+
+## D40 · T1.1 · Database setup choices
+
+- **Prisma 7.** The current version runs without its old query engine: the client is generated as plain TypeScript into `apps/api/src/generated/` (not committed; `pnpm install` generates it) and talks to Postgres through the `pg` driver. Settings live in `apps/api/prisma.config.ts`, which reads the repository's one `.env`.
+- **MinIO from Chainguard.** MinIO stopped publishing free Docker images in 2025, so the local file storage uses Chainguard's free build of the same MinIO server, pinned by its exact digest. Only local development uses it; production uses AWS S3 (section 12), so nothing in the product depends on it.
+- **The first admin is typed in, not written down.** `pnpm seed:admin` asks for the email and password (the password is not shown) and refuses a short password, an invalid email or an email already in use. No account details are in the code or the repository.
+- **Flag codes are text in the database,** checked against the one list in `@tally/shared`, so the list of codes is not kept in two places.
+- **A patched dependency.** Prisma's command-line settings loader pins `effect` 3.20.0, which has a published high-severity bug (a slow regular expression). It is overridden to the fixed 3.22.4; Prisma was re-tested with it. Remove the override when Prisma updates.
+- **Database tests use their own empty schema** each run and drop it afterwards. Without a database they are skipped locally, and in CI a missing database fails the run instead of skipping.

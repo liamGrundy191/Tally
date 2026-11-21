@@ -8,6 +8,22 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    services:
+      # The database tests (apps/api) each use their own empty schema in this throwaway database.
+      postgres:
+        image: postgres:16.16-alpine
+        env:
+          POSTGRES_USER: tally
+          POSTGRES_PASSWORD: tally-ci-only
+          POSTGRES_DB: tally
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tally -d tally"
+          --health-interval 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://tally:tally-ci-only@localhost:5432/tally
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6

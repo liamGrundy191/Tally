@@ -171,3 +171,9 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **New facts, new design.** Liam learned that the agency builds its Excel through the month, edits it freely, and sends each workplace its tickets. The plan's "one job, one export" model no longer fit.
 - **Many options, one choice.** Updating the agency's own file, syncing it by uploads, and a spreadsheet inside the website were each weighed and dropped as too fragile or too heavy. Looking at the agency's real file settled it: the system owns a strict file layout, months stay open about six weeks, and hours change only through tickets, so the Excel and the tickets sent to workplaces can never disagree.
 - **Saying no to the system doing too much.** Liam's rule: some things are better left to people. The system fills the agency's layout, and the final file is theirs to change.
+
+### 16. The database foundation (T1.1)
+
+- **The plan first, then the tables.** The database was designed only after the months-and-Excel decisions settled, because every table depends on them: months instead of jobs, a confirmed English name on each ticket, the helper lists, and a record of downloads.
+- **Deleting a month deletes everything in it,** enforced by the database itself, and tested: closing November leaves December untouched.
+- **Supply-chain care.** The usual local file-storage image had been withdrawn by its makers, and a security audit found a known bug in a library Prisma depends on. Both were handled openly: a pinned, maintained replacement, and a pinned fixed version, each recorded with the reason.
