@@ -32,6 +32,16 @@ services:
     volumes:
       - minio:/data
 
+  # Runs once and stops: creates the `tally` bucket the app uses (S3_BUCKET=tally in .env).
+  minio-setup:
+    image: chainguard/minio@sha256:e9cf6b99c226e9539ed0f14b6f00e37b07da153c7ba1f4f8709c807574b471ec
+    entrypoint: ['sh', '-c', 'until mc ready l; do sleep 1; done; mc mb --ignore-existing l/tally']
+    environment:
+      MC_HOST_l: 'http://tally:tally-dev-only@minio:9000'
+    depends_on:
+      - minio
+    restart: 'no'
+
 volumes:
   postgres:
   minio:

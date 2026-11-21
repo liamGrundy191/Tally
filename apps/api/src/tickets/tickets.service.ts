@@ -170,26 +170,38 @@ export class TicketsService {
     return { total, tickets };
   }
 
-  /** Each upload still held, newest first, with its tickets counted by status (section 8). */
+  /**
+   * Each upload still held, newest first, with its tickets counted by status (section 8), and
+   * when it last moved (`activeAt`): a ticket sent to be read again makes an old upload active.
+   */
   async progress() {
-    const [uploads, counts] = await Promise.all([
+    const [uploads, counts, reading] = await Promise.all([
       this.prisma.upload.findMany({ orderBy: { createdAt: 'desc' } }),
       this.prisma.ticket.groupBy({ by: ['uploadId', 'status'], _count: { _all: true } }),
+      this.prisma.ticket.groupBy({
+        by: ['uploadId'],
+        where: { status: 'processing' },
+        _max: { updatedAt: true },
+      }),
     ]);
-    return uploads.map((u) => ({
-      id: u.id,
-      filename: u.originalFilename,
-      createdAt: u.createdAt,
-      pages: u.pageCount,
-      splitting: u.s3KeyOriginal !== null,
-      failedPages: u.failedPages,
-      tickets: Object.fromEntries(
-        Object.values(TicketStatus).map((s) => [
-          s,
-          counts.find((c) => c.uploadId === u.id && c.status === s)?._count._all ?? 0,
-        ]),
-      ),
-    }));
+    return uploads.map((u) => {
+      const ticketAt = reading.find((r) => r.uploadId === u.id)?._max.updatedAt;
+      return {
+        id: u.id,
+        filename: u.originalFilename,
+        createdAt: u.createdAt,
+        activeAt: ticketAt && ticketAt > u.updatedAt ? ticketAt : u.updatedAt,
+        pages: u.pageCount,
+        splitting: u.s3KeyOriginal !== null,
+        failedPages: u.failedPages,
+        tickets: Object.fromEntries(
+          Object.values(TicketStatus).map((s) => [
+            s,
+            counts.find((c) => c.uploadId === u.id && c.status === s)?._count._all ?? 0,
+          ]),
+        ),
+      };
+    });
   }
 
   /**

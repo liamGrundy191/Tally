@@ -1,9 +1,9 @@
-// Small pages and messages. Home, Workplaces and Admin are filled in by T2.2, T2.4 and later.
+// Small pages and messages. Workplaces and Admin are filled in by T2.4 and T2.5.
 import { Alert, Box, Button, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 
-function Page({ title, children }: { title: string; children: ReactNode }) {
+export function Page({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Box sx={{ maxWidth: 720 }}>
       <Typography variant="h4" component="h1" gutterBottom>
@@ -20,7 +20,6 @@ const ComingSoon = ({ title }: { title: string }) => (
   </Page>
 );
 
-export const Home = () => <ComingSoon title="Home" />;
 export const Workplaces = () => <ComingSoon title="Workplaces" />;
 export const Admin = () => <ComingSoon title="Admin" />;
 

@@ -1,90 +1,27 @@
 // T2.1: routing, login, logout and the invite page, against a fake API (no network).
-import { QueryClientProvider } from '@tanstack/react-query';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
-import { createMemoryRouter, RouterProvider } from 'react-router';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, createQueryClient, safeNext } from './api.ts';
-import { routes } from './routes.tsx';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError, safeNext } from './api.ts';
+import {
+  ADMIN,
+  button,
+  calls,
+  click,
+  client,
+  close,
+  container,
+  open,
+  replies,
+  REVIEWER,
+  router,
+  settle,
+  text,
+  type,
+  url,
+  useFakeApi,
+} from './testing.tsx';
 
-(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
-
-type Reply = { status: number; body?: unknown } | 'offline';
-const ADMIN = { id: 'u1', email: 'admin@example.com', role: 'admin' };
-const REVIEWER = { id: 'u2', email: 'reviewer@example.com', role: 'reviewer' };
-
-let replies: Record<string, Reply>;
-let calls: { method: string; path: string; headers: Headers; body: unknown }[];
-let root: Root;
-let container: HTMLDivElement;
-let router: ReturnType<typeof createMemoryRouter>;
-let client: ReturnType<typeof createQueryClient>;
-
-beforeEach(() => {
-  replies = {};
-  calls = [];
-  document.cookie = 'tally_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-  vi.stubGlobal(
-    'fetch',
-    vi.fn(async (path: string, init: RequestInit = {}) => {
-      const method = init.method ?? 'GET';
-      const body = typeof init.body === 'string' ? JSON.parse(init.body) : undefined;
-      calls.push({ method, path, headers: new Headers(init.headers), body });
-      const reply = replies[`${method} ${path}`] ?? { status: 404, body: { message: 'Not found' } };
-      if (reply === 'offline') throw new TypeError('Failed to fetch');
-      const text = reply.body === undefined ? null : JSON.stringify(reply.body);
-      return new Response(text, { status: reply.status });
-    }),
-  );
-});
-
-afterEach(() => {
-  act(() => root.unmount());
-  container.remove();
-  vi.unstubAllGlobals();
-});
-
-async function open(path: string) {
-  container = document.createElement('div');
-  document.body.append(container);
-  router = createMemoryRouter(routes, { initialEntries: [path] });
-  root = createRoot(container);
-  client = createQueryClient();
-  await act(async () => {
-    root.render(
-      <QueryClientProvider client={client}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>,
-    );
-  });
-  await settle();
-}
-
-async function settle() {
-  for (let i = 0; i < 5; i++) await act(() => new Promise((r) => setTimeout(r, 0)));
-}
-
-const text = () => container.textContent ?? '';
-const url = () => router.state.location.pathname + router.state.location.search;
-const button = (label: string) =>
-  [...container.querySelectorAll('button, a')].find((b) => b.textContent === label) as
-    HTMLElement | undefined;
-
-async function type(label: string, value: string) {
-  const input = [...container.querySelectorAll('input')].find((i) =>
-    i.labels?.[0]?.textContent?.startsWith(label),
-  )!;
-  await act(async () => {
-    // React tracks the value itself; set it the way the browser does so onChange fires.
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-  });
-}
-
-async function click(label: string) {
-  await act(async () => button(label)!.click());
-  await settle();
-}
+useFakeApi();
 
 describe('without a session', () => {
   it('sends the visitor to the login page and back after logging in', async () => {
@@ -181,8 +118,7 @@ describe('logged in', () => {
     replies['GET /api/auth/me'] = { status: 200, body: ADMIN };
     await open('/');
     expect(button('Admin')).toBeDefined();
-    act(() => root.unmount());
-    container.remove();
+    close();
 
     replies['GET /api/auth/me'] = { status: 200, body: REVIEWER };
     await open('/admin');
@@ -238,7 +174,8 @@ describe('the invite page', () => {
     await type('New password', 'a long password');
     await type('Type it again', 'a long password');
     await click('Set password');
-    expect(calls.at(-1)?.body).toEqual({ token: 'tok123', password: 'a long password' });
+    const accept = calls.find((c) => c.path === '/api/auth/accept-invite');
+    expect(accept?.body).toEqual({ token: 'tok123', password: 'a long password' });
     expect(url()).toBe('/');
   });
 

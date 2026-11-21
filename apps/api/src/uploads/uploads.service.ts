@@ -5,7 +5,9 @@ import { Injectable } from '@nestjs/common';
 import {
   MAX_PDF_PAGES,
   MAX_UPLOAD_BYTES,
+  NOT_ARRIVED,
   type ReadSpeed,
+  TOO_LARGE,
   UPLOAD_KEY,
   type UploadResult,
 } from '@tally/shared';
@@ -79,15 +81,10 @@ export class UploadsService {
     };
 
     const file = await this.storage.get(key);
-    if (!file)
-      return {
-        key,
-        status: 'rejected',
-        message: 'This file did not arrive. Please upload it again.',
-      };
+    if (!file) return { key, status: 'rejected', message: NOT_ARRIVED };
     if (file.size > MAX_UPLOAD_BYTES) {
       file.body.destroy();
-      return rejected('This file is larger than 50 MB. Please split it into smaller files.');
+      return rejected(TOO_LARGE);
     }
     const dir = await mkdtemp(join(tmpdir(), 'tally-upload-'));
     try {
