@@ -55,15 +55,16 @@ describe.skipIf(!databaseUrl)('the database', () => {
       await prisma.flag.create({
         data: { ticketId: ticket.id, code: 'FIELD_UNREADABLE', detail: {} },
       });
-      await prisma.listEntry.create({ data: { monthId: m.id, kind: 'name', name: 'Dana' } });
     }
+    await prisma.listEntry.create({ data: { kind: 'name', name: 'Dana' } });
     await prisma.month.delete({ where: { id: november!.id } });
     expect(await prisma.ticket.count()).toBe(1);
     expect(await prisma.flag.count()).toBe(1);
-    expect(await prisma.listEntry.count()).toBe(1);
+    expect(await prisma.listEntry.count()).toBe(1); // the lists belong to no month (D42)
     expect(await prisma.user.count()).toBe(1);
     await prisma.upload.deleteMany(); // and its tickets
     await prisma.month.deleteMany();
+    await prisma.listEntry.deleteMany();
     await prisma.user.deleteMany();
   });
 

@@ -1,5 +1,6 @@
 // Server-side only (sharp, pdftoppm); import as "@tally/shared/imaging".
-export { pdfToImages } from './pdf-pages.ts';
+export { pdfPageCount, pdfPageToJpeg, pdfToImages } from './pdf-pages.ts';
+export { type Inspection, type UploadMime, imageToJpeg, inspectUpload } from './intake.ts';
 export {
   CROP_PX_PER_MM,
   type PreparedTicket,

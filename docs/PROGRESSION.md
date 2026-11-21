@@ -183,3 +183,10 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Standard, not overboard.** Liam set the bar: the app serves one person on one computer, so it gets the industry-standard protections (hashed passwords, lockout, secure sessions, CSRF protection, deny-by-default access) and skips two-step codes for now.
 - **Tested from the outside.** The tests run the real API over HTTP, the way a browser would, including the attacks the protections are for: guessing passwords, forging a request from another site, reusing an old session or invite link.
 - **Privacy over habit.** Logging every login in the audit trail is common, but those records would outlive every month's data. They were left out on purpose.
+
+### 18. Uploads, months and lists (T1.3)
+
+- **A flaw found before it was built.** The plan gave each month its own copy of the helper lists. Writing the code showed the catch: the lists are needed while a ticket is read, but its month is known only after its date is read. One shared set of lists fixes it, and works the same for the user; Liam agreed.
+- **Tell the user at once.** Every check on a file (its real type, its size, its pages, whether it was uploaded before) runs the moment the upload is confirmed, so the screen can say straight away what is wrong, in plain words. A refused or repeated file is deleted at once: nothing is kept that will not be used, and a file is never paid for twice.
+- **Built to survive a crash.** A job is queued in the same database transaction as the record it is about, and splitting a 300-page scan resumes where it stopped instead of starting over or leaving stray files.
+- **Less stored, same result.** Each ticket keeps one image, the scan itself; the cleaned-up copy the reader needs is made again in milliseconds each time instead of being stored.

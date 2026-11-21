@@ -1,6 +1,6 @@
 # Shift Ticket Processing System — Build Plan
 
-Version 3 · 21 Nov 2026 · Owner: Liam (months, the agency's Excel layout and workplace PDFs: D39)
+Version 3 · 21 Nov 2026 · Owner: Liam (months, the agency's Excel layout and workplace PDFs: D39; shared lists: D42)
 
 This is the complete specification. It is written for Claude Code, which writes most of the code. Claude Code also opens and merges the pull requests. Liam oversees and runs the checks that need a person. Read `CLAUDE.md` for the working rules, then this file top to bottom before starting any task.
 
@@ -129,8 +129,8 @@ Three runtime processes from one TypeScript monorepo: the web app, the API, and 
 
 Each step writes its result before the next starts and checks for its own saved result first, so every step is idempotent and a crash resumes cleanly.
 
-1. **Intake.** Check file type by content (JPEG, PNG, PDF only; reject others with a message), size limit 50 MB, PDF page limit 300. Compute SHA-256. A file with the same hash as an upload still held raises `DUPLICATE_IMAGE` on the upload and is not processed again. A PDF becomes one ticket per page.
-2. **Normalise.** Store each page as its own image (the ticket's original scan, used in the workplace PDFs), then delete the uploaded file: one upload can hold tickets of two months, and each page is deleted with its own month. Apply EXIF rotation, convert to greyscale JPEG, cap the long edge at 2000 px, and store this normalised copy beside the page image.
+1. **Intake.** Check file type by content (JPEG, PNG, PDF only; reject others with a message), size limit 50 MB, PDF page limit 300. Compute SHA-256. A file with the same hash as an upload still held is reported as a duplicate and is not processed again. These checks run when the upload is confirmed, so the user hears at once; a refused or duplicate file is deleted (D42). A PDF becomes one ticket per page.
+2. **Normalise.** Store each page as its own JPEG image (the ticket's original scan, used in the workplace PDFs; PDF pages at 200 dpi, photos turned upright without their metadata), then delete the uploaded file: one upload can hold tickets of two months, and each page is deleted with its own month. The normalised copy (EXIF rotation, greyscale JPEG, long edge capped at 2000 px) is made again each time the ticket is read, not stored (D42).
 3. **Pre-checks.** Find the four corner markers and deskew/crop to the slip. Measure sharpness (variance of a Laplacian filter) and mean brightness. Failures raise `MARKERS_NOT_FOUND`, `IMAGE_BLURRY` or `IMAGE_DARK`. The ticket is still read, but these flags send it to a person. **Needs Liam's eyes:** thresholds are tuned on the Phase 0 set.
 4. **Extraction, pass A.** Send the whole slip and the field list. The response must validate against the Zod schema: each field is `{ value: string | null, legible: boolean }`, plus `voided: boolean` and `overwrittenFields: string[]`. Invalid JSON counts as a failed attempt.
 5. **Extraction, pass B.** Independent call with different prompt wording. If markers were found, send the whole slip and then each field's crop, enlarged (D29). Pass B never sees pass A's output.
@@ -213,7 +213,7 @@ The system never chooses for the user.
 
 ### 5.4 The lists that help reading
 
-The workplace list and the names list (D25, D28) belong to a month. A new month starts with a copy of the lists of the latest month, so the user uploads them once and they carry on; the user can replace either list at any time. Every name confirmed in a month is added to its names list (with its Hebrew spelling as `Hebrew = English` when the ticket was in Hebrew), so the list keeps up with new workers. The lists are deleted with their month, so nothing is kept once no month is open. The lists only help reading and suggest spellings; they never put a worker or a workplace in the Excel. Rows and sheets come only from that month's tickets.
+There is one workplace list and one names list (D25, D28), shared by all months (D42): a ticket is read before its month is known. The user pastes them once, one entry per line (`Hebrew = English`, or two columns copied from Excel, give one entry's two spellings), and can replace either list at any time. Every confirmed name is added to the names list (with its Hebrew spelling as `Hebrew = English` when the ticket was in Hebrew), so the list keeps up with new workers. The lists are deleted when no month is open, so nothing is kept once every month is closed. The lists only help reading and suggest spellings; they never put a worker or a workplace in the Excel. Rows and sheets come only from that month's tickets.
 
 ---
 
@@ -262,10 +262,10 @@ One PDF per workplace, with every non-excluded ticket of the month: each ticket'
 
 ### 6.4 Deletion at close
 
-| Deleted                                                                                                                           | Where                    |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| Ticket page images and normalised images; any uploaded file still held                                                            | S3, every object version |
-| Tickets, extractions, flags, workplace groups, lists, download records, audit entries for the month; uploads with no tickets left | Postgres                 |
+| Deleted                                                                                                                                                           | Where                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| Ticket page images and normalised images; any uploaded file still held                                                                                            | S3, every object version |
+| Tickets, extractions, flags, workplace groups, download records, audit entries for the month; uploads with no tickets left; the lists, when no month is left open | Postgres                 |
 
 | Kept                                                                                      | Why                                          |
 | ----------------------------------------------------------------------------------------- | -------------------------------------------- |
@@ -284,20 +284,20 @@ One PDF per workplace, with every non-excluded ticket of the month: each ticket'
 
 All tables have `id` (UUID), `createdAt`, `updatedAt`. Durations are integer minutes.
 
-| Model             | Key fields                                                                                                                                                                                                                                                                                                                                                                       |
-| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `User`            | email (unique), passwordHash, role (`admin` / `reviewer`), totpSecret?, disabledAt?                                                                                                                                                                                                                                                                                              |
-| `Invite`          | email, role, tokenHash, expiresAt, usedAt?                                                                                                                                                                                                                                                                                                                                       |
-| `Session`         | userId, tokenHash, expiresAt, lastSeenAt                                                                                                                                                                                                                                                                                                                                         |
-| `Month`           | year, month, status, closedAt?, closedById?, summaryTicketCount?, summaryTotalMinutes?, lastActivityAt                                                                                                                                                                                                                                                                           |
-| `Upload`          | uploadedById, originalFilename, s3KeyOriginal? (cleared once split), sha256, mime, pageCount?                                                                                                                                                                                                                                                                                    |
-| `Ticket`          | uploadId, monthId? (set once the date is settled), pageIndex, s3KeyPage, s3KeyNormalised?, templateVersion?, firstName? (as read), workerName? (confirmed, English letters), workplaceRaw?, workplaceGroupId?, shiftDate?, startMinutes?, endMinutes?, totalMinutes?, status, verifiedHow?, excludedReason?, excludedById?, replacedById?, version (int, for optimistic locking) |
-| `WorkplaceGroup`  | monthId, displayName, normalisedName, mergedIntoId?                                                                                                                                                                                                                                                                                                                              |
-| `ListEntry`       | monthId, kind (`workplace` / `name`), name (a place's Hebrew name, or the English spelling of a worker's name), spellings (text[], every other spelling)                                                                                                                                                                                                                         |
-| `FieldExtraction` | ticketId, field, pass (`A` / `B` / `C`), value?, legible, suggestion?, model, promptVersion                                                                                                                                                                                                                                                                                      |
-| `Flag`            | ticketId, field?, code, detail (JSON), relatedTicketId?, resolvedAt?, resolvedById?, resolution?                                                                                                                                                                                                                                                                                 |
-| `AuditEntry`      | monthId?, userId, action, entity, entityId, before (JSON)?, after (JSON)?                                                                                                                                                                                                                                                                                                        |
-| `Download`        | monthId, kind (`excel` / `pdfs`), userId                                                                                                                                                                                                                                                                                                                                         |
+| Model             | Key fields                                                                                                                                                                                                                                                                                                                                                     |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User`            | email (unique), passwordHash, role (`admin` / `reviewer`), totpSecret?, disabledAt?                                                                                                                                                                                                                                                                            |
+| `Invite`          | email, role, tokenHash, expiresAt, usedAt?                                                                                                                                                                                                                                                                                                                     |
+| `Session`         | userId, tokenHash, expiresAt, lastSeenAt                                                                                                                                                                                                                                                                                                                       |
+| `Month`           | year, month, status, closedAt?, closedById?, summaryTicketCount?, summaryTotalMinutes?, lastActivityAt                                                                                                                                                                                                                                                         |
+| `Upload`          | uploadedById, originalFilename, s3KeyOriginal? (cleared once split), sha256, mime, pageCount?                                                                                                                                                                                                                                                                  |
+| `Ticket`          | uploadId, monthId? (set once the date is settled), pageIndex, s3KeyPage, templateVersion?, firstName? (as read), workerName? (confirmed, English letters), workplaceRaw?, workplaceGroupId?, shiftDate?, startMinutes?, endMinutes?, totalMinutes?, status, verifiedHow?, excludedReason?, excludedById?, replacedById?, version (int, for optimistic locking) |
+| `WorkplaceGroup`  | monthId, displayName, normalisedName, mergedIntoId?                                                                                                                                                                                                                                                                                                            |
+| `ListEntry`       | kind (`workplace` / `name`), name (a place's Hebrew name, or the English spelling of a worker's name), spellings (text[], every other spelling)                                                                                                                                                                                                                |
+| `FieldExtraction` | ticketId, field, pass (`A` / `B` / `C`), value?, legible, suggestion?, model, promptVersion                                                                                                                                                                                                                                                                    |
+| `Flag`            | ticketId, field?, code, detail (JSON), relatedTicketId?, resolvedAt?, resolvedById?, resolution?                                                                                                                                                                                                                                                               |
+| `AuditEntry`      | monthId?, userId, action, entity, entityId, before (JSON)?, after (JSON)?                                                                                                                                                                                                                                                                                      |
+| `Download`        | monthId, kind (`excel` / `pdfs`), userId                                                                                                                                                                                                                                                                                                                       |
 
 **Constraints**
 
@@ -318,8 +318,8 @@ REST + JSON under `/api`. Every route except login and invite acceptance require
 | `POST /auth/accept-invite`                                 | Set password from invite token                                             | public   |
 | `GET /users`, `POST /users/invite`, `PATCH /users/:id`     | Manage users                                                               | admin    |
 | `GET /months`, `GET /months/:id`                           | List; month summary with counts per status and its rows                    | reviewer |
-| `POST /uploads/sign`                                       | Signed S3 PUT URLs for a list of files                                     | reviewer |
-| `POST /uploads/complete`                                   | Confirm arrival, queue processing                                          | reviewer |
+| `POST /uploads/sign`                                       | Signed S3 PUT URLs for a number of files                                   | reviewer |
+| `POST /uploads/complete`                                   | Confirm arrival, run the intake checks, queue processing                   | reviewer |
 | `GET /progress`                                            | Counts by status, polled every 3 s                                         | reviewer |
 | `GET /tickets?month=&status=&flag=`                        | Paged list; `month=none` for tickets waiting for a date                    | reviewer |
 | `GET /tickets/:id`                                         | Ticket, flags, related tickets, signed image URL (5 min)                   | reviewer |
@@ -327,7 +327,7 @@ REST + JSON under `/api`. Every route except login and invite acceptance require
 | `POST /tickets/:id/exclude`, `POST /tickets/:id/reprocess` | Exclude with reason; run pipeline again                                    | reviewer |
 | `POST /flags/:id/resolve`                                  | Resolve duplicate (replace, keep both, ignore) or workplace decisions      | reviewer |
 | `GET /months/:id/workplaces`                               | Workplace groups with ticket counts                                        | reviewer |
-| `GET`, `PUT /months/:id/lists/:kind`                       | Read or replace the workplace or names list                                | reviewer |
+| `GET`, `PUT /lists/:kind`                                  | Read or replace the workplace or names list (pasted text)                  | reviewer |
 | `GET /months/:id/excel`, `GET /months/:id/pdfs`            | Build and download; records the download                                   | reviewer |
 | `POST /months/:id/close`                                   | Body: typed month name. 409 if the Excel or the PDFs were never downloaded | reviewer |
 | `GET /templates/v1/pdf`                                    | Blank printable ticket PDF                                                 | reviewer |
@@ -393,7 +393,7 @@ Worker concurrency defaults to 4. Every job has a timeout. Related writes run in
 - No two-step codes for now (Liam, D41).
 - CSRF protection on state-changing requests (double-submit token).
 - Every route declares its role.
-- S3: all public access blocked, encryption at rest, signed URLs valid 5 minutes and bound to one key, object keys are random UUIDs.
+- S3: all public access blocked, encryption at rest, signed URLs valid 5 minutes and bound to one key, object keys built from random UUIDs with no user data.
 - File type checked by content; size and page limits enforced. Images are re-encoded, which strips metadata.
 - All input validated with Zod; all database access through Prisma.
 - Ticket text and uploaded lists are untrusted. They are never placed in a prompt as instructions and are escaped in Excel (section 6.2).
@@ -416,7 +416,7 @@ Worker concurrency defaults to 4. Every job has a timeout. Related writes run in
 
 - One small server runs `docker/compose.prod.yml`: web (static files served by Caddy), API, worker, Caddy with automatic HTTPS.
 - Managed Postgres with daily backups kept 7 days.
-- AWS S3 private bucket with versioning and the 1-day non-current-version lifecycle rule.
+- AWS S3 private bucket with versioning, the 1-day non-current-version lifecycle rule, a rule deleting files under `uploads/` after 2 days (uploads never confirmed), and CORS allowing uploads from the web app (D42).
 - GitHub Actions: on pull request run lint, typecheck, tests, build; on a tagged release build images and deploy.
 - Migrations run on deploy and must be backward compatible with the previous release.
 
@@ -476,18 +476,18 @@ Done when: tests cover login success and failure, lockout, an expired session, r
 
 **T1.3 Uploads, months and lists**
 Signed upload URLs; upload completion; intake checks; splitting into page images; queueing; months created from ticket dates; month list and summary; the workplace and names lists (5.4).
-Done when: an integration test uploads a PDF and an image to MinIO and sees them queued; a duplicate file is detected; a new month starts with the previous month's lists.
+Done when: an integration test uploads a PDF and an image to MinIO and sees them queued; a duplicate file is detected; a list saved once is still there when a new month starts (D42).
 
 **T1.4 Pipeline worker**
 Steps 1–7 of section 4 as pg-boss jobs; retries; status and flag writing; tickets joining their month (6c).
 Done when: an integration test with the fake extractor processes the fixture folder and every ticket ends in the expected status with the expected flags; killing the worker mid-run and restarting completes the run without duplicates.
 
 **T1.5 Workplaces, names and duplicates**
-Workplace grouping, `WORKPLACE_SIMILAR`, confirmed names and `NAME_NOT_CONFIRMED`, `POSSIBLE_DUPLICATE`, and their resolutions.
+Workplace grouping, `WORKPLACE_SIMILAR`, confirmed names and `NAME_NOT_CONFIRMED`, `POSSIBLE_DUPLICATE`, and their resolutions; the month summary's rows (section 8).
 Done when: tests cover merging, rejecting a merge, a Hebrew name settled from a `Hebrew = English` line, replace, keep both and ignore.
 
 **T1.6 Review API**
-Ticket get, save (re-runs checks, optimistic locking), exclude, reprocess; progress endpoint; audit entries.
+Ticket get, save (re-runs checks, optimistic locking), exclude, reprocess; progress endpoint, including files still being split; audit entries.
 Done when: tests cover a correction, a stale save (409), and resolving every flag type.
 
 ### Phase 2 — Web app

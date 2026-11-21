@@ -18,14 +18,21 @@ if (!databaseUrl && process.env.CI) {
 
 const apiDir = fileURLToPath(new URL('../..', import.meta.url));
 
-/** A new empty schema, with a client for it. Call `migrate` before use and `drop` after. */
+export type TestDatabase = ReturnType<typeof testDatabase>;
+
+/**
+ * A new empty schema, with a client for it, and another for the job queue's own tables. Call
+ * `migrate` before use and `drop` after.
+ */
 export function testDatabase() {
   const url = databaseUrl!;
   const schema = `test_${randomBytes(4).toString('hex')}`;
   const prisma = createPrisma(url, schema);
   return {
+    url,
     prisma,
     schema,
+    queueSchema: `${schema}_queue`,
     /** Applies the migrations; returns what Prisma printed. Takes several seconds. */
     migrate: async () =>
       (
@@ -43,6 +50,7 @@ export function testDatabase() {
       ).stdout,
     drop: async () => {
       await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+      await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}_queue" CASCADE`);
       await prisma.$disconnect();
     },
   };
