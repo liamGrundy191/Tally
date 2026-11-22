@@ -43,8 +43,9 @@ export class ListsController {
     const parsed = parseList(kind, validate(putListSchema, body).text);
     if (!parsed.ok) throw new BadRequestException(parsed.problem);
     await this.prisma.$transaction(async (tx) => {
-      // A review save adding a name meanwhile would otherwise be lost or duplicated.
-      if (kind === 'name') await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('names'))`;
+      // A review save adding a name, or a "same place" adding a spelling, would otherwise be lost.
+      const lock = kind === 'name' ? 'names' : 'workplaces';
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lock}))`;
       const before = await tx.listEntry.deleteMany({ where: { kind } });
       await tx.listEntry.createMany({ data: parsed.entries.map((e) => ({ kind, ...e })) });
       // The counts only: the names are not kept in the audit trail, which outlives the lists.

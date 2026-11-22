@@ -34,7 +34,10 @@ describe('without a session', () => {
     await type('Email', 'reviewer@example.com');
     await type('Password', 'a password');
     await click('Log in');
-    expect(calls.at(-1)?.body).toEqual({ email: 'reviewer@example.com', password: 'a password' });
+    expect(calls.find((c) => c.path === '/api/auth/login')?.body).toEqual({
+      email: 'reviewer@example.com',
+      password: 'a password',
+    });
     expect(url()).toBe('/workplaces');
     expect(text()).toContain('reviewer@example.com');
   });

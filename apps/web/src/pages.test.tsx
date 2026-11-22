@@ -53,6 +53,8 @@ const upload = (over: object = {}) => ({
 beforeEach(() => {
   replies['GET /api/auth/me'] = { status: 200, body: REVIEWER };
   replies['GET /api/progress'] = { status: 200, body: [] };
+  replies['GET /api/lists/workplace'] = { status: 200, body: [] };
+  replies['GET /api/lists/name'] = { status: 200, body: [] };
 });
 
 describe('Home', () => {
@@ -126,6 +128,7 @@ describe('the month page', () => {
           },
           { groupId: 'g2', name: 'Empty place', rows: [], unnamed: [] },
         ],
+        questions: [],
       },
     };
     await open('/months/m-nov');
@@ -162,6 +165,7 @@ describe('the month page', () => {
         unnamed: [],
       },
     ],
+    questions: [],
   };
 
   it('searches the tickets by name, workplace or date, and opens one for review', async () => {

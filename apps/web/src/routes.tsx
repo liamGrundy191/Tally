@@ -13,15 +13,9 @@ import { AcceptInvite } from './pages/AcceptInvite.tsx';
 import { Login } from './pages/Login.tsx';
 import { Home, Month } from './pages/Months.tsx';
 import { Upload } from './pages/Upload.tsx';
+import { Workplaces } from './pages/Workplaces.tsx';
 import { ReviewLayout, ReviewNext, ReviewTicket } from './review/Review.tsx';
-import {
-  Admin,
-  ErrorMessage,
-  NotFound,
-  RouteError,
-  TicketTemplate,
-  Workplaces,
-} from './pages/simple.tsx';
+import { Admin, ErrorMessage, NotFound, RouteError, TicketTemplate } from './pages/simple.tsx';
 
 function RequireAuth() {
   const me = useMe();

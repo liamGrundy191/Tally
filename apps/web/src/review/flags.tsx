@@ -2,6 +2,7 @@
 // and the reader, so each one sits in its own <bdi>: Hebrew reads right to left inside English.
 import { type FieldKey, type FlagCode, formatMinutes } from '@tally/shared';
 import { Fragment, type ReactNode } from 'react';
+import { Link } from 'react-router';
 import type { TicketDetail, TicketFlag } from '../api.ts';
 
 export const FIELD_NAMES: Record<FieldKey, string> = {
@@ -116,15 +117,14 @@ export function reason(flag: TicketFlag, ticket?: TicketDetail): ReactNode {
       return <>The scan is blurry: check every box against it</>;
     case 'IMAGE_DARK':
       return <>The scan is dark: check every box against it</>;
-    case 'WORKPLACE_SIMILAR': {
-      const names = Array.isArray(d.names) ? d.names : [];
+    case 'WORKPLACE_SIMILAR':
+      // No names: those stored with the question can be out of date after a merge.
       return (
         <>
-          Is {value(names[0])} the same place as {value(names[1])}? Answer this on the Workplaces
-          page.
+          This workplace is written like another one. Answer whether they are the same place on the{' '}
+          <Link to="/workplaces">Workplaces page</Link>.
         </>
       );
-    }
     case 'WORKPLACE_NOT_ON_LIST': {
       const written = Array.isArray(d.written) ? d.written[0] : undefined;
       return (
