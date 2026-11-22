@@ -41,7 +41,9 @@ export class UsersService {
    */
   async invite(byUserId: string, email: string, role: Role, appUrl: string) {
     if (await this.prisma.user.findUnique({ where: { email } })) {
-      throw new ConflictException('This email already has an account.');
+      throw new ConflictException(
+        'This email already has an account. If it is disabled, enable it in the list above.',
+      );
     }
     const token = newToken();
     const invite = await this.prisma.$transaction(async (tx) => {

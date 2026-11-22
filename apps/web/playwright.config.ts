@@ -30,6 +30,8 @@ export default defineConfig({
         EXTRACTOR: 'fake',
         REVIEW_EVERYTHING: 'false',
         PORT: '3100',
+        // Invite links point at the web app under test; .env has the dev one (5173).
+        APP_URL: 'http://localhost:4173',
       },
     },
     {

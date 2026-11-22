@@ -301,6 +301,43 @@ describe.skipIf(!databaseUrl)('logging in (T1.2)', () => {
       expect((await browser().login('leaver@example.com', 'leaver password')).status).toBe(200);
     });
 
+    it('enabling a user again also clears a wrong-password lock', async () => {
+      const { admin, id } = await reviewer('locked@example.com', 'locked password');
+      expect((await admin.send('PATCH', `/api/users/${id}`, { disabled: true })).status).toBe(200);
+      await prisma.user.update({
+        where: { id },
+        data: { failedLogins: 3, lockedUntil: new Date(Date.now() + 3600_000) },
+      });
+      expect((await admin.send('PATCH', `/api/users/${id}`, { disabled: false })).status).toBe(200);
+      expect((await browser().login('locked@example.com', 'locked password')).status).toBe(200);
+    });
+
+    it('a role change counts from the next request, and only an admin can make it', async () => {
+      const { admin, reviewer: r, id } = await reviewer('promoted@example.com');
+      expect((await r.send('PATCH', `/api/users/${id}`, { role: 'admin' })).status).toBe(403);
+      expect((await admin.send('PATCH', `/api/users/${id}`, { role: 'admin' })).status).toBe(200);
+      expect((await r.send('GET', '/api/users')).status).toBe(200);
+      expect((await admin.send('PATCH', `/api/users/${id}`, { role: 'reviewer' })).status).toBe(
+        200,
+      );
+      expect((await r.send('GET', '/api/users')).status).toBe(403);
+    });
+
+    it('says what to do when the invited email already has an account', async () => {
+      const { admin } = await reviewer('taken@example.com');
+      const again = await admin.send('POST', '/api/users/invite', {
+        email: 'taken@example.com',
+        role: 'reviewer',
+      });
+      expect(again).toMatchObject({
+        status: 409,
+        body: {
+          message:
+            'This email already has an account. If it is disabled, enable it in the list above.',
+        },
+      });
+    });
+
     it('keeps at least one active admin', async () => {
       const admin = browser();
       const { body: me } = await admin.login(OWNER.email, OWNER.password);
