@@ -1,7 +1,7 @@
 // T1.5 "Done when": tickets are grouped by workplace, and the questions only a person can answer
 // (same place? same ticket?) are asked once and stay answered (5.2, 5.3). Names are invented.
 import type { INestApplication } from '@nestjs/common';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { monthOf } from '../src/months/months.service.ts';
 import { Organiser } from '../src/months/organiser.ts';
 import { createAdmin } from '../src/users/create-admin.ts';
@@ -195,6 +195,180 @@ describe.skipIf(!databaseUrl)('organising a month (T1.5)', () => {
     );
     expect(body.workplaces).toHaveLength(1);
     expect(shown).toHaveLength(3);
+    // The b/c question was answered by the merges: no "is X the same place as X?" is left.
+    expect(await openFlags('WORKPLACE_SIMILAR')).toHaveLength(0);
+    for (const t of [a, b, c]) expect((await get(t.id)).status).toBe('verified');
+    expect(body.questions).toEqual([]);
+  });
+
+  /** Three similar spellings, one ticket each, organised; returns the tickets and groups. */
+  async function similarThree() {
+    const a = await ticket('בית הדר');
+    const b = await ticket('בית הדרים', { workerName: 'Dana', firstName: 'Dana' });
+    const c = await ticket('בית הדרי', { workerName: 'Yossi', firstName: 'Yossi' });
+    await organiser.organise(monthId);
+    const [ga, gb, gc] = await Promise.all(
+      [a, b, c].map(async (t) => (await get(t.id)).workplaceGroupId!),
+    );
+    const question = async (x: string, y: string) =>
+      (await openFlags('WORKPLACE_SIMILAR')).find((f) => {
+        const ids = (f.detail as { groups: string[] }).groups;
+        return ids.includes(x) && ids.includes(y);
+      })!;
+    return { a, b, c, ga: ga!, gb: gb!, gc: gc!, question };
+  }
+
+  it('answers every question about the same two places at once, after a merge', async () => {
+    const { a, b, c, ga, gb, gc, question } = await similarThree();
+    const ab = await question(ga, gb);
+    expect((await resolve(ab.id, { decision: 'same_place', keepGroupId: ga })).status).toBe(204);
+    // b is now part of a: "b or c" and "a or c" are one question.
+    const bc = await question(gb, gc);
+    expect((await resolve(bc.id, { decision: 'different_place' })).status).toBe(204);
+    expect(await openFlags('WORKPLACE_SIMILAR')).toHaveLength(0);
+    for (const t of [a, b, c]) expect((await get(t.id)).status).toBe('verified');
+    const flagCount = await prisma.flag.count();
+    await organiser.organise(monthId);
+    expect(await prisma.flag.count()).toBe(flagCount);
+  });
+
+  it('drops a question already stored about two places that are now one', async () => {
+    const { a, b, ga, gb } = await similarPair();
+    // As the T1.5 bug left it: the groups merged, the question still open.
+    await prisma.workplaceGroup.update({ where: { id: gb.id }, data: { mergedIntoId: ga.id } });
+    await prisma.ticket.updateMany({
+      where: { workplaceGroupId: gb.id },
+      data: { workplaceGroupId: ga.id },
+    });
+    await organiser.organise(monthId);
+    expect(await openFlags('WORKPLACE_SIMILAR')).toHaveLength(0);
+    for (const t of [a, b]) expect((await get(t.id)).status).toBe('verified');
+  });
+
+  it('lists the open workplace questions on the month, one per pair of places', async () => {
+    const { ga, gb, gc } = await similarThree();
+    await ticket('בית הדר', { workerName: 'Noa', firstName: 'Noa' });
+    await organiser.organise(monthId);
+    const month = async () => (await owner.send('GET', `/api/months/${monthId}`)).body;
+    let body = await month();
+    expect(body.questions).toHaveLength(3);
+    const place = body.workplaces.find((w: { groupId: string }) => w.groupId === ga);
+    expect(place.spellings).toEqual(['בית הדר']);
+    const side = body.questions
+      .flatMap((q: { groups: { id: string }[] }) => q.groups)
+      .find((g: { id: string }) => g.id === ga);
+    expect(side).toMatchObject({ name: 'בית הדר', spellings: ['בית הדר'], tickets: 2 });
+    expect(typeof side.ticketId).toBe('string');
+
+    // b joins a: one question left, a or c, with b's ticket and spelling counted in a.
+    const ab = body.questions.find((q: { groups: { id: string }[] }) =>
+      q.groups.every((g) => [ga, gb].includes(g.id)),
+    );
+    await resolve(ab.flagId, { decision: 'same_place', keepGroupId: ga });
+    body = await month();
+    expect(body.questions).toHaveLength(1);
+    const [q] = body.questions;
+    const names = q.groups.map((g: { name: string }) => g.name).sort();
+    expect(names).toEqual(['בית הדר', 'בית הדרי']);
+    const merged = q.groups.find((g: { name: string }) => g.name === 'בית הדר');
+    expect(merged).toMatchObject({ tickets: 3 });
+    expect([...merged.spellings].sort()).toEqual(['בית הדר', 'בית הדרים']);
+
+    // "Same place" with a name chosen from the card, whatever the ids stored in its question.
+    const keep = q.groups.find((g: { name: string }) => g.name === 'בית הדרי');
+    expect((await resolve(q.flagId, { decision: 'same_place', keepGroupId: keep.id })).status).toBe(
+      204,
+    );
+    body = await month();
+    expect(body.questions).toEqual([]);
+    expect(body.workplaces).toHaveLength(1);
+    expect(body.workplaces[0]).toMatchObject({ groupId: gc, name: 'בית הדרי' });
+  });
+
+  it('records the names the place really kept and lost, after an earlier merge', async () => {
+    const { ga, gb, gc, question } = await similarThree();
+    await resolve((await question(ga, gb)).id, { decision: 'same_place', keepGroupId: ga });
+    // A question stored as "b or c": keeping b's side keeps the place b ended in, a.
+    const bc = await question(gb, gc);
+    await prisma.auditEntry.deleteMany({ where: { action: 'resolve-flag' } });
+    expect((await resolve(bc.id, { decision: 'same_place', keepGroupId: gb })).status).toBe(204);
+    const [entry] = await prisma.auditEntry.findMany({ where: { action: 'resolve-flag' } });
+    expect(entry!.after).toMatchObject({
+      decision: 'same_place',
+      keepGroupId: gb,
+      kept: { id: ga, name: 'בית הדר' },
+      merged: { id: gc, name: 'בית הדרי' },
+    });
+  });
+
+  it('adds the kept name to the list entry that already holds the other one', async () => {
+    const { ga, gb, gc, question } = await similarThree();
+    await resolve((await question(ga, gb)).id, { decision: 'same_place', keepGroupId: ga });
+    // Now keep the newcomer's name: a's name is on the list already, c's is not.
+    await resolve((await question(ga, gc)).id, { decision: 'same_place', keepGroupId: gc });
+    const entries = await prisma.listEntry.findMany({ where: { kind: 'workplace' } });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.name).toBe('בית הדר');
+    expect([...entries[0]!.spellings].sort()).toEqual(['בית הדרי', 'בית הדרים']);
+  });
+
+  it('names a new list entry by its Hebrew spelling (D36)', async () => {
+    const a = await ticket('Golan Farm');
+    const b = await ticket('Golan Farm גולן', { workerName: 'Dana', firstName: 'Dana' });
+    await organiser.organise(monthId);
+    const keep = (await get(a.id)).workplaceGroupId!;
+    expect(
+      (await resolve((await similarFlag(b.id)).id, { decision: 'same_place', keepGroupId: keep }))
+        .status,
+    ).toBe(204);
+    expect(
+      await prisma.listEntry.findMany({
+        where: { kind: 'workplace' },
+        select: { name: true, spellings: true },
+      }),
+    ).toEqual([{ name: 'Golan Farm גולן', spellings: ['Golan Farm'] }]);
+  });
+
+  it('asks about duplicates a merge brings together in the same answer, all or nothing', async () => {
+    const a = await ticket('בית הדר');
+    const b = await ticket('בית הדרים', { startMinutes: 840, endMinutes: 1080 });
+    await organiser.organise(monthId);
+    const keep = (await get(a.id)).workplaceGroupId!;
+    // Organising again later is not needed for the questions: the answer asks them itself.
+    const spy = vi.spyOn(organiser, 'organise').mockRejectedValue(new Error('down'));
+    try {
+      const res = await resolve((await similarFlag(a.id)).id, {
+        decision: 'same_place',
+        keepGroupId: keep,
+      });
+      expect(res.status).toBe(204);
+    } finally {
+      spy.mockRestore();
+    }
+    const dup = await openFlags('POSSIBLE_DUPLICATE');
+    expect(dup.map((f) => f.ticketId).sort()).toEqual([a.id, b.id].sort());
+    for (const t of [a, b]) expect((await get(t.id)).status).toBe('needs_review');
+  });
+
+  it('lets a reviewer, not only an admin, answer a question and replace a list', async () => {
+    const { a } = await similarPair();
+    const admin = new Browser(base);
+    await admin.login(OWNER.email, OWNER.password);
+    const email = `reviewer${Math.random()}@example.com`;
+    const invited = await admin.send('POST', '/api/users/invite', { email, role: 'reviewer' });
+    const reviewer = new Browser(base);
+    const accepted = await reviewer.send('POST', '/api/auth/accept-invite', {
+      token: invited.body.inviteUrl.split('#token=')[1],
+      password: 'reviewer password',
+    });
+    expect(accepted.status).toBe(200);
+    const flag = await similarFlag(a.id);
+    const answered = await reviewer.send('POST', `/api/flags/${flag.id}/resolve`, {
+      decision: 'different_place',
+    });
+    expect(answered.status).toBe(204);
+    const put = await reviewer.send('PUT', '/api/lists/workplace', { text: 'בית הדר' });
+    expect(put).toMatchObject({ status: 200, body: [{ name: 'בית הדר', spellings: [] }] });
   });
 
   it('refuses "same place" without saying which name the place keeps, and merges nothing', async () => {

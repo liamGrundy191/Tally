@@ -97,3 +97,23 @@ Options: A) A type-ahead list only: names used at this workplace this month firs
 Recommendation: A; the list already gives the same names in the same order, one key press away.
 
 Answer (Liam): A (2026-11-22): the buttons are decided against, not left for later.
+
+## Q8 · T2.4 · Where the lists are edited · answered
+
+Context: Section 9 puts "the lists" on the month page, but the lists are shared by every month (D42), so a page of their own (/lists, with a menu link) would also fit.
+
+Options: A) A page of their own, linked from the month page and the Workplaces page. B) A "Lists that help reading" section on each month page, the same two lists on every month.
+
+Recommendation: B, as section 9 says; no new page. (The first plan suggested A; the critique pointed out that section 9 places the lists on the month page.)
+
+Answer (Liam): B (2026-11-22), as section 9 says; no /lists page or menu link. The Workplaces page and the review screen link to the month page's section.
+
+## Q9 · T2.4 · Asking before "same place" · answered
+
+Context: "Same place" merges two workplaces for every ticket of both and adds a spelling to the workplace list. It cannot be undone (nothing is built to split a workplace again). "Different place" changes nothing on the tickets.
+
+Options: A) Three buttons, none chosen or focused, and a line saying it cannot be undone. B) The same, and "Same place" also asks "Are you sure?" first, with the focus on Cancel.
+
+Recommendation: B: a slip would join two workplaces' sheets for good. (The first plan suggested A, since nothing is deleted.)
+
+Answer (Liam): B (2026-11-22). "Different place" stays one click.

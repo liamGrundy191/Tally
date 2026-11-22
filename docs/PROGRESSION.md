@@ -232,3 +232,11 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **The picture matches what was read.** The highlighted boxes come from the same template field map that printing and reading use, drawn on a straightened copy rebuilt on demand rather than stored (D42). If a scan cannot be straightened, the whole scan is shown without highlights.
 - **Reviews found nothing serious.** The fixes were small but real: focus now stays put after a duplicate answer, a double-click no longer saves twice, and an expired scan link is handled.
 - **Tested the way it is used.** A keyboard-only browser test reviews three tricky tickets (disputed, crossed out, unreadable) in about two seconds and runs in CI.
+
+### 25. Workplaces and lists (T2.4)
+
+- **The planner found a bug left from T1.5.** After a chain of merges, a workplace question that had already been answered stayed open ("Is X the same place as X?"), so its tickets never became ready. The critic showed the first fix was incomplete, so an answer now settles every question about the same two final workplaces.
+- **Liam's two choices.** The lists go on each month page, as the plan says, not on a new page. "Same place" asks "Are you sure? This cannot be undone" first, because a merge joins two Excel sheets and nothing can split them again. "Different place" stays one click, since it changes nothing.
+- **Replacing a list cannot wipe by accident.** The box starts from the current list, so remembered spellings survive, and a preview shows what will be added and removed before anything is saved.
+- **Reviews found nothing serious.** The fixes were small but real: a merge and the duplicate questions it raises are now one all-or-nothing step, so two tickets of one person can never stay "ready" unchecked. The history records the name actually kept, and keyboard focus moves to the next question.
+- **Tested the way it is used.** A keyboard-only browser test answers a workplace question through the confirmation.

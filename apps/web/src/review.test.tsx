@@ -2,6 +2,7 @@
 import { FLAG_CODES } from '@tally/shared';
 import { act } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router';
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { TicketDetail, TicketFlag } from './api.ts';
 import { reason } from './review/flags.tsx';
@@ -160,7 +161,9 @@ describe('the reasons', () => {
 
   it('has words for every flag, even without details', () => {
     for (const code of FLAG_CODES) {
-      expect(renderToStaticMarkup(<>{reason(flag(code))}</>).length).toBeGreaterThan(10);
+      expect(
+        renderToStaticMarkup(<MemoryRouter>{reason(flag(code))}</MemoryRouter>).length,
+      ).toBeGreaterThan(10);
     }
   });
 });
@@ -486,6 +489,7 @@ describe('the queue', () => {
     await open('/review');
     expect(url()).toBe('/review/b');
     expect(text()).toContain('3 tickets left; 1 of them wait for a workplace answer');
+    expect(button('Workplaces page')?.getAttribute('href')).toBe('/workplaces');
     await click('Skip');
     expect(url()).toBe('/review/c');
     await click('Skip');

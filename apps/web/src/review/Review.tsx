@@ -125,14 +125,22 @@ export function ReviewLayout() {
           Review
         </Typography>
         <Typography role="status" sx={{ flexGrow: 1 }}>
-          {review === undefined || manual === undefined
-            ? 'Counting the tickets left…'
-            : `${plural(review + manual, 'ticket')} left` +
-              (month === 'none' ? ', waiting for a date' : month ? ' in this month' : '') +
-              (workplace
-                ? `; ${workplace}${more} of them wait for a workplace answer (Workplaces page)`
-                : '') +
-              '.'}
+          {review === undefined || manual === undefined ? (
+            'Counting the tickets left…'
+          ) : (
+            <>
+              {`${plural(review + manual, 'ticket')} left`}
+              {month === 'none' ? ', waiting for a date' : month ? ' in this month' : ''}
+              {workplace ? (
+                <>
+                  ; {workplace}
+                  {more} of them wait for a workplace answer (
+                  <Link to="/workplaces">Workplaces page</Link>)
+                </>
+              ) : null}
+              .
+            </>
+          )}
         </Typography>
         <TextField
           select
@@ -195,7 +203,7 @@ export function ReviewNext() {
 export function ConfirmDialog(props: {
   open: boolean;
   title: string;
-  text: string;
+  text: ReactNode;
   confirm: string;
   busy?: boolean;
   onConfirm: () => void;

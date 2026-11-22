@@ -1,6 +1,7 @@
 // Months (section 6.1): one per calendar month, created when its first ticket arrives.
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { type Month, type Prisma, PrismaClient, TicketStatus } from '../generated/prisma/client.ts';
+import { finalGroups } from './organiser.ts';
 
 /**
  * Step 6c: the month a settled ticket date belongs to, created if this is its first ticket. Safe
@@ -26,7 +27,57 @@ export class MonthsService {
   async get(id: string) {
     const month = await this.prisma.month.findUnique({ where: { id } });
     if (!month) throw new NotFoundException('There is no such month.');
-    return { ...(await this.withCounts([month]))[0]!, workplaces: await this.rows(id) };
+    const workplaces = await this.rows(id);
+    return {
+      ...(await this.withCounts([month]))[0]!,
+      workplaces,
+      questions: await this.questions(id, workplaces),
+    };
+  }
+
+  /**
+   * The open "is this the same place?" questions (5.3), one per pair of places as they are after
+   * earlier merges. Each side's `id` is the one stored in the question, which "same place" takes
+   * as `keepGroupId`; its name, spellings and tickets are those of the place it ended in.
+   */
+  private async questions(monthId: string, workplaces: Awaited<ReturnType<typeof this.rows>>) {
+    const top = finalGroups(
+      await this.prisma.workplaceGroup.findMany({
+        where: { monthId },
+        select: { id: true, mergedIntoId: true },
+      }),
+    );
+    const flags = await this.prisma.flag.findMany({
+      where: { code: 'WORKPLACE_SIMILAR', resolvedAt: null, ticket: { monthId } },
+      select: { id: true, detail: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
+    const places = new Map(workplaces.map((w) => [w.groupId, w]));
+    const cards = new Map<string, { flagId: string; groups: object[] }>();
+    for (const f of flags) {
+      const ids = (f.detail as { groups: string[] }).groups;
+      const sides = ids.map((id) => ({ id, place: places.get(top(id)) }));
+      const key = sides
+        .map((s) => s.place?.groupId)
+        .sort()
+        .join();
+      if (cards.has(key) || sides[0]!.place === sides[1]!.place) continue;
+      if (sides.some((s) => !s.place)) continue;
+      cards.set(key, {
+        flagId: f.id,
+        groups: sides.map(({ id, place }) => {
+          const tickets = [...place!.rows.flatMap((r) => r.tickets), ...place!.unnamed];
+          return {
+            id,
+            name: place!.name,
+            spellings: place!.spellings,
+            tickets: tickets.length,
+            ticketId: tickets[0]?.id ?? null,
+          };
+        }),
+      });
+    }
+    return [...cards.values()];
   }
 
   /**
@@ -48,6 +99,7 @@ export class MonthsService {
             shiftDate: true,
             totalMinutes: true,
             status: true,
+            workplaceRaw: true,
           },
         },
       },
@@ -63,6 +115,8 @@ export class MonthsService {
       return {
         groupId: g.id,
         name: g.displayName,
+        // How the place was written on its tickets, to help decide a "same place" question.
+        spellings: [...new Set(g.tickets.map((t) => t.workplaceRaw!))],
         rows: [...rows.values()].sort((a, b) => a.name.localeCompare(b.name)),
         unnamed: g.tickets.filter((t) => !t.workerName),
       };

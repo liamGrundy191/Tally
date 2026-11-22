@@ -1,4 +1,4 @@
-// Small pages and messages. Workplaces and Admin are filled in by T2.4 and T2.5.
+// Small pages and messages. Admin is filled in by T2.5.
 import { Alert, Box, Button, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -20,7 +20,6 @@ const ComingSoon = ({ title }: { title: string }) => (
   </Page>
 );
 
-export const Workplaces = () => <ComingSoon title="Workplaces" />;
 export const Admin = () => <ComingSoon title="Admin" />;
 
 export function TicketTemplate() {

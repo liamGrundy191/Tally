@@ -366,7 +366,10 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
     });
     const [entry] = await prisma.auditEntry.findMany({ where: { action: 'resolve-flag' } });
     expect(entry!.after).toMatchObject({ decision: 'same_place', keepGroupId: keep });
-    expect((entry!.after as { names: string[] }).names.sort()).toEqual(['בית הדר', 'בית הדרים']);
+    expect(entry!.after).toMatchObject({
+      kept: { id: keep, name: 'בית הדר' },
+      merged: { name: 'בית הדרים' },
+    });
   });
 
   it('shows a ticket with its flags, the ticket it may duplicate, and links to both scans', async () => {

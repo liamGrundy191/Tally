@@ -30,6 +30,7 @@ import {
   useWaitingCount,
 } from '../api.ts';
 import { ConfirmDialog, REMOVE } from '../review/Review.tsx';
+import { Lists } from './Lists.tsx';
 import { ErrorMessage, Page } from './simple.tsx';
 
 const STATUS: Record<TicketStatus, string> = {
@@ -40,8 +41,8 @@ const STATUS: Record<TicketStatus, string> = {
   excluded: 'Removed',
 };
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const monthName = (m: { year: number; month: number }) =>
+export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+export const monthName = (m: { year: number; month: number }) =>
   new Date(Date.UTC(m.year, m.month - 1)).toLocaleDateString('en-GB', {
     month: 'long',
     year: 'numeric',
@@ -259,6 +260,12 @@ export function Month() {
           yet.
         </Typography>
       )}
+      {m.questions.length > 0 && (
+        <Typography>
+          <Link to="/workplaces">{plural(m.questions.length, 'workplace question')} to answer</Link>
+          : until then their tickets are left out of downloads.
+        </Typography>
+      )}
       <UploadsProgress />
       {remove.error && <Alert severity="error">{remove.error.message}</Alert>}
       <TextField
@@ -315,6 +322,7 @@ export function Month() {
         onConfirm={() => remove.mutate(removing!)}
         onClose={() => setRemoving(null)}
       />
+      <Lists />
     </Page>
   );
 }

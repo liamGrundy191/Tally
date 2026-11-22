@@ -27,6 +27,7 @@ const WORKPLACE_DOUBTS = [
   'MATCH_AMBIGUOUS',
 ];
 const pairKey = (a: string, b: string) => [a, b].sort();
+const HEBREW = /[\u0590-\u05FF]/;
 /** A big month's organising takes longer than Prisma's default 5 seconds. */
 const LONG = { timeout: 120_000, maxWait: 60_000 };
 
@@ -44,6 +45,16 @@ async function topGroup(tx: Tx, id: string) {
     group = await tx.workplaceGroup.findUniqueOrThrow({ where: { id: group.mergedIntoId } });
   }
   return group;
+}
+
+/** Each group's final group, following merges, from all of a month's groups read at once. */
+export function finalGroups(groups: { id: string; mergedIntoId: string | null }[]) {
+  const byId = new Map(groups.map((g) => [g.id, g.mergedIntoId]));
+  const top = (id: string): string => {
+    const next = byId.get(id);
+    return next ? top(next) : id;
+  };
+  return top;
 }
 
 @Injectable()
@@ -93,17 +104,23 @@ export class Organiser {
   /** WORKPLACE_SIMILAR on every ticket of two similar groups, unless already answered. */
   private async askSamePlace(tx: Tx, monthId: string) {
     const all = await tx.workplaceGroup.findMany({
-      where: { monthId, mergedIntoId: null },
+      where: { monthId },
       include: { _count: { select: { tickets: { where: { status: { not: 'excluded' } } } } } },
     });
-    const groups = all.filter((g) => g._count.tickets > 0);
-    // A place whose tickets were all corrected, removed or read again is no longer asked about.
-    const empty = new Set(all.filter((g) => g._count.tickets === 0).map((g) => g.id));
+    const top = finalGroups(all);
+    const unmerged = all.filter((g) => g.mergedIntoId === null);
+    const groups = unmerged.filter((g) => g._count.tickets > 0);
+    // A place whose tickets were all corrected, removed or read again is no longer asked about,
+    // nor are two places a person already made one (a question stored before T2.4's fix).
+    const empty = new Set(unmerged.filter((g) => g._count.tickets === 0).map((g) => g.id));
     const stale = (
       await tx.flag.findMany({
         where: { code: 'WORKPLACE_SIMILAR', resolvedAt: null, ticket: { monthId } },
       })
-    ).filter((f) => (f.detail as { groups: string[] }).groups.some((id) => empty.has(id)));
+    ).filter((f) => {
+      const ids = (f.detail as { groups: string[] }).groups;
+      return ids.some((id) => empty.has(id)) || top(ids[0]!) === top(ids[1]!);
+    });
     await tx.flag.deleteMany({ where: { id: { in: stale.map((f) => f.id) } } });
     for (const [a, b] of findSimilarWorkplaces(groups)) {
       const groups2 = pairKey(a, b);
@@ -191,7 +208,7 @@ export class Organiser {
 
   /** Answers a WORKPLACE_SIMILAR or POSSIBLE_DUPLICATE question (5.2, 5.3). */
   async resolve(userId: string, flagId: string, decision: Decision, keepGroupId?: string) {
-    const monthId = await this.prisma.$transaction(async (tx) => {
+    await this.prisma.$transaction(async (tx) => {
       const found = await tx.flag.findUnique({ where: { id: flagId }, include: { ticket: true } });
       if (!found) throw new NotFoundException('There is no such question.');
       if (!found.ticket.monthId) throw new ConflictException('This ticket is in no month yet.');
@@ -207,17 +224,24 @@ export class Organiser {
       const month = flag.ticket.month;
       if (!month || month.status !== 'open') throw new ConflictException('This month is closed.');
       const at = { resolvedAt: new Date(), resolvedById: userId, resolution: decision };
+      let merged: Awaited<ReturnType<typeof this.merge>> = null;
 
       if (flag.code === 'WORKPLACE_SIMILAR') {
         if (decision !== 'same_place' && decision !== 'different_place')
           throw new BadRequestException('Answer "same place" or "different place".');
         const groups = (flag.detail as { groups: string[] }).groups;
+        // Every question about the same two places, as they are after earlier merges: once b
+        // joined a, "b or c" and "a or c" are one question with one answer.
+        const top = finalGroups(await tx.workplaceGroup.findMany({ where: { monthId: month.id } }));
+        const pair = (ids: string[]) => pairKey(top(ids[0]!), top(ids[1]!)).join();
+        const same = (
+          await tx.flag.findMany({
+            where: { code: 'WORKPLACE_SIMILAR', resolvedAt: null, ticket: { monthId: month.id } },
+            select: { id: true, detail: true },
+          })
+        ).filter((f) => pair((f.detail as { groups: string[] }).groups) === pair(groups));
         const answered = await tx.flag.updateMany({
-          where: {
-            code: 'WORKPLACE_SIMILAR',
-            resolvedAt: null,
-            detail: { path: ['groups'], equals: groups },
-          },
+          where: { id: { in: same.map((f) => f.id) }, resolvedAt: null },
           data: at,
         });
         // Two answers at once: the second finds the question already answered.
@@ -226,7 +250,7 @@ export class Organiser {
         if (decision === 'same_place') {
           // The person chooses the name the place keeps (5.3); the system does not pick one.
           if (!keepGroupId) throw new BadRequestException('Choose which name the place keeps.');
-          await this.merge(tx, groups, keepGroupId);
+          merged = await this.merge(tx, groups, keepGroupId);
         }
       } else if (flag.code === 'POSSIBLE_DUPLICATE') {
         if (!['replace', 'keep_both', 'ignore'].includes(decision))
@@ -288,18 +312,23 @@ export class Organiser {
         after: {
           code: flag.code,
           decision,
-          // Which name the place kept, with both groups and their names (5.3).
+          // Which name the place kept (5.3): the places the two ended in, as they were merged.
           ...(decision === 'same_place' && {
-            ...(flag.detail as { groups: string[]; names: string[] }),
+            groups: (flag.detail as { groups: string[] }).groups,
             keepGroupId: keepGroupId!,
+            ...(merged && {
+              kept: { id: merged.keep.id, name: merged.keep.displayName },
+              merged: { id: merged.other.id, name: merged.other.displayName },
+            }),
           }),
         },
       });
+      // A merge can bring two tickets of one name into one group: ask about them in this same
+      // transaction, so no ticket is verified without the question (all or nothing).
+      await this.askSamePlace(tx, month.id);
+      await this.askDuplicates(tx, month.id);
       await this.backToVerified(tx, month.id);
-      return month.id;
     }, LONG);
-    // A merge can bring two tickets of one name into one group: ask about them.
-    await this.organise(monthId);
   }
 
   /** "Same place": one group, with the other spelling added to the workplace list (Liam, 1A). */
@@ -311,36 +340,41 @@ export class Organiser {
       tx,
       groups.find((g) => g !== keepId)!,
     );
-    if (keep.id === other.id) return;
+    if (keep.id === other.id) return null;
+    // A workplace list replaced meanwhile would otherwise lose the spelling added here.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('workplaces'))`;
     await tx.workplaceGroup.update({ where: { id: other.id }, data: { mergedIntoId: keep.id } });
     await tx.ticket.updateMany({
       where: { workplaceGroupId: other.id },
       data: { workplaceGroupId: keep.id },
     });
-    // A spelling already on the list (for any place) is left alone: one spelling, one place.
-    const listed = await tx.listEntry.findFirst({
-      where: {
-        kind: 'workplace',
-        OR: [{ name: other.displayName }, { spellings: { has: other.displayName } }],
-      },
-    });
-    if (listed) return;
-    const entry = await tx.listEntry.findFirst({
-      where: {
-        kind: 'workplace',
-        OR: [{ name: keep.displayName }, { spellings: { has: keep.displayName } }],
-      },
-    });
-    if (!entry) {
-      await tx.listEntry.create({
-        data: { kind: 'workplace', name: keep.displayName, spellings: [other.displayName] },
+    // The entry holding either name gets the missing one. A name already on the list (for any
+    // place) is left alone: one spelling, one place.
+    const holding = (name: string) =>
+      tx.listEntry.findFirst({
+        where: { kind: 'workplace', OR: [{ name }, { spellings: { has: name } }] },
       });
-    } else {
+    const [keepEntry, otherEntry] = [
+      await holding(keep.displayName),
+      await holding(other.displayName),
+    ];
+    if (keepEntry && otherEntry) return { keep, other };
+    const entry = keepEntry ?? otherEntry;
+    if (entry) {
+      const missing = keepEntry ? other.displayName : keep.displayName;
       await tx.listEntry.update({
         where: { id: entry.id },
-        data: { spellings: { push: other.displayName } },
+        data: { spellings: { push: missing } },
       });
+    } else {
+      // Named by the Hebrew spelling (D36), as parseList names it, so editing the list keeps it.
+      const [name, spelling] =
+        HEBREW.test(keep.displayName) || !HEBREW.test(other.displayName)
+          ? [keep.displayName, other.displayName]
+          : [other.displayName, keep.displayName];
+      await tx.listEntry.create({ data: { kind: 'workplace', name, spellings: [spelling] } });
     }
+    return { keep, other };
   }
 
   /** Tickets that were verified before a question, and whose questions are all answered. */

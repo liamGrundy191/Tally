@@ -41,9 +41,29 @@ export interface MonthDetail extends MonthSummary {
   workplaces: {
     groupId: string;
     name: string;
+    /** How the place was written on its tickets. */
+    spellings: string[];
     rows: { name: string; tickets: MonthTicket[] }[];
     unnamed: MonthTicket[];
   }[];
+  /** Open "is this the same place?" questions, one per pair of places (5.3). */
+  questions: {
+    flagId: string;
+    /** `id` is what "same place" sends as `keepGroupId`. */
+    groups: {
+      id: string;
+      name: string;
+      spellings: string[];
+      tickets: number;
+      ticketId: string | null;
+    }[];
+  }[];
+}
+
+/** An entry of the workplace or names list (5.4). */
+export interface ListEntry {
+  name: string;
+  spellings: string[];
 }
 
 /** A ticket as GET /api/tickets/:id gives it (tickets.service.ts). */
