@@ -117,3 +117,13 @@ Options: A) Three buttons, none chosen or focused, and a line saying it cannot b
 Recommendation: B: a slip would join two workplaces' sheets for good. (The first plan suggested A, since nothing is deleted.)
 
 Answer (Liam): B (2026-11-22). "Different place" stays one click.
+
+## Q10 · T2.5 · A list of pending invites · answered
+
+Context: An invite link is shown once, when it is made. The API gives no list of invites waiting to be used, and section 8 asks for none. Without one, an admin cannot see who was invited but has not set a password yet.
+
+Options: A) No list: inviting the same email again gives a new link, and the old one stops working. B) A list of pending invites (a new `GET /api/users/invites`), with their emails and expiry dates.
+
+Recommendation: A; section 8 does not ask for it, and invited emails are kept only briefly (D44).
+
+Answer (Liam): A (2026-11-22), no list.

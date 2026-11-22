@@ -240,3 +240,13 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Replacing a list cannot wipe by accident.** The box starts from the current list, so remembered spellings survive, and a preview shows what will be added and removed before anything is saved.
 - **Reviews found nothing serious.** The fixes were small but real: a merge and the duplicate questions it raises are now one all-or-nothing step, so two tickets of one person can never stay "ready" unchecked. The history records the name actually kept, and keyboard focus moves to the next question.
 - **Tested the way it is used.** A keyboard-only browser test answers a workplace question through the confirmation.
+
+### 26. Admin: users and invites (T2.5)
+
+- **Mostly already built.** The server side came in T1.2, so this task was the Admin page and its tests: a list of accounts, and "Invite someone" with a role (Reviewer by default).
+- **No email, so a link is handed over.** The plan has no email sending, so the admin copies a one-time link that works for 7 days and is shown only once. The critic noticed that opening the link logs you in as the new person, so the page says plainly "do not open it yourself", and that a new invite cancels the earlier link.
+- **Liam's choice: no list of pending invites.** The plan asks for none. Inviting again replaces the link, which also fixes a lost one, and invite emails are not kept on show.
+- **Asking first, but only where it matters.** Role changes and disabling ask first, with Cancel focused. Enabling is one click, since it only restores access that can be taken away again. Disabling logs the person out at once.
+- **The server stays the safeguard.** Your own account has no buttons, but the real protection is the server's last-admin rule, which holds for every change.
+- **Reviews found nothing serious.** The fixes were small but real: the page re-checks who is logged in when an admin was demoted elsewhere, and the invite link is forgotten as soon as you leave the page.
+- **Tested the way it is used.** A browser test invites a reviewer, who sets a password and does not see the Admin page.

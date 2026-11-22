@@ -1,4 +1,4 @@
-// Small pages and messages. Admin is filled in by T2.5.
+// Small pages and messages.
 import { Alert, Box, Button, Typography } from '@mui/material';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
@@ -13,14 +13,6 @@ export function Page({ title, children }: { title: string; children: ReactNode }
     </Box>
   );
 }
-
-const ComingSoon = ({ title }: { title: string }) => (
-  <Page title={title}>
-    <Typography color="text.secondary">This page is coming soon.</Typography>
-  </Page>
-);
-
-export const Admin = () => <ComingSoon title="Admin" />;
 
 export function TicketTemplate() {
   return (

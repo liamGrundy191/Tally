@@ -16,6 +16,12 @@ export interface User {
   role: Role;
 }
 
+/** An account as GET /api/users gives it (users.service.ts). */
+export interface Account extends User {
+  disabledAt: string | null;
+  createdAt: string;
+}
+
 // The API's answers (apps/api: months.service.ts, tickets.service.ts). Dates arrive as ISO text.
 export type TicketStatus = (typeof TICKET_STATUSES)[number];
 export type Counts = Record<TicketStatus, number>;
