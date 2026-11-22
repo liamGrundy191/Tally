@@ -408,3 +408,8 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **Refusals are shown as the server words them.** An email that already has an account now says "This email already has an account. If it is disabled, enable it in the list above." A 403 (the admin was made a reviewer meanwhile) asks again who is logged in, so the menu drops the Admin link.
 - **The browser test** (`pnpm e2e`, admin.e2e.ts): the seeded admin invites a new reviewer (a new email each run), reads the link from the page (headless browsers have no clipboard), logs out, sets a password through the link and lands on Home with no Admin link. The test API gets `APP_URL=http://localhost:4173`, so links point at the web app under test.
 - **For production (T4.3):** `APP_URL` must be the site's real address, or invite links point at the wrong place.
+
+## D52 · Phase 2 gate · The lists before the first month (Liam)
+
+- **Found preparing the Phase 2 gate:** the lists were only on a month page (D50, Q8), but no month exists until the first tickets are read, so an agency could not enter its names and workplaces before its first upload, and the first reading went without them.
+- **The fix, the smallest one:** while no month is open, the Workplaces page shows the same "Lists that help reading" section (it otherwise links to the month page's section, as before). Home with no months says "Before the first upload, set up the lists that help reading on the Workplaces page." The month page stays the main place for the lists (Q8 unchanged).

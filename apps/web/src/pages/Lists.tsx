@@ -1,5 +1,5 @@
-// The lists that help reading (5.4), on the month page (section 9). One workplace list and one
-// names list, shared by every month (D42), so every month page shows the same two lists.
+// The lists that help reading (5.4), on the month page (section 9), and on the Workplaces page
+// while no month is open (D52). One workplace list and one names list, shared by every month (D42).
 import { Alert, Box, Button, Stack, TextField, Typography } from '@mui/material';
 import {
   LIST_KINDS,

@@ -124,7 +124,13 @@ export function Home() {
       ) : months.isPending ? (
         <Typography>Loading the months…</Typography>
       ) : open.length === 0 ? (
-        <Typography>No months yet. Upload scans to start.</Typography>
+        <>
+          <Typography>No months yet. Upload scans to start.</Typography>
+          <Typography>
+            Before the first upload, set up the lists that help reading on the{' '}
+            <Link to="/workplaces">Workplaces page</Link>.
+          </Typography>
+        </>
       ) : (
         <List>
           {open.map((m) => (
