@@ -240,6 +240,21 @@ describe('reviewing a ticket with the keyboard', () => {
     expect(text()).toContain('Nothing left to review.');
   });
 
+  it('saves with Enter when only one box is flagged', async () => {
+    const t = ticket({ workerName: 'Ziv', flags: [flag('CORRECTION_MARKS', 'startTime')] });
+    await review(t);
+    replies['PUT /api/tickets/t1'] = { status: 200, body: { ...t, status: 'verified' } };
+    queue([]);
+    expect(focused().id).toBe('f-startTime');
+    await press('Enter');
+    expect(put()).toHaveLength(1);
+  });
+
+  it('never fills in a name for the Excel that is not in English letters', async () => {
+    await review(ticket({ workerName: 'זיו', flags: [flag('CORRECTION_MARKS', 'startTime')] }));
+    expect(input('Name for the Excel').value).toBe('');
+  });
+
   it('sends a confirmation as written only for values left as they were', async () => {
     const t = ticket({
       workerName: 'Ziv',

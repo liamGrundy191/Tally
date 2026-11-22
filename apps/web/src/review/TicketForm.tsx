@@ -18,6 +18,7 @@ import {
   type FieldKey,
   type FlagCode,
   formatMinutes,
+  hasHebrew,
   saveTicketSchema,
 } from '@tally/shared';
 import { type KeyboardEvent, type ReactNode, useEffect, useRef } from 'react';
@@ -81,7 +82,9 @@ export const storedText = (t: Ticket): Record<FieldKey, string> => ({
 export function prefill(t: TicketDetail): FormValues {
   const stored = storedText(t);
   const open = openFlags(t);
-  const values = { workerName: t.workerName ?? '', accept: {} } as FormValues;
+  // Only an English spelling is ever a confirmed name (5.2); anything else is asked.
+  const english = t.workerName && !hasHebrew(t.workerName) ? t.workerName : '';
+  const values = { workerName: english, accept: {} } as FormValues;
   for (const k of FIELD_KEYS) {
     const on = open.filter((f) => f.field === k);
     const invalid = on.find((f) => f.code === 'TIME_INVALID' || f.code === 'DATE_INVALID');
@@ -135,14 +138,24 @@ export function TicketForm(props: {
   const changed = (f: TicketFlag) =>
     (CONCERNS[f.code] ?? []).some((k) => (values[k] ?? '').trim() !== stored[k]);
 
+  /**
+   * Marked visited here, not by its focus event: focusing a box that already has the focus fires
+   * none (StrictMode runs the effects twice, so Enter on a lone flagged box did nothing).
+   */
+  const focusFirst = () => {
+    const first = stops[0] ?? 'f-firstName';
+    document.getElementById(first)?.focus();
+    visited.current.add(first);
+  };
+
   // Only a new ticket or a new version starts the form again; answering a question does not.
   useEffect(() => {
     form.reset(prefill(ticket));
     visited.current.clear();
-    if (props.autoFocus) document.getElementById(stops[0] ?? 'f-firstName')?.focus();
+    if (props.autoFocus) focusFirst();
   }, [ticket.id, ticket.version]);
   useEffect(() => {
-    if (props.refocus) document.getElementById(stops[0] ?? 'f-firstName')?.focus();
+    if (props.refocus) focusFirst();
   }, [props.refocus]);
 
   const save = form.handleSubmit((v) => {

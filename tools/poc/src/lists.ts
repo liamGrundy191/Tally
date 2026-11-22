@@ -1,3 +1,4 @@
+import { isListComment } from '@tally/shared';
 import { existsSync, readFileSync } from 'node:fs';
 
 /**
@@ -10,7 +11,7 @@ export function loadList(path: string): string[] {
   const lines = readFileSync(path, 'utf8')
     .split(/\r?\n/)
     .map((l) => l.trim())
-    .filter((l) => l !== '' && !l.startsWith('#'));
+    .filter((l) => l !== '' && !isListComment(l));
   return [...new Set(lines)];
 }
 

@@ -153,6 +153,23 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
     }
   });
 
+  it('never takes a Hebrew-only names list line as the English name', async () => {
+    // "יעל" alone on the names list: an entry with no English spelling.
+    const yael = await prisma.listEntry.findFirstOrThrow({ where: { name: 'Yael' } });
+    await prisma.listEntry.delete({ where: { id: yael.id } });
+    await prisma.listEntry.create({ data: { kind: 'name', name: 'יעל', spellings: [] } });
+    try {
+      const [t] = await read('hebrew only.pdf', ['clean']);
+      expect(t).toMatchObject({ workerName: null, status: 'needs_review' });
+      expect(codes(t!)).toContain('NAME_NOT_CONFIRMED:firstName');
+    } finally {
+      await prisma.listEntry.deleteMany({ where: { kind: 'name' } });
+      await prisma.listEntry.create({
+        data: { kind: 'name', name: 'Yael', spellings: ['יעל'] },
+      });
+    }
+  });
+
   it('does not pick between two listed names that share a Hebrew spelling', async () => {
     const other = await prisma.listEntry.create({
       data: { kind: 'name', name: 'Yaelle', spellings: ['יעל'] },

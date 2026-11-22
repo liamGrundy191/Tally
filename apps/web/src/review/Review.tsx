@@ -17,7 +17,7 @@ import {
 } from '@mui/material';
 import { FLAG_CODES, type FieldKey, formatMinutes } from '@tally/shared';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import {
   Link,
   Navigate,
@@ -201,6 +201,13 @@ export function ConfirmDialog(props: {
   onConfirm: () => void;
   onClose: () => void;
 }) {
+  const cancel = useRef<HTMLButtonElement>(null);
+  // After the dialog's own focus handling, which StrictMode runs twice and can move elsewhere.
+  useEffect(() => {
+    if (!props.open) return;
+    const id = setTimeout(() => cancel.current?.focus());
+    return () => clearTimeout(id);
+  }, [props.open]);
   return (
     <Dialog open={props.open} onClose={props.onClose} aria-labelledby="confirm-title">
       <DialogTitle id="confirm-title">{props.title}</DialogTitle>
@@ -208,7 +215,7 @@ export function ConfirmDialog(props: {
         <DialogContentText>{props.text}</DialogContentText>
       </DialogContent>
       <DialogActions>
-        <Button autoFocus onClick={props.onClose}>
+        <Button ref={cancel} autoFocus onClick={props.onClose}>
           Cancel
         </Button>
         <Button color="error" onClick={props.onConfirm} disabled={props.busy}>

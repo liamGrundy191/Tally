@@ -1,6 +1,6 @@
 // The pages against a fake API (no network), shared by the tests. Call useFakeApi() once per file.
 import { QueryClientProvider } from '@tanstack/react-query';
-import { act } from 'react';
+import { act, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, vi } from 'vitest';
@@ -67,10 +67,13 @@ export async function open(path: string) {
   root = createRoot(container);
   client = createQueryClient();
   await act(async () => {
+    // As main.tsx does: effects run twice, which hid a bug only `pnpm dev` showed.
     root!.render(
-      <QueryClientProvider client={client}>
-        <RouterProvider router={router} />
-      </QueryClientProvider>,
+      <StrictMode>
+        <QueryClientProvider client={client}>
+          <RouterProvider router={router} />
+        </QueryClientProvider>
+      </StrictMode>,
     );
   });
   await settle();
