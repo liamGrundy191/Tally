@@ -74,7 +74,9 @@ export class Reader {
     // decides which of them a ticket is.
     const englishOf = new Map<string, string>();
     const shared = new Set<string>();
-    for (const l of nameEntries) {
+    // A line with no English spelling ("יעל" alone) is named in Hebrew: it helps reading, but
+    // gives no English name, so the name is asked (NAME_NOT_CONFIRMED).
+    for (const l of nameEntries.filter((l) => !hasHebrew(l.name))) {
       for (const s of [l.name, ...l.spellings]) {
         const key = normaliseName(s);
         if (englishOf.has(key) && englishOf.get(key) !== l.name) shared.add(key);

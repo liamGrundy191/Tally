@@ -77,3 +77,23 @@ Options: A) Leave them to T2.3, with the review screen. B) Add the version to th
 Recommendation: A, so T2.2 stays the size the task describes.
 
 Answer (Liam): A (2026-11-21): deferred to T2.3.
+
+## Q6 · T2.3 · What Enter does on the review screen · answered
+
+Context: Section 9 says **Confirm and next** is Enter, and Tab moves between flagged fields. If Enter saves at once, a reviewer who presses Enter in the first flagged box saves before looking at the others; the server then only re-runs the checks.
+
+Options: A) Enter saves at once, from any box. B) "Walk, then save": Enter in a flagged box moves to the next flagged box not yet visited, and saves only once every flagged box has been visited (focusing a box counts as visiting it). With nothing flagged, Enter saves.
+
+Recommendation: A, the fastest; the checks run again on every save.
+
+Answer (Liam): B (2026-11-22).
+
+## Q7 · T2.3 · One-click name buttons (D28) · answered
+
+Context: D28 left "one-click name buttons in the review screen" as a maybe, to decide with the review screen. Section 5.2 already asks the name box to offer the names used at that workplace this month first, then the names list.
+
+Options: A) A type-ahead list only: names used at this workplace this month first, then the names list. B) Buttons for the likely names as well.
+
+Recommendation: A; the list already gives the same names in the same order, one key press away.
+
+Answer (Liam): A (2026-11-22): the buttons are decided against, not left for later.

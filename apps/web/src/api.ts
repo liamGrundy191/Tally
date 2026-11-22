@@ -1,6 +1,6 @@
 // Talking to the API: same origin (/api, proxied by Vite in development), cookies sent by the
 // browser. Every error carries a message that can be shown to the user as it is.
-import type { Role, TICKET_STATUSES } from '@tally/shared';
+import type { FieldKey, FlagCode, Role, TICKET_STATUSES } from '@tally/shared';
 import {
   MutationCache,
   QueryCache,
@@ -30,6 +30,7 @@ export interface MonthSummary {
 
 export interface MonthTicket {
   id: string;
+  version: number;
   workerName: string | null;
   shiftDate: string | null;
   totalMinutes: number | null;
@@ -43,6 +44,49 @@ export interface MonthDetail extends MonthSummary {
     rows: { name: string; tickets: MonthTicket[] }[];
     unnamed: MonthTicket[];
   }[];
+}
+
+/** A ticket as GET /api/tickets/:id gives it (tickets.service.ts). */
+export interface Ticket {
+  id: string;
+  monthId: string | null;
+  pageIndex: number;
+  status: TicketStatus;
+  version: number;
+  firstName: string | null;
+  workerName: string | null;
+  workplaceRaw: string | null;
+  workplaceGroupId: string | null;
+  shiftDate: string | null;
+  startMinutes: number | null;
+  endMinutes: number | null;
+  totalMinutes: number | null;
+  totalFromMath: boolean;
+  createdAt: string;
+  imageUrl: string;
+}
+
+export interface TicketFlag {
+  id: string;
+  code: FlagCode;
+  field: FieldKey | null;
+  detail: Record<string, unknown>;
+  relatedTicketId: string | null;
+  /** null while the flag is open. */
+  resolvedAt: string | null;
+}
+
+export interface TicketDetail extends Ticket {
+  suggestions: Partial<Record<FieldKey, string>>;
+  flags: TicketFlag[];
+  /** The tickets it may duplicate. */
+  related: Ticket[];
+}
+
+/** GET /api/tickets: a page of 50, with each ticket's open flags. */
+export interface TicketPage {
+  total: number;
+  tickets: (Omit<Ticket, 'imageUrl'> & { flags: { code: FlagCode; field: FieldKey | null }[] })[];
 }
 
 export interface UploadProgress {

@@ -2,12 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   NotFoundException,
   Param,
   Post,
   Put,
   Query,
+  StreamableFile,
 } from '@nestjs/common';
 import { listTicketsSchema, saveTicketSchema, ticketVersionSchema } from '@tally/shared';
 import { z } from 'zod';
@@ -34,6 +36,13 @@ export class TicketsController {
   @Get(':id')
   get(@Param('id') id: string) {
     return this.tickets.get(ticketId(id));
+  }
+
+  /** The scan straightened to the slip, so the review screen can outline each box on it. */
+  @Get(':id/slip')
+  @Header('Cache-Control', 'private, no-store')
+  async slip(@Param('id') id: string) {
+    return new StreamableFile(await this.tickets.slip(ticketId(id)), { type: 'image/jpeg' });
   }
 
   /** Saves the values; 409 if the ticket changed since it was opened. */

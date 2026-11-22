@@ -22,6 +22,9 @@ export interface ListLine {
 
 const HEBREW = /[\u0590-\u05FF]/;
 
+/** A line starting with # is a comment, in the pasted lists and in names.txt / workplaces.txt. */
+export const isListComment = (line: string) => stripInvisible(line).trim().startsWith('#');
+
 /**
  * A workplace is named by its Hebrew spelling (D36), a worker by the English one, as in the Excel
  * (5.2); the other spellings only help reading. A name on several lines is one entry.
@@ -32,6 +35,7 @@ export function parseList(
 ): { ok: true; entries: ListLine[] } | { ok: false; problem: string } {
   const entries = new Map<string, Set<string>>();
   for (const [i, line] of text.split(/\r?\n/).entries()) {
+    if (isListComment(line)) continue;
     const spellings = line
       .split(/[=\t]/) // Excel copies two columns as "A<tab>B"
       .map((s) => stripInvisible(s).replace(/\s+/g, ' ').trim())

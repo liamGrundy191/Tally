@@ -13,6 +13,7 @@ import { AcceptInvite } from './pages/AcceptInvite.tsx';
 import { Login } from './pages/Login.tsx';
 import { Home, Month } from './pages/Months.tsx';
 import { Upload } from './pages/Upload.tsx';
+import { ReviewLayout, ReviewNext, ReviewTicket } from './review/Review.tsx';
 import {
   Admin,
   ErrorMessage,
@@ -43,6 +44,7 @@ function RequireAdmin() {
 function Layout() {
   const { data: me } = useMe();
   const navigate = useNavigate();
+  const { pathname } = useLocation();
   // The login page logs out, so a page that asks before leaving (uploads running) can stop it.
   const logOut = () => navigate('/login', { state: { logOut: true } });
   const links = [
@@ -70,7 +72,8 @@ function Layout() {
           </Button>
         </Toolbar>
       </AppBar>
-      <Container sx={{ py: 4 }}>
+      {/* The review screen uses the whole width: the scan needs the room (D49). */}
+      <Container sx={{ py: 4 }} maxWidth={pathname.startsWith('/review') ? false : 'lg'}>
         <Outlet />
       </Container>
     </>
@@ -92,6 +95,14 @@ export const routes: RouteObject[] = [
               { path: '/', element: <Home /> },
               { path: '/upload', element: <Upload /> },
               { path: '/months/:id', element: <Month /> },
+              {
+                path: '/review',
+                element: <ReviewLayout />,
+                children: [
+                  { index: true, element: <ReviewNext /> },
+                  { path: ':id', element: <ReviewTicket /> },
+                ],
+              },
               { path: '/workplaces', element: <Workplaces /> },
               { path: '/template', element: <TicketTemplate /> },
               { element: <RequireAdmin />, children: [{ path: '/admin', element: <Admin /> }] },

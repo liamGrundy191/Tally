@@ -16,6 +16,12 @@ describe('parseList', () => {
     ]);
   });
 
+  it('skips comment lines starting with #, as in names.txt and workplaces.txt', () => {
+    expect(entries('workplace', '# the places\n  # indented\nדולב = Dolev')).toEqual([
+      { name: 'דולב', spellings: ['Dolev'] },
+    ]);
+  });
+
   it('removes invisible characters that copying can add', () => {
     expect(entries('name', '\u200fKwame\u200e\ufeff')).toEqual([{ name: 'Kwame', spellings: [] }]);
   });

@@ -13,6 +13,7 @@
     "test": "pnpm -r test",
     "db:migrate": "pnpm --filter @tally/api db:migrate",
     "seed:admin": "pnpm --filter @tally/api seed:admin",
+    "e2e": "pnpm --filter @tally/api exec tsc -p tsconfig.build.json && pnpm --filter @tally/web build && pnpm --filter @tally/api e2e:seed && pnpm --filter @tally/web e2e",
     "ticket:pdf": "node --experimental-strip-types --disable-warning=ExperimentalWarning packages/shared/src/templates/ticket-pdf.ts",
     "extract": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file-if-exists=.env tools/poc/src/extract-one.ts",
     "crops": "node --experimental-strip-types --disable-warning=ExperimentalWarning tools/poc/src/crops.ts",

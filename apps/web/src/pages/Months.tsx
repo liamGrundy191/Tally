@@ -1,5 +1,6 @@
 // Home, the month page and the uploads still being read (section 9).
 import {
+  Alert,
   Box,
   Button,
   List,
@@ -9,11 +10,15 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material';
 import { formatMinutes } from '@tally/shared';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
+  api,
   type Counts,
   type MonthTicket,
   type TicketStatus,
@@ -24,6 +29,7 @@ import {
   useProgress,
   useWaitingCount,
 } from '../api.ts';
+import { ConfirmDialog, REMOVE } from '../review/Review.tsx';
 import { ErrorMessage, Page } from './simple.tsx';
 
 const STATUS: Record<TicketStatus, string> = {
@@ -104,9 +110,14 @@ export function Home() {
   const open = months.data?.filter((m) => m.status !== 'closed') ?? [];
   return (
     <Page title="Home">
-      <Button variant="contained" component={Link} to="/upload" sx={{ mb: 2 }}>
-        Upload
-      </Button>
+      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+        <Button variant="contained" component={Link} to="/upload">
+          Upload
+        </Button>
+        <Button variant="contained" component={Link} to="/review">
+          Review next
+        </Button>
+      </Box>
       {months.error ? (
         <ErrorMessage message={months.error.message} retry={() => void months.refetch()} />
       ) : months.isPending ? (
@@ -135,7 +146,9 @@ export function Home() {
       )}
       {waiting > 0 && (
         <Typography>
-          {waiting === 1 ? '1 ticket waits' : `${waiting} tickets wait`} for a date.
+          <Link to="/review?month=none">
+            {waiting === 1 ? '1 ticket waits' : `${waiting} tickets wait`} for a date.
+          </Link>
         </Typography>
       )}
       <UploadsProgress />
@@ -143,7 +156,13 @@ export function Home() {
   );
 }
 
-function TicketRows({ name, tickets }: { name: string; tickets: MonthTicket[] }) {
+function TicketRows(props: {
+  name: string;
+  tickets: MonthTicket[];
+  monthId: string;
+  onRemove: (t: MonthTicket) => void;
+}) {
+  const { name, tickets } = props;
   return tickets.map((t, i) => (
     <TableRow key={t.id}>
       {i === 0 && (
@@ -154,13 +173,46 @@ function TicketRows({ name, tickets }: { name: string; tickets: MonthTicket[] })
       <TableCell>{day(t.shiftDate)}</TableCell>
       <TableCell>{t.totalMinutes === null ? '—' : formatMinutes(t.totalMinutes)}</TableCell>
       <TableCell>{STATUS[t.status]}</TableCell>
+      <TableCell>
+        <Button
+          size="small"
+          component={Link}
+          to={`/review/${t.id}?month=${props.monthId}`}
+          aria-label={`Open ${name}, ${day(t.shiftDate)}`}
+        >
+          Open
+        </Button>
+        <Button
+          size="small"
+          color="error"
+          onClick={() => props.onRemove(t)}
+          aria-label={`Remove ${name}, ${day(t.shiftDate)}`}
+        >
+          Remove
+        </Button>
+      </TableCell>
     </TableRow>
   ));
 }
 
+/** The search box matches a name, a workplace or a date, as shown on the page. */
+const matches = (search: string, ...texts: string[]) =>
+  texts.some((x) => x.toLowerCase().includes(search.trim().toLowerCase()));
+
 export function Month() {
   const { id } = useParams();
   const month = useMonth(id!);
+  const client = useQueryClient();
+  const [search, setSearch] = useState('');
+  const [removing, setRemoving] = useState<MonthTicket | null>(null);
+  const remove = useMutation({
+    mutationFn: (t: MonthTicket) =>
+      api(`/api/tickets/${t.id}/exclude`, 'POST', { version: t.version }),
+    onSettled: () => {
+      setRemoving(null);
+      void client.invalidateQueries({ queryKey: ['months'] });
+    },
+  });
   if (month.error)
     return <ErrorMessage message={month.error.message} retry={() => void month.refetch()} />;
   if (!month.data) return <Typography>Loading the month…</Typography>;
@@ -171,7 +223,19 @@ export function Month() {
   );
   // Tickets join a workplace once the month is sorted after reading (D45).
   const unsorted = total(m.tickets) - listed;
-  const places = m.workplaces.filter((w) => w.rows.length + w.unnamed.length > 0);
+  const places = m.workplaces
+    .map((w) => {
+      const keep = (name: string) => (t: MonthTicket) =>
+        !search || matches(search, name, w.name, day(t.shiftDate));
+      return {
+        ...w,
+        rows: w.rows
+          .map((r) => ({ ...r, tickets: r.tickets.filter(keep(r.name)) }))
+          .filter((r) => r.tickets.length > 0),
+        unnamed: w.unnamed.filter(keep('')),
+      };
+    })
+    .filter((w) => w.rows.length + w.unnamed.length > 0);
   return (
     <Page title={monthName(m)}>
       <Typography>
@@ -180,7 +244,10 @@ export function Month() {
       </Typography>
       {needReview(m.tickets) > 0 && (
         <Typography>
-          {plural(needReview(m.tickets), 'ticket')} still need review and are left out of downloads.
+          {plural(needReview(m.tickets), 'ticket')} still need review and are left out of downloads.{' '}
+          <Button variant="contained" size="small" component={Link} to={`/review?month=${m.id}`}>
+            Review next
+          </Button>
         </Typography>
       )}
       {m.tickets.excluded > 0 && (
@@ -193,6 +260,17 @@ export function Month() {
         </Typography>
       )}
       <UploadsProgress />
+      {remove.error && <Alert severity="error">{remove.error.message}</Alert>}
+      <TextField
+        label="Search by name, workplace or date"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        size="small"
+        fullWidth
+        sx={{ mt: 2 }}
+        slotProps={{ htmlInput: { dir: 'auto' } }}
+      />
+      {search && places.length === 0 && <Typography sx={{ mt: 2 }}>No ticket matches.</Typography>}
       {places.map((w) => (
         <Box key={w.groupId} sx={{ mt: 3 }}>
           <Typography variant="h6" component="h2" dir="auto">
@@ -205,19 +283,38 @@ export function Month() {
                 <TableCell>Date</TableCell>
                 <TableCell>Hours</TableCell>
                 <TableCell>Status</TableCell>
+                <TableCell />
               </TableRow>
             </TableHead>
             <TableBody>
               {w.rows.map((r) => (
-                <TicketRows key={r.name} name={r.name} tickets={r.tickets} />
+                <TicketRows
+                  key={r.name}
+                  name={r.name}
+                  tickets={r.tickets}
+                  monthId={m.id}
+                  onRemove={setRemoving}
+                />
               ))}
               {w.unnamed.length > 0 && (
-                <TicketRows name="Name not confirmed yet" tickets={w.unnamed} />
+                <TicketRows
+                  name="Name not confirmed yet"
+                  tickets={w.unnamed}
+                  monthId={m.id}
+                  onRemove={setRemoving}
+                />
               )}
             </TableBody>
           </Table>
         </Box>
       ))}
+      <ConfirmDialog
+        open={removing !== null}
+        {...REMOVE}
+        busy={remove.isPending}
+        onConfirm={() => remove.mutate(removing!)}
+        onClose={() => setRemoving(null)}
+      />
     </Page>
   );
 }
