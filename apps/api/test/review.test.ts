@@ -8,7 +8,10 @@ import { monthOf } from '../src/months/months.service.ts';
 import { Organiser, lockMonth } from '../src/months/organiser.ts';
 import { ReadingConfig } from '../src/reading/config.ts';
 import { createAdmin } from '../src/users/create-admin.ts';
+import { imageToJpeg, pdfToImages } from '@tally/shared/imaging';
+import { PDFDocument } from 'pdf-lib';
 import { Browser } from './helpers/browser.ts';
+import { slipsPdf } from './helpers/slips.ts';
 import { testApp } from './helpers/test-app.ts';
 import { databaseUrl, testDatabase } from './helpers/test-db.ts';
 import { storageConfigured, testStorage } from './helpers/test-storage.ts';
@@ -30,11 +33,13 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
   const db = testDatabase();
   const prisma = db.prisma;
   let app: INestApplication;
+  let base: string;
   let owner: Browser;
   let organiser: Organiser;
   let monthId: string;
   let uploadId: string;
   let page = 0;
+  const files = testStorage();
   const config = new ReadingConfig(
     () => {
       throw new Error('nothing is read in these tests');
@@ -44,11 +49,9 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
   );
 
   beforeAll(async () => {
-    await db.migrate();
+    await Promise.all([db.migrate(), files.create()]);
     await createAdmin(prisma, OWNER.email, OWNER.password);
-    // Signing a link needs no bucket, so none is created.
-    let base: string;
-    ({ app, base } = await testApp(db, { reading: config, storage: testStorage().storage }));
+    ({ app, base } = await testApp(db, { reading: config, storage: files.storage }));
     owner = new Browser(base);
     organiser = app.get(Organiser);
     await owner.login(OWNER.email, OWNER.password);
@@ -56,6 +59,7 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
 
   afterAll(async () => {
     await app?.close();
+    await files.drop();
     await db.drop();
   });
 
@@ -385,6 +389,37 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
     expect((await owner.send('GET', `/api/tickets/${unknown}`)).status).toBe(404);
   });
 
+  it('gives the month page each ticket’s version, which removing it needs', async () => {
+    const t = await ticket({ version: 4 });
+    await organiser.organise(monthId);
+    const month = (await owner.send('GET', `/api/months/${monthId}`)).body;
+    expect(month.workplaces[0].rows[0].tickets[0]).toMatchObject({ id: t.id, version: 4 });
+  });
+
+  it('gives the straightened slip of a scan, and 404 when its markers are not found', async () => {
+    const slip = async (scan: Buffer) => {
+      const t = await ticket();
+      await files.storage.put(t.s3KeyPage, scan, 'image/jpeg');
+      return fetch(`${base}/api/tickets/${t.id}/slip`, {
+        headers: { cookie: [...owner.cookies].map(([k, v]) => `${k}=${v}`).join('; ') },
+      });
+    };
+    const [scan] = await pdfToImages(Buffer.from(await slipsPdf(1, 'slip')));
+    const found = await slip(await imageToJpeg(scan!));
+    expect(found.status).toBe(200);
+    expect(found.headers.get('content-type')).toBe('image/jpeg');
+    expect(found.headers.get('cache-control')).toBe('private, no-store');
+    const jpeg = Buffer.from(await found.arrayBuffer());
+    expect(jpeg.subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
+
+    const blank = await PDFDocument.create();
+    blank.addPage([400, 200]);
+    const [white] = await pdfToImages(Buffer.from(await blank.save()));
+    const missing = await slip(await imageToJpeg(white!));
+    expect(missing.status).toBe(404);
+    expect(await missing.text()).toContain('The corner markers were not found on this scan.');
+  });
+
   it('lists tickets by month, status and open flag, 50 to a page', async () => {
     const waiting = await ticket({ monthId: null });
     await flag(waiting.id, 'DATE_INVALID', 'date');
@@ -490,6 +525,23 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
     // A new warning from new values is shown first, and confirmed with the next save.
     const long = { startTime: '06:00', endTime: '02:00', totalWorked: '20:00' };
     expect((await save(t.id, long, { accept: ['HOURS_OUT_OF_RANGE'] })).status).toBe(400);
+  });
+
+  it('refuses to confirm a warning that is already answered', async () => {
+    const t = await ticket({ startMinutes: 360, endMinutes: 120, totalMinutes: 1200 });
+    await prisma.flag.create({
+      data: {
+        ticketId: t.id,
+        code: 'HOURS_OUT_OF_RANGE',
+        field: 'totalWorked',
+        detail: {},
+        resolvedAt: new Date(),
+        resolution: 'accepted',
+      },
+    });
+    const long = { startTime: '06:00', endTime: '02:00', totalWorked: '20:00' };
+    expect((await save(t.id, long, { accept: ['HOURS_OUT_OF_RANGE'] })).status).toBe(400);
+    expect((await get(t.id)).version).toBe(0);
   });
 
   it('marks a ticket typed in by hand as manual, even when it took two saves', async () => {

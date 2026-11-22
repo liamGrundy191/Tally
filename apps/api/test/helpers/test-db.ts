@@ -22,17 +22,18 @@ export type TestDatabase = ReturnType<typeof testDatabase>;
 
 /**
  * A new empty schema, with a client for it, and another for the job queue's own tables. Call
- * `migrate` before use and `drop` after.
+ * `migrate` before use and `drop` after. With `database`, that whole database instead (the
+ * browser test's, kept between runs), in its usual schemas, as the API itself uses it.
  */
-export function testDatabase() {
-  const url = databaseUrl!;
-  const schema = `test_${randomBytes(4).toString('hex')}`;
+export function testDatabase(database?: string) {
+  const url = database ? databaseUrlFor(database) : databaseUrl!;
+  const schema = database ? 'public' : `test_${randomBytes(4).toString('hex')}`;
   const prisma = createPrisma(url, schema);
   return {
     url,
     prisma,
     schema,
-    queueSchema: `${schema}_queue`,
+    queueSchema: database ? undefined : `${schema}_queue`,
     /** Applies the migrations; returns what Prisma printed. Takes several seconds. */
     migrate: async () =>
       (
@@ -49,9 +50,17 @@ export function testDatabase() {
         )
       ).stdout,
     drop: async () => {
+      if (database) throw new Error('A named test database is kept: reset it instead.');
       await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
       await prisma.$executeRawUnsafe(`DROP SCHEMA IF EXISTS "${schema}_queue" CASCADE`);
       await prisma.$disconnect();
     },
   };
+}
+
+/** DATABASE_URL with another database on the same server. */
+export function databaseUrlFor(database: string) {
+  const url = new URL(databaseUrl!);
+  url.pathname = `/${database}`;
+  return url.toString();
 }

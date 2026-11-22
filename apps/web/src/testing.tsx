@@ -86,6 +86,11 @@ export const button = (label: string) =>
   [...container.querySelectorAll('button, a')].find((b) => b.textContent === label) as
     HTMLElement | undefined;
 
+/** A button of the open dialog, which MUI puts outside the page's container. */
+export const dialogButton = (label: string) =>
+  [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent === label) as
+    HTMLElement | undefined;
+
 export async function type(label: string, value: string) {
   const input = [...container.querySelectorAll('input')].find((i) =>
     i.labels?.[0]?.textContent?.startsWith(label),

@@ -48,6 +48,7 @@ pnpm db:migrate                                   # apply database migrations (D
 pnpm dev                                          # web, API, worker
 pnpm seed:admin                                   # create first admin (asks for email and password)
 pnpm lint && pnpm typecheck && pnpm test          # before every PR
+pnpm e2e                                          # browser test: seeds its own database tally_e2e, reviews 3 tickets (first: pnpm --filter @tally/web exec playwright install chromium)
 pnpm format                                       # fix formatting (Prettier)
 pnpm ticket:pdf                                   # printable ticket
 pnpm crops <scan>                                 # straighten a scan and save field crops (free)

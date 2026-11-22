@@ -309,10 +309,14 @@ function sharpness(g: Grey): number {
   return sumSq / n - (sum / n) ** 2;
 }
 
-/** Steps 2–3 for one page image: straighten, crop, measure. Never throws for a bad image. */
+/**
+ * Steps 2–3 for one page image: straighten, crop, measure. Never throws for a bad image.
+ * `crops: false` skips the field crops (the review screen only shows the slip).
+ */
 export async function prepareTicket(
   image: Buffer,
   template: TicketTemplate,
+  opts: { crops?: boolean } = {},
 ): Promise<PreparedTicket> {
   const flags: Flag[] = [];
   const detect = await toGrey(image, DETECT_PX, true);
@@ -353,7 +357,7 @@ export async function prepareTicket(
     flags.push({ code: 'IMAGE_BLURRY', detail: { sharpness: sharp_ } });
 
   const crops = {} as Record<FieldKey, TicketImage>;
-  for (const f of template.fields) {
+  for (const f of opts.crops === false ? [] : template.fields) {
     const x = FRAME_MM.x + f.box.x * FRAME_MM.width - CROP_MARGIN_MM;
     const y = FRAME_MM.y + f.box.y * FRAME_MM.height - CROP_MARGIN_MM;
     const w = f.box.w * FRAME_MM.width + 2 * CROP_MARGIN_MM;
@@ -363,7 +367,7 @@ export async function prepareTicket(
 
   return {
     ticket: await toJpeg(slip),
-    crops,
+    ...(opts.crops !== false && { crops }),
     markersFound: true,
     quality: { brightness, sharpness: sharp_ },
     flags,

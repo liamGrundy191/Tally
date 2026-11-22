@@ -17,7 +17,9 @@ import {
   englishName,
   hasHebrew,
   normaliseName,
+  TEMPLATE_V1,
 } from '@tally/shared';
+import { prepareTicket } from '@tally/shared/imaging';
 import { fromPrisma, PgBoss } from 'pg-boss';
 import type { z } from 'zod';
 import { audit } from '../audit.ts';
@@ -148,6 +150,22 @@ export class TicketsService {
     };
   }
 
+  /**
+   * The scan straightened as the reader saw it, made again on each request: it is not stored (D42).
+   * 404 when the corner markers are not found; the screen then shows the whole scan.
+   */
+  async slip(id: string) {
+    const t = await this.prisma.ticket.findUnique({ where: { id }, select: { s3KeyPage: true } });
+    if (!t) throw new NotFoundException('There is no such ticket.');
+    const page = await this.storage.get(t.s3KeyPage);
+    if (!page) throw new NotFoundException('The scan of this ticket is missing.');
+    const image = Buffer.concat(await page.body.toArray());
+    const prepared = await prepareTicket(image, TEMPLATE_V1, { crops: false });
+    if (!prepared.markersFound)
+      throw new NotFoundException('The corner markers were not found on this scan.');
+    return prepared.ticket.data;
+  }
+
   async list(q: z.output<typeof listTicketsSchema>) {
     const where: Prisma.TicketWhereInput = {
       ...(q.month && { monthId: q.month === 'none' ? null : q.month }),
@@ -231,7 +249,8 @@ export class TicketsService {
       const target = dateSettled ? await monthOf(tx, new Date(fields.shiftDate!)) : null;
       const t = await this.locked(tx, id, body.version, target?.id);
       // Only a warning the person was shown can be confirmed: a new one waits for the next save.
-      if (body.accept.some((code) => !t.flags.some((f) => f.code === code))) {
+      // `t.flags` are the open ones: a warning already answered cannot be confirmed again.
+      if (body.accept.some((code) => !t.flags.some((f) => f.code === code && !f.resolvedAt))) {
         throw new BadRequestException(
           'Check the ticket again: something you confirmed was not flagged.',
         );

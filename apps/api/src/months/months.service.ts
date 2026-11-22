@@ -41,7 +41,14 @@ export class MonthsService {
         tickets: {
           where: { status: { not: 'excluded' } },
           orderBy: [{ shiftDate: 'asc' }, { createdAt: 'asc' }],
-          select: { id: true, workerName: true, shiftDate: true, totalMinutes: true, status: true },
+          select: {
+            id: true,
+            version: true,
+            workerName: true,
+            shiftDate: true,
+            totalMinutes: true,
+            status: true,
+          },
         },
       },
     });

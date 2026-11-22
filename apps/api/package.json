@@ -5,6 +5,7 @@
     "postinstall": "prisma generate",
     "typecheck": "tsc -p .",
     "test": "vitest run --test-timeout=20000",
+    "e2e:seed": "vitest run --config vitest.e2e-seed.config.ts",
     "db:migrate": "prisma migrate deploy",
     "seed:admin": "node --experimental-strip-types --disable-warning=ExperimentalWarning --env-file-if-exists=../../.env src/seed-admin.ts",
     "dev:tsc": "tsc -w -p tsconfig.build.json --preserveWatchOutput",

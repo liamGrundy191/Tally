@@ -15,8 +15,9 @@ if (!storageConfigured && process.env.CI) {
   throw new Error('CI must provide S3_ENDPOINT for the file storage tests.');
 }
 
-export function testStorage() {
-  const Bucket = `test-${randomBytes(4).toString('hex')}`;
+/** A new bucket, or the named one (the browser test's, kept between runs). */
+export function testStorage(bucket?: string) {
+  const Bucket = bucket ?? `test-${randomBytes(4).toString('hex')}`;
   const storage = Storage.fromEnv({ ...process.env, S3_BUCKET: Bucket });
   const keys = async () =>
     ((await storage.s3.send(new ListObjectsV2Command({ Bucket }))).Contents ?? [])

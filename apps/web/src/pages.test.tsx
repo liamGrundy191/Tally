@@ -8,6 +8,7 @@ import {
   calls,
   click,
   container,
+  dialogButton,
   open,
   replies,
   REVIEWER,
@@ -70,6 +71,8 @@ describe('Home', () => {
     expect(text()).toContain('October 2026: 0 tickets');
     expect(text()).not.toContain('September');
     expect(text()).toContain('4 tickets wait for a date');
+    expect(button('4 tickets wait for a date.')?.getAttribute('href')).toBe('/review?month=none');
+    expect(button('Review next')?.getAttribute('href')).toBe('/review');
     expect(button('November 2026')?.getAttribute('href')).toBe('/months/m-nov');
     await click('Upload');
     expect(url()).toBe('/upload');
@@ -93,6 +96,7 @@ describe('Home', () => {
 describe('the month page', () => {
   const ticket = (id: string, over: object = {}) => ({
     id,
+    version: 2,
     workerName: 'Yael',
     shiftDate: '2026-11-10T00:00:00.000Z',
     totalMinutes: 510,
@@ -139,6 +143,69 @@ describe('the month page', () => {
     expect(text()).toContain('Name not confirmed yet');
     expect(text()).toContain('—');
     expect(text()).toContain('Needs review');
+  });
+
+  const SMALL = {
+    ...NOVEMBER,
+    tickets: counts({ verified: 1, needs_review: 1 }),
+    workplaces: [
+      {
+        groupId: 'g1',
+        name: 'דולב',
+        rows: [{ name: 'Yael', tickets: [ticket('t1')] }],
+        unnamed: [],
+      },
+      {
+        groupId: 'g2',
+        name: 'Golan Farm',
+        rows: [{ name: 'Kwame', tickets: [ticket('t2', { status: 'needs_review' })] }],
+        unnamed: [],
+      },
+    ],
+  };
+
+  it('searches the tickets by name, workplace or date, and opens one for review', async () => {
+    replies['GET /api/months/m-nov'] = { status: 200, body: SMALL };
+    await open('/months/m-nov');
+    expect(button('Review next')?.getAttribute('href')).toBe('/review?month=m-nov');
+    const search = async (value: string) => {
+      const input = container.querySelector('input')!;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+          input,
+          value,
+        );
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    };
+    await search('kwa');
+    expect(text()).toContain('Kwame');
+    expect(text()).not.toContain('Yael');
+    await search('דולב');
+    expect(text()).toContain('Yael');
+    expect(text()).not.toContain('Kwame');
+    await search('nobody');
+    expect(text()).toContain('No ticket matches.');
+    await search('');
+    expect(container.querySelector('[aria-label="Remove Yael, 10/11/26"]')).not.toBeNull();
+    await click('Open');
+    expect(url()).toBe('/review/t1?month=m-nov');
+  });
+
+  it('removes a ticket after asking, naming the version shown', async () => {
+    replies['GET /api/months/m-nov'] = { status: 200, body: SMALL };
+    replies['POST /api/tickets/t1/exclude'] = {
+      status: 409,
+      body: { message: 'Someone else changed this ticket. Reload it.' },
+    };
+    await open('/months/m-nov');
+    await click('Remove');
+    expect(document.body.textContent).toContain('Remove this ticket?');
+    await act(async () => dialogButton('Remove')!.click());
+    await settle();
+    expect(calls.find((c) => c.path === '/api/tickets/t1/exclude')!.body).toEqual({ version: 2 });
+    expect(text()).toContain('Someone else changed this ticket. Reload it.');
+    expect(calls.filter((c) => c.path === '/api/months/m-nov').length).toBe(2);
   });
 
   it('shows the server message for a month that does not exist', async () => {

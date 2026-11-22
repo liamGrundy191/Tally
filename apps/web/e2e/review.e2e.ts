@@ -1,0 +1,93 @@
+// T2.3 "Done when": a person reviews the three flagged fixture tickets with the keyboard only.
+// The tickets are seeded by apps/api/test/e2e-seed.test.ts (pnpm e2e): a disputed reading, a
+// crossed-out ticket and one the reader could not read. Names are invented.
+import { type Page, expect, test } from '@playwright/test';
+
+const USER = { email: 'e2e@example.com', password: 'e2e password 1' };
+
+/** Yesterday in Israel, the fixtures' date (as the seed sets it). */
+const day = new Date(
+  `${new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Jerusalem' }).format(new Date())}T00:00:00Z`,
+);
+day.setUTCDate(day.getUTCDate() - 1);
+const YESTERDAY = day.toLocaleDateString('en-GB', {
+  day: '2-digit',
+  month: '2-digit',
+  year: '2-digit',
+  timeZone: 'UTC',
+});
+const MONTH = day.toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+
+/** Presses Tab until the focused element is the one named, as a keyboard user would. */
+async function tabTo(page: Page, name: string) {
+  for (let i = 0; i < 40; i++) {
+    const here = await page.evaluate(() => {
+      const el = document.activeElement as HTMLElement | null;
+      return el?.getAttribute('aria-label') ?? el?.textContent?.trim() ?? '';
+    });
+    if (here === name) return;
+    await page.keyboard.press('Tab');
+  }
+  throw new Error(`Tab never reached "${name}"`);
+}
+
+test('reviews the three fixture tickets with the keyboard only', async ({ page }) => {
+  await page.goto('/login');
+  await expect(page.getByLabel('Email')).toBeFocused();
+  await page.keyboard.type(USER.email);
+  await page.keyboard.press('Tab');
+  await page.keyboard.type(USER.password);
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
+  await tabTo(page, 'Review next');
+  await page.keyboard.press('Enter');
+
+  // 1. Disputed: the end time unclear (the guess is filled in), the total read two ways.
+  const end = page.locator('#f-endTime');
+  await expect(end).toBeFocused();
+  await expect(end).toHaveValue('06:00');
+  await expect(page.locator('#f-totalWorked')).toHaveValue('');
+  await expect(page.locator('[data-box="endTime"]')).toBeVisible();
+  const started = Date.now();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#f-totalWorked')).toBeFocused();
+  await page.keyboard.type('08:00');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#f-workerName')).toBeFocused();
+  await page.keyboard.type('Ziv');
+  await page.keyboard.press('Enter');
+
+  // 2. Crossed out: removed, after a question whose focus starts on Cancel.
+  await expect(page.getByText('This ticket looks crossed out. Remove it?')).toBeVisible();
+  await expect(page.locator('input[type="checkbox"]')).toBeFocused();
+  await tabTo(page, 'Remove');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+
+  // 3. Not read at all: typed in, the same worker, place and day as the first.
+  await expect(page.getByText('Could not read this ticket. Please type it in.')).toBeVisible();
+  await expect(page.locator('#f-firstName')).toBeFocused();
+  for (const value of ['זיו', 'שופרסל', YESTERDAY, '08:00', '16:00', '08:00']) {
+    await page.keyboard.type(value);
+    await page.keyboard.press('Enter');
+  }
+  await expect(page.locator('#f-workerName')).toBeFocused();
+  await page.keyboard.type('Ziv');
+  await page.keyboard.press('Enter');
+  // The first ticket's worker, place and day: the duplicate question comes first.
+  await expect(page.getByText('Is it the same shift?')).toBeFocused();
+  await tabTo(page, 'Keep both');
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('Nothing left to review.')).toBeVisible();
+  console.log(`Three tickets reviewed in ${Date.now() - started} ms after the first loaded.`);
+
+  // The month: two tickets ready, one removed.
+  await tabTo(page, 'Go to Home');
+  await page.keyboard.press('Enter');
+  await tabTo(page, MONTH);
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('2 tickets: 2 ready.')).toBeVisible();
+  await expect(page.getByText('1 ticket removed.')).toBeVisible();
+});

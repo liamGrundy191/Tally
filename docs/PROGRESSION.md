@@ -224,3 +224,11 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Prices shown, as estimates.** Liam chose to show the cost per ticket beside each speed: about 15 cents for Batch (measured) and about 30 cents for Now (not yet measured), plus a running total. Remove and search on the month page wait for the review screen in T2.3.
 - **Photos stay.** Liam offered to allow only PDFs. Photos stay, because they lose only one check, the same-batch name comparison, and keep every other.
 - **Reviews found nothing serious.** The fixes were small but real: a file no longer uploads, and gets paid for, after the person chose Leave. A frozen upload times out. "Stay" now really keeps uploads when logging out. An old upload is no longer called "stopped" when one of its tickets is being read again.
+
+### 24. The review screen (T2.3)
+
+- **The critique caught four ways to lose or invent a value.** A reader's old guess could have overwritten a correction a person had already saved, so a guess is now shown only while that box is still in doubt. The planned browser test would have deleted tickets in the developer's own local database, so it now has its own database and refuses to run against any other. A ticked "the paper really says this" could silently approve a different value after an edit, so it unticks when the value changes. Correcting a first name kept the old English name, so the English name is now cleared and confirmed again.
+- **Liam's two choices.** Enter walks through every flagged box before it saves: one extra key, and no value is saved unseen. Names come from a type-ahead list instead of one-click buttons, with this month's names at the workplace first.
+- **The picture matches what was read.** The highlighted boxes come from the same template field map that printing and reading use, drawn on a straightened copy rebuilt on demand rather than stored (D42). If a scan cannot be straightened, the whole scan is shown without highlights.
+- **Reviews found nothing serious.** The fixes were small but real: focus now stays put after a duplicate answer, a double-click no longer saves twice, and an expired scan link is handled.
+- **Tested the way it is used.** A keyboard-only browser test reviews three tricky tickets (disputed, crossed out, unreadable) in about two seconds and runs in CI.
