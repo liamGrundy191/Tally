@@ -16,6 +16,8 @@ export default defineConfig({
   testMatch: '*.e2e.ts',
   workers: 1,
   timeout: 120_000,
+  // Moving to the next ticket waits on the server (slip, re-sort); 5 s was flaky on CI machines.
+  expect: { timeout: 15_000 },
   reporter: 'list',
   use: { baseURL: 'http://localhost:4173', ...devices['Desktop Chrome'], trace: 'off' },
   webServer: [

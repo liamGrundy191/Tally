@@ -106,7 +106,7 @@ Options: A) A page of their own, linked from the month page and the Workplaces p
 
 Recommendation: B, as section 9 says; no new page. (The first plan suggested A; the critique pointed out that section 9 places the lists on the month page.)
 
-Answer (Liam): B (2026-11-22), as section 9 says; no /lists page or menu link. The Workplaces page and the review screen link to the month page's section.
+Answer (Liam): B (2026-11-22), as section 9 says; no /lists page or menu link. The Workplaces page links to the month page's section; while no month exists yet, it shows the lists itself (D52).
 
 ## Q9 · T2.4 · Asking before "same place" · answered
 

@@ -17,6 +17,7 @@ import { Fragment, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { api, type MonthDetail, useMonth, useMonths } from '../api.ts';
 import { ConfirmDialog } from '../review/Review.tsx';
+import { Lists } from './Lists.tsx';
 import { monthName, plural } from './Months.tsx';
 import { ErrorMessage, Page } from './simple.tsx';
 
@@ -50,7 +51,13 @@ export function Workplaces() {
   const open = months.data.filter((m) => m.status === 'open');
   return (
     <Page title="Workplaces">
-      {open.length === 0 && <Typography>No open month.</Typography>}
+      {/* No month exists before the first upload, yet the lists should help its first reading. */}
+      {open.length === 0 && (
+        <>
+          <Typography>No open month.</Typography>
+          <Lists />
+        </>
+      )}
       {open.map((m) => (
         <MonthPlaces key={m.id} id={m.id} />
       ))}

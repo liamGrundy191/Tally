@@ -184,6 +184,34 @@ describe('the Workplaces page', () => {
     expect(fetched('/api/months/m-nov')).toBeGreaterThan(before);
   });
 
+  it('links to the month page for the lists while a month is open', async () => {
+    await open('/workplaces');
+    expect(button('The lists that help reading')?.getAttribute('href')).toBe('/months/m-nov#lists');
+    expect(container.querySelector('#lists')).toBeNull();
+  });
+
+  // Before the first upload no month exists, but the lists must be set up for the first reading.
+  it('shows the lists when no month is open, and can replace one', async () => {
+    replies['GET /api/months'] = { status: 200, body: [{ ...NOVEMBER, status: 'closing' }] };
+    replies['PUT /api/lists/workplace'] = {
+      status: 200,
+      body: [{ name: 'דולב', spellings: [] }],
+    };
+    await open('/workplaces');
+    expect(text()).toContain('No open month.');
+    expect(text()).toContain('Lists that help reading');
+    await edit('Workplace list', 'דולב');
+    expect(text()).toContain('1 entry (was 1)');
+    await act(async () => replaceButtons()[0]!.click());
+    await settle();
+    expect(document.activeElement).toBe(dialogButton('Cancel'));
+    await act(async () => dialogButton('Replace')!.click());
+    await settle();
+    expect(calls.filter((c) => c.method === 'PUT').map((c) => [c.path, c.body])).toEqual([
+      ['/api/lists/workplace', { text: 'דולב' }],
+    ]);
+  });
+
   it('says when there is nothing to answer', async () => {
     replies['GET /api/months/m-nov'] = { status: 200, body: { ...MONTH, questions: [] } };
     await open('/workplaces');

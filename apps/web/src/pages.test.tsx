@@ -92,6 +92,10 @@ describe('Home', () => {
     replies['GET /api/months'] = { status: 200, body: [] };
     await open('/');
     expect(text()).toContain('No months yet.');
+    expect(text()).toContain(
+      'Before the first upload, set up the lists that help reading on the Workplaces page.',
+    );
+    expect(button('Workplaces page')?.getAttribute('href')).toBe('/workplaces');
   });
 });
 
