@@ -19,6 +19,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
   api,
+  download,
   type Counts,
   type MonthTicket,
   type TicketStatus,
@@ -220,6 +221,13 @@ export function Month() {
       void client.invalidateQueries({ queryKey: ['months'] });
     },
   });
+  const excel = useMutation({
+    mutationFn: () => {
+      const m = month.data!;
+      const name = `hours-${m.year}-${String(m.month).padStart(2, '0')}.xlsx`;
+      return download(`/api/months/${m.id}/excel`, name);
+    },
+  });
   if (month.error)
     return <ErrorMessage message={month.error.message} retry={() => void month.refetch()} />;
   if (!month.data) return <Typography>Loading the month…</Typography>;
@@ -251,9 +259,10 @@ export function Month() {
       </Typography>
       {m.status === 'open' && (
         <Box sx={{ my: 1 }}>
-          <Button variant="contained" href={`/api/months/${m.id}/excel`}>
+          <Button variant="contained" disabled={excel.isPending} onClick={() => excel.mutate()}>
             Download Excel
           </Button>
+          {excel.error && <Alert severity="error">{excel.error.message}</Alert>}
         </Box>
       )}
       {needReview(m.tickets) > 0 && (

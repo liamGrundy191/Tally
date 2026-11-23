@@ -25,6 +25,7 @@ describe('safe sheet names and text cells', () => {
       "'q'",
       '',
       'שמות',
+      'abc',
     ]);
     expect(names[0]).toBe('abcdefgh');
     expect(names[1]).toBe('x'.repeat(31));
@@ -32,6 +33,7 @@ describe('safe sheet names and text cells', () => {
     expect(names[3]).toBe('q');
     expect(names[4]).toBe('מקום עבודה');
     expect(names[5]).toBe('שמות (2)'); // the names sheet already has it
+    expect(names[6]).toBe('abc'); // control characters
     for (const n of names) expect(n.length).toBeLessThanOrEqual(31);
   });
 
@@ -52,6 +54,10 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
   let book: ExcelJS.Workbook;
   let headers: Headers;
   const all = { minutes: 0 };
+  const byPlace = new Map<string, number>(); // place name → minutes
+  const placeOf = new Map<string, string>(); // group id → place name
+  let golan: string;
+  let merged: string;
 
   beforeAll(async () => {
     await db.migrate();
@@ -74,12 +80,13 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
         },
       })
     ).id;
-    const group = async (displayName: string, mergedIntoId?: string) =>
-      (
-        await prisma.workplaceGroup.create({
-          data: { monthId, displayName, normalisedName: displayName, mergedIntoId },
-        })
-      ).id;
+    const group = async (displayName: string, mergedIntoId?: string) => {
+      const { id } = await prisma.workplaceGroup.create({
+        data: { monthId, displayName, normalisedName: displayName, mergedIntoId },
+      });
+      placeOf.set(id, displayName);
+      return id;
+    };
     let page = 0;
     const ticket = (
       groupId: string | null,
@@ -105,12 +112,14 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
       });
     const verified = async (groupId: string, day: number, minutes: number, more = {}) => {
       all.minutes += minutes;
+      const place = placeOf.get(groupId)!;
+      byPlace.set(place, (byPlace.get(place) ?? 0) + minutes);
       return ticket(groupId, day, minutes, more);
     };
 
-    const golan = await group('חוות גולן');
+    golan = await group('חוות גולן');
     const hadar = await group('בית הדר');
-    const merged = await group('חוות הגולן', golan);
+    merged = await group('חוות הגולן', golan);
     const waiting = await group('מקום ממתין');
     await group('מקום ריק');
     const first = await verified(golan, 2, 480);
@@ -118,7 +127,6 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
     await verified(golan, 5, 480);
     await verified(golan, 5, 270); // "Keep both": one cell holds their sum
     await verified(golan, 2, 500, { firstName: 'דנה', workerName: 'Dana' });
-    await verified(merged, 20, 120, { firstName: 'Dana', workerName: 'Dana' }); // its place merged
     await verified(hadar, 4, 60, { firstName: 'אן', workerName: '-Ann' });
     for (const name of [`${LONG} א`, `${LONG} ב`, BAD, INJECT])
       await verified(await group(name), 1, 60);
@@ -146,6 +154,12 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
     const res = await owner.download(`/api/months/${monthId}/excel`);
     expect(res.status).toBe(200);
     headers = res.headers;
+    order = (
+      await prisma.workplaceGroup.findMany({
+        where: { monthId, mergedIntoId: null },
+        orderBy: { displayName: 'asc' },
+      })
+    ).map((g) => g.displayName);
     book = new ExcelJS.Workbook();
     await book.xlsx.load(res.bytes as unknown as ArrayBuffer);
   }, 120_000);
@@ -156,6 +170,9 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
   });
 
   const sheet = (name: string) => book.getWorksheet(name)!;
+  let order: string[] = [];
+  /** The places with ready tickets, in the order the database sorts their names. */
+  const places = () => order.filter((n) => byPlace.has(n));
   const day = (d: number) => d + 1; // column B is day 1
 
   it('is an xlsx download named after the month', () => {
@@ -169,6 +186,8 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
     const names = book.worksheets.map((w) => w.name);
     expect(names[0]).toBe('סה"כ שעות');
     expect(names.slice(-2)).toEqual(['שמות', 'לא נכללו']);
+    // The places in the month page's order (by name), each sheet named after its place.
+    expect(names.slice(1, -2)).toEqual(sheetNames(places()));
     expect(new Set(names.slice(1, -2))).toEqual(
       new Set([
         'חוות גולן',
@@ -192,35 +211,35 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
     expect([3, 4].map((r) => s.getCell(r, 1).value)).toEqual(['Dana', 'Kwame']);
     // Exact minutes ÷ 60, shown with two decimals; nothing is rounded.
     expect(s.getCell(3, day(2)).value).toBe(500 / 60);
-    expect(s.getCell(3, day(20)).value).toBe(120 / 60); // from the merged place
     expect(s.getCell(3, day(2)).numFmt).toBe('0.00');
     expect(s.getCell(3, day(1)).value).toBeNull();
     expect(s.getCell(4, day(2)).value).toBe(480 / 60);
     expect(s.getCell(4, day(3)).value).toBe(300 / 60);
     expect(s.getCell(4, day(5)).value).toBe(750 / 60);
-    expect(s.getCell('AG3').value).toEqual({ formula: 'SUM(B3:AF3)', result: 620 / 60 });
+    expect(s.getCell('AG3').value).toEqual({ formula: 'SUM(B3:AF3)', result: 500 / 60 });
     expect(s.getCell('AG4').value).toEqual({ formula: 'SUM(B4:AF4)', result: 1530 / 60 });
     expect(s.getCell('A5').value).toBe('סה"כ');
     expect(s.getCell(5, day(2)).value).toEqual({ formula: 'SUM(C3:C4)', result: 980 / 60 });
-    expect(s.getCell('AG5').value).toEqual({ formula: 'SUM(AG3:AG4)', result: 2150 / 60 });
+    expect(s.getCell('AG5').value).toEqual({ formula: 'SUM(AG3:AG4)', result: 2030 / 60 });
     expect(s.rowCount).toBe(5);
   });
 
   it('adds up each workplace on the totals sheet, pointing at that sheet’s last row', () => {
     const t = sheet('סה"כ שעות');
     expect([t.getCell('A1').value, t.getCell('B1').value]).toEqual(['מקום עבודה', 'שעות']);
-    const places = book.worksheets.slice(1, -2);
-    places.forEach((w, i) => {
-      const a = t.getCell(i + 2, 1).value;
-      expect(typeof a === 'string' && a.replace(/^'/, '')).toBeTruthy();
+    const sheets = book.worksheets.slice(1, -2);
+    sheets.forEach((w, i) => {
+      const place = places()[i]!;
+      // The place's full name, as text, beside a formula pointing at its sheet's grand total.
+      expect(String(t.getCell(i + 2, 1).value).replace(/^'/, '')).toBe(place);
       const quoted = `'${w.name.replace(/'/g, "''")}'`;
-      expect((t.getCell(i + 2, 2).value as ExcelJS.CellFormulaValue).formula).toBe(
-        `${quoted}!AG${w.rowCount}`,
-      );
+      expect(t.getCell(i + 2, 2).value).toEqual({
+        formula: `${quoted}!AG${w.rowCount}`,
+        result: byPlace.get(place)! / 60,
+      });
     });
-    const golan = places.findIndex((w) => w.name === 'חוות גולן') + 2;
-    expect((t.getCell(golan, 2).value as ExcelJS.CellFormulaValue).result).toBe(2150 / 60);
-    const last = places.length + 2;
+    expect(byPlace.get('חוות גולן')).toBe(2030);
+    const last = sheets.length + 2;
     expect(t.getCell(last, 1).value).toBe('סה"כ');
     expect(t.getCell(last, 2).value).toEqual({
       formula: `SUM(B2:B${last - 1})`,
@@ -301,16 +320,62 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
     }
   });
 
-  it('refuses rather than leave out a ready ticket it cannot place', async () => {
-    const t = await prisma.ticket.findFirstOrThrow({ where: { monthId, status: 'verified' } });
-    await prisma.ticket.update({ where: { id: t.id }, data: { workplaceGroupId: null } });
-    try {
-      expect((await owner.download(`/api/months/${monthId}/excel`)).status).toBe(500);
-    } finally {
-      await prisma.ticket.update({
-        where: { id: t.id },
-        data: { workplaceGroupId: t.workplaceGroupId },
-      });
-    }
+  describe('refuses rather than leave hours out', () => {
+    const refused = async (change: () => Promise<unknown>, undo: () => Promise<unknown>) => {
+      await change();
+      try {
+        const res = await owner.send('GET', `/api/months/${monthId}/excel`);
+        return res;
+      } finally {
+        await undo();
+      }
+    };
+    const SORTING = 'Some tickets are still being sorted. Try again in a minute.';
+    const anyReady = () =>
+      prisma.ticket.findFirstOrThrow({ where: { monthId, status: 'verified' } });
+    const set = (id: string, data: object) => prisma.ticket.update({ where: { id }, data });
+
+    it('waits while a ready ticket is not sorted into a workplace yet', async () => {
+      const t = await anyReady();
+      const res = await refused(
+        () => set(t.id, { workplaceGroupId: null }),
+        () => set(t.id, { workplaceGroupId: t.workplaceGroupId }),
+      );
+      expect(res).toMatchObject({ status: 409, body: { message: SORTING } });
+    });
+
+    it('waits while a ready ticket is still in a place merged away', async () => {
+      const t = await anyReady();
+      const res = await refused(
+        () => set(t.id, { workplaceGroupId: merged }),
+        () => set(t.id, { workplaceGroupId: t.workplaceGroupId }),
+      );
+      expect(res).toMatchObject({ status: 409, body: { message: SORTING } });
+    });
+
+    it('waits while a ready ticket is dated in another month', async () => {
+      const t = await anyReady();
+      const res = await refused(
+        () => set(t.id, { shiftDate: new Date(Date.UTC(2026, 11, 1)) }),
+        () => set(t.id, { shiftDate: t.shiftDate }),
+      );
+      expect(res).toMatchObject({ status: 409, body: { message: SORTING } });
+    });
+
+    it('refuses a ready ticket with no hours or no date', async () => {
+      const t = await anyReady();
+      for (const data of [{ totalMinutes: null }, { shiftDate: null }]) {
+        const res = await refused(
+          () => set(t.id, data),
+          () => set(t.id, { totalMinutes: t.totalMinutes, shiftDate: t.shiftDate }),
+        );
+        expect(res.status).toBe(500);
+      }
+    });
+  });
+
+  it('is never kept by the browser', async () => {
+    const res = await owner.download(`/api/months/${monthId}/excel`);
+    expect(res.headers.get('cache-control')).toBe('private, no-store');
   });
 });

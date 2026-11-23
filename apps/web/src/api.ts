@@ -167,14 +167,37 @@ export async function api<T>(path: string, method = 'GET', body?: unknown): Prom
   } catch {
     data = undefined;
   }
-  if (!res.ok) {
-    const message = (data as { message?: unknown } | undefined)?.message;
-    throw new ApiError(
-      res.status,
-      res.status < 500 && typeof message === 'string' ? message : BROKEN,
-    );
-  }
+  if (!res.ok) throw refusal(res, data);
   return data as T;
+}
+
+function refusal(res: Response, data: unknown) {
+  const message = (data as { message?: unknown } | undefined)?.message;
+  return new ApiError(
+    res.status,
+    res.status < 500 && typeof message === 'string' ? message : BROKEN,
+  );
+}
+
+/**
+ * Saves a file from the API, named as the server names it. A refusal throws the server's message,
+ * as `api` does, instead of the browser showing it as a page.
+ */
+export async function download(path: string, name: string) {
+  let res: Response;
+  try {
+    res = await fetch(path);
+  } catch {
+    throw new ApiError(0, OFFLINE);
+  }
+  if (!res.ok) throw refusal(res, await res.json().catch(() => undefined));
+  const disposition = res.headers.get('content-disposition') ?? '';
+  const file = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = file;
+  a.download = /filename="([^"]+)"/.exec(disposition)?.[1] ?? name;
+  a.click();
+  URL.revokeObjectURL(file);
 }
 
 const ME = ['me'];

@@ -38,8 +38,13 @@ export function parseList(
     if (isListComment(line)) continue;
     const spellings = line
       .split(/[=\t]/) // Excel copies two columns as "A<tab>B"
-      // A leading apostrophe is how the month's Excel escapes a name starting with - (6.2).
-      .map((s) => stripInvisible(s).replace(/\s+/g, ' ').trim().replace(/^'/, ''))
+      // The month's Excel puts an apostrophe before text that could be a formula (6.2).
+      .map((s) =>
+        stripInvisible(s)
+          .replace(/\s+/g, ' ')
+          .trim()
+          .replace(/^'(?=[=+\-@\t\r])/, ''),
+      )
       .filter((s) => s !== '');
     if (spellings.join(' = ').length > MAX_LIST_LINE) {
       return { ok: false, problem: `Line ${i + 1} is longer than ${MAX_LIST_LINE} characters.` };

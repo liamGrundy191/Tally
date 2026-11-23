@@ -1,4 +1,4 @@
-import { Controller, Get, NotFoundException, Param, StreamableFile } from '@nestjs/common';
+import { Controller, Get, Header, NotFoundException, Param, StreamableFile } from '@nestjs/common';
 import { z } from 'zod';
 import { Access } from '../auth/access.ts';
 import { ExcelExporter } from './excel.ts';
@@ -29,6 +29,7 @@ export class MonthsController {
 
   /** The month's Excel file (6.2), made from the ready tickets as they are now. */
   @Get(':id/excel')
+  @Header('Cache-Control', 'private, no-store')
   async download(@Param('id') id: string) {
     const { file, filename } = await this.excel.export(monthId(id));
     return new StreamableFile(file, {

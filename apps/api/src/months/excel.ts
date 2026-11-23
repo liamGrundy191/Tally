@@ -48,7 +48,7 @@ export function sheetNames(names: string[]) {
   return names.map((name) => {
     const base =
       name
-        .replace(/[\\/?*[\]:]/g, '')
+        .replace(/[\\/?*[\]:]|\p{Cc}/gu, '') // and control characters
         .trim()
         .replace(/^'+|'+$/g, '')
         .trim() || 'מקום עבודה';
@@ -64,11 +64,7 @@ export function sheetNames(names: string[]) {
 }
 
 const quoted = (sheet: string) => `'${sheet.replace(/'/g, "''")}'`;
-const column = (n: number) => {
-  let s = '';
-  for (; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
-  return s;
-};
+const SORTING = 'Some tickets are still being sorted. Try again in a minute.';
 
 @Injectable()
 export class ExcelExporter {
@@ -78,28 +74,58 @@ export class ExcelExporter {
   ) {}
 
   async export(monthId: string) {
-    const month = await this.prisma.month.findUnique({ where: { id: monthId } });
-    if (!month) throw new NotFoundException('There is no such month.');
-    // A closing month is being deleted; the last download comes before Close (6.1).
-    if (month.status !== 'open') {
-      throw new ConflictException('This month is being closed or is closed.');
-    }
+    // One consistent picture: a removal or a merge half way through cannot move a ticket twice.
+    const { month, places, ready, excluded } = await this.prisma.$transaction(
+      async (tx) => {
+        const month = await tx.month.findUnique({ where: { id: monthId } });
+        if (!month) throw new NotFoundException('There is no such month.');
+        // A closing month is being deleted; the last download comes before Close (6.1).
+        if (month.status !== 'open') {
+          throw new ConflictException('This month is being closed or is closed.');
+        }
+        const places = (await this.months.rows(monthId, tx))
+          .map((p) => ({
+            name: p.name,
+            rows: p.rows
+              .map((r) => ({
+                name: r.name,
+                tickets: r.tickets.filter((t) => t.status === 'verified'),
+              }))
+              .filter((r) => r.tickets.length > 0),
+          }))
+          .filter((p) => p.rows.length > 0);
+        const ready = await tx.ticket.findMany({
+          where: { monthId, status: 'verified' },
+          select: { id: true },
+        });
+        const excluded = await tx.ticket.findMany({
+          where: { monthId, status: 'excluded' },
+          orderBy: [{ shiftDate: 'asc' }, { createdAt: 'asc' }],
+          include: { workplaceGroup: true, excludedBy: { select: { email: true } } },
+        });
+        return { month, places, ready, excluded };
+      },
+      { isolationLevel: 'RepeatableRead' },
+    );
 
-    const places = (await this.months.rows(monthId))
-      .map((p) => ({
-        name: p.name,
-        rows: p.rows
-          .map((r) => ({ name: r.name, tickets: r.tickets.filter((t) => t.status === 'verified') }))
-          .filter((r) => r.tickets.length > 0),
-      }))
-      .filter((p) => p.rows.length > 0);
-    // Never leave out hours without a word: every ready ticket must have a row and a cell.
+    // Never leave out hours without a word (6.1): every ready ticket needs its row and its cell.
     const placed = places.flatMap((p) => p.rows.flatMap((r) => r.tickets));
-    const ready = await this.prisma.ticket.count({ where: { monthId, status: 'verified' } });
-    if (placed.length !== ready || placed.some((t) => t.totalMinutes === null || !t.shiftDate)) {
+    if (placed.some((t) => t.totalMinutes === null || !t.shiftDate)) {
       throw new InternalServerErrorException(
-        'A ready ticket has no workplace, name, date or hours, so the file was not made.',
+        'A ready ticket has no date or hours, so the file was not made.',
       );
+    }
+    // Reading marks a clean ticket ready at once, but it joins a workplace only once its whole
+    // upload is read (D45). Until then the file would miss it, so the download waits.
+    const ids = new Set(placed.map((t) => t.id));
+    const inMonth = (d: Date) =>
+      d.getUTCFullYear() === month.year && d.getUTCMonth() + 1 === month.month;
+    if (
+      ids.size !== ready.length ||
+      ready.some((t) => !ids.has(t.id)) ||
+      placed.some((t) => !inMonth(t.shiftDate!))
+    ) {
+      throw new ConflictException(SORTING);
     }
 
     const book = new ExcelJS.Workbook();
@@ -134,7 +160,7 @@ export class ExcelExporter {
       let placeTotal = 0;
       for (let d = 1; d <= DAYS + 1; d++) {
         const minutes = d <= DAYS ? byDay[d]! : placeTotal;
-        const c = column(d + 1);
+        const c = s.getColumn(d + 1).letter;
         last.getCell(d + 1).value = { formula: `SUM(${c}3:${c}${end})`, result: minutes / 60 };
         last.getCell(d + 1).numFmt = HOURS;
         placeTotal += d <= DAYS ? minutes : 0;
@@ -169,11 +195,6 @@ export class ExcelExporter {
 
     const removed = book.addWorksheet(REMOVED, RTL);
     removed.addRow(REMOVED_HEADINGS);
-    const excluded = await this.prisma.ticket.findMany({
-      where: { monthId, status: 'excluded' },
-      orderBy: [{ shiftDate: 'asc' }, { createdAt: 'asc' }],
-      include: { workplaceGroup: true, excludedBy: { select: { email: true } } },
-    });
     for (const t of excluded) {
       const place = t.workplaceGroup?.displayName ?? t.workplaceRaw;
       const name = t.workerName ?? t.firstName;
