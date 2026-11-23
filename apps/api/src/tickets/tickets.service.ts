@@ -37,6 +37,21 @@ import { Storage } from '../storage.ts';
 
 type Tx = Prisma.TransactionClient;
 
+/**
+ * A workplace typed as a list spelling ("Beit Hadar") is stored under its list name, as a read
+ * one is (D36, D53), so it joins that place. A spelling two places share stays as typed.
+ */
+async function listPlace(tx: Tx, written: string | null) {
+  if (written === null) return null;
+  const key = normaliseName(written);
+  const places = new Set(
+    (await tx.listEntry.findMany({ where: { kind: 'workplace' } }))
+      .filter((e) => [e.name, ...e.spellings].some((s) => normaliseName(s) === key))
+      .map((e) => e.name),
+  );
+  return places.size === 1 ? [...places][0]! : written;
+}
+
 /** Doubts about the reading. A save settles them: the value was either corrected or confirmed. */
 const READING_FLAGS = [
   'PASS_DISAGREEMENT',
@@ -230,7 +245,10 @@ export class TicketsService {
   async save(userId: string, id: string, body: z.output<typeof saveTicketSchema>) {
     const months = await this.prisma.$transaction(async (tx) => {
       const checked = checkTicketValues(body.values, this.config.settings());
-      const fields = checked.fields;
+      const fields = {
+        ...checked.fields,
+        workplace: await listPlace(tx, checked.fields.workplace),
+      };
       const workerName = body.workerName === null ? null : englishName(body.workerName);
       const accepted = new Set<string>(body.accept);
       const flags: Flag[] = [...checked.flags];
