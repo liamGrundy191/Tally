@@ -197,7 +197,8 @@ export async function download(path: string, name: string) {
   a.href = file;
   a.download = /filename="([^"]+)"/.exec(disposition)?.[1] ?? name;
   a.click();
-  URL.revokeObjectURL(file);
+  // Freed at once, some browsers cancel the download before it starts.
+  setTimeout(() => URL.revokeObjectURL(file), 60_000);
 }
 
 const ME = ['me'];
