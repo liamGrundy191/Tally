@@ -413,3 +413,12 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 
 - **Found preparing the Phase 2 gate:** the lists were only on a month page (D50, Q8), but no month exists until the first tickets are read, so an agency could not enter its names and workplaces before its first upload, and the first reading went without them.
 - **The fix, the smallest one:** while no month is open, the Workplaces page shows the same "Lists that help reading" section (it otherwise links to the month page's section, as before). Home with no months says "Before the first upload, set up the lists that help reading on the Workplaces page." The month page stays the main place for the lists (Q8 unchanged).
+
+## D53 · Phase 2 gate · Passed: 45 real tickets from upload to zero open tickets in the browser
+
+- **The run (2026-11-23).** The Phase 0 set (45 real tickets in two PDFs, one upload, Batch) was read once on a separate gate database: 125 reads, 37 minutes, $6.55 (2.56 M tokens in, 0.14 M out). Then the app was restarted with the fake reader, so nothing clicked during the review could spend money.
+- **Reading, before anyone reviewed (270 values):** 169 accepted and right, 76 flagged with a right guess, 22 flagged to type. **No wrong value was accepted unflagged.** Three values a script counted as wrong were the workplace list's Hebrew name for the place the truth file wrote in English (one of them a typo in the truth file).
+- **The review, browser only:** Liam reviewed 10 tickets; at his request, an agent reviewed the other 35 through the same screens with Playwright. Every workplace question was answered by Liam. End state: 45 of 45 verified, 0 open flags, all in one month.
+- **The result:** 268 of 270 stored values match the truth file, and Liam's 10 tickets match exactly. The two left over follow from Liam's answer that two places the truth file lists apart are one place; his knowledge is taken over the file. The gate's definition ("one person") was met in spirit: the screens alone took every ticket to verified.
+- **Found, to fix before T3.1:** a workplace a person types as a list entry's other spelling (the English spelling of a Hebrew entry) starts a group of its own instead of joining that entry's group, so one place would get two Excel sheets. The reader already maps a list spelling to its entry's name; a person's save does not.
+- **Noted for later, not now (Liam):** the review flow works well, but the design looks plain and much of the site is not self-explanatory for a newcomer. Both wait for a later design pass.
