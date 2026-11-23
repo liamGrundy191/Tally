@@ -258,3 +258,13 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **The safety rule held on real paper.** Before review, no wrong value was accepted without a flag. After review, 268 of 270 values match the answer file, and the other two follow from Liam's own answer that two places are one.
 - **The gate also found a bug.** A person who types a workplace by its other spelling on the list starts a separate workplace, which would split one place across two Excel sheets. It is fixed before the Excel exporter.
 - **The permission system did its job.** It refused to let an agent answer the workplace questions on a relayed approval, so Liam answered them himself in a minute.
+
+### 28. The month's Excel file (T3.1)
+
+- **The file follows the agency's own layout.** There is one sheet per workplace, with a row per confirmed English name, a column per day and totals as formulas. A totals sheet adds the workplaces up. A names sheet pastes straight back into the names list. A sheet of removed tickets means nothing disappears silently.
+- **Minutes stay whole numbers.** Only the display shows two decimals, so the totals never drift.
+- **Liam's two choices.** The labels are in Hebrew, like the agency's file, while worker names stay in English letters. The file always matches the current tickets, so a row or sheet with no hours left is dropped.
+- **It reuses the month page's own grouping.** The page and the Excel can never disagree. The critic proposed this, and it made the plan smaller.
+- **Safety comes before convenience.** Text from tickets can never become a formula: a leading apostrophe is added, and tab and carriage return are escaped too. The download refuses rather than leaving hours out: "Some tickets are still being sorted. Try again in a minute." appears while an upload is still being sorted. Everything is read in one consistent snapshot, and the browser does not keep the file in its cache.
+- **Reviews found nothing serious.** The fixes were small but real: a download made during reading gave a confusing error, and a failed download showed raw JSON, so the button now shows the message on the page.
+- **Checked on real data.** Built from the 45 real Phase 2 gate tickets, every workplace's total and the grand total (351.83 hours) matched the answer file exactly, which is the Phase 3 gate's own test. Three tickets had been saved before the D53 fix; one was re-saved for the check, so two sheets still carry English names from before that fix, with correct hours. Liam's check, opening it in Excel with the agency owner, is still to come.
