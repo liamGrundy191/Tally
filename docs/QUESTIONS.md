@@ -127,3 +127,23 @@ Options: A) No list: inviting the same email again gives a new link, and the old
 Recommendation: A; section 8 does not ask for it, and invited emails are kept only briefly (D44).
 
 Answer (Liam): A (2026-11-22), no list.
+
+## Q11 · T3.1 · The words in the Excel file · answered
+
+Context: Section 6.2 fixes `עובד` and `סה"כ`, but not the other headings: the totals sheet's columns, the heading of each workplace sheet's total column, the removed sheet's columns, and the reason a ticket was removed. The agency's own file is in Hebrew.
+
+Options: A) Hebrew, like the agency's file: `מקום עבודה` / `שעות`; `סה"כ`; `מקום עבודה | עובד | תאריך | שעות | סיבה | הוסר על ידי`; reasons `הוסר`, `הוחלף בכרטיס חדש`, `נסרק פעמיים`. B) English.
+
+Recommendation: A. Worker names stay in English letters (5.2).
+
+Answer (Liam): A (2026-11-23).
+
+## Q12 · T3.1 · Rows and sheets that become empty · answered
+
+Context: Section 6.2 says the layout only ever grows. But if every ticket of a worker at a place is removed, or two places are merged as "same place", that row or sheet has no hours left.
+
+Options: A) Drop it: each download shows exactly the current tickets. B) Keep it, empty, in later downloads.
+
+Recommendation: A. An empty row tells the owner nothing, and hours change only through tickets (6.1).
+
+Answer (Liam): A (2026-11-23).

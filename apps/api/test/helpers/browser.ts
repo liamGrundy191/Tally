@@ -29,6 +29,17 @@ export class Browser {
     return { status: res.status, body: text ? JSON.parse(text) : null };
   }
 
+  /** A GET for a file: the raw bytes and headers, not JSON. */
+  async download(path: string) {
+    const cookie = [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; ');
+    const res = await fetch(this.base + path, { headers: cookie ? { cookie } : {} });
+    return {
+      status: res.status,
+      headers: res.headers,
+      bytes: Buffer.from(await res.arrayBuffer()),
+    };
+  }
+
   login(email: string, password: string) {
     return this.send('POST', '/api/auth/login', { email, password });
   }

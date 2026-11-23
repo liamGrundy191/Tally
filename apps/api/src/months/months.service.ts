@@ -84,9 +84,9 @@ export class MonthsService {
    * The month page's tickets by workplace and row (section 9): one row per confirmed name, compared
    * ignoring capitals and spaces (5.2). Tickets with no confirmed name yet are listed apart.
    */
-  private async rows(monthId: string) {
-    const groups = await this.prisma.workplaceGroup.findMany({
-      where: { monthId, mergedIntoId: null },
+  async rows(monthId: string) {
+    const all = await this.prisma.workplaceGroup.findMany({
+      where: { monthId },
       orderBy: { displayName: 'asc' },
       include: {
         tickets: {
@@ -100,10 +100,22 @@ export class MonthsService {
             totalMinutes: true,
             status: true,
             workplaceRaw: true,
+            firstName: true,
           },
         },
       },
     });
+    // A merge moves its tickets (5.3); any left in a merged place still count in the one it joined.
+    const top = finalGroups(all);
+    const groups = all
+      .filter((g) => !g.mergedIntoId)
+      .map((g) => ({
+        ...g,
+        tickets: all
+          .filter((o) => top(o.id) === g.id)
+          .flatMap((o) => o.tickets)
+          .sort((a, b) => (a.shiftDate?.getTime() ?? 0) - (b.shiftDate?.getTime() ?? 0)),
+      }));
     return groups.map((g) => {
       const rows = new Map<string, { name: string; tickets: typeof g.tickets }>();
       for (const t of g.tickets.filter((t) => t.workerName)) {

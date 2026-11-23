@@ -249,6 +249,13 @@ export function Month() {
         {plural(total(m.tickets), 'ticket')}: {m.tickets.verified} ready
         {m.tickets.processing > 0 && `, ${m.tickets.processing} being read`}.
       </Typography>
+      {m.status === 'open' && (
+        <Box sx={{ my: 1 }}>
+          <Button variant="contained" href={`/api/months/${m.id}/excel`}>
+            Download Excel
+          </Button>
+        </Box>
+      )}
       {needReview(m.tickets) > 0 && (
         <Typography>
           {plural(needReview(m.tickets), 'ticket')} still need review and are left out of downloads.{' '}

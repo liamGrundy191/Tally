@@ -47,6 +47,10 @@ describe('parseList', () => {
     ]);
   });
 
+  it('drops the apostrophe the Excel puts before a name starting with - (6.2)', () => {
+    expect(entries('name', "'-Ann\tאן")).toEqual([{ name: '-Ann', spellings: ['אן'] }]);
+  });
+
   it('keeps a name that appears on several lines once, with all its spellings', () => {
     expect(entries('name', 'Dana\nדנה = Dana\nDana = Danna\nDana')).toEqual([
       { name: 'Dana', spellings: ['דנה', 'Danna'] },

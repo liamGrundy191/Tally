@@ -150,6 +150,7 @@ describe('the month page', () => {
     expect(text()).toContain('Name not confirmed yet');
     expect(text()).toContain('—');
     expect(text()).toContain('Needs review');
+    expect(button('Download Excel')?.getAttribute('href')).toBe('/api/months/m-nov/excel');
   });
 
   const SMALL = {
