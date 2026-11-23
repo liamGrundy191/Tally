@@ -422,3 +422,47 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **The result:** 268 of 270 stored values match the truth file, and Liam's 10 tickets match exactly. The two left over follow from Liam's answer that two places the truth file lists apart are one place; his knowledge is taken over the file. The gate's definition ("one person") was met in spirit: the screens alone took every ticket to verified.
 - **Found and fixed before T3.1:** a workplace a person types as a list entry's other spelling (the English spelling of a Hebrew entry) starts a group of its own instead of joining that entry's group, so one place would get two Excel sheets. A save now stores a workplace typed as any list spelling (ignoring case, spaces and punctuation, as grouping does) under its list name, as the reader already did. A spelling two list places share stays as typed.
 - **Noted for later, not now (Liam):** the review flow works well, but the design looks plain and much of the site is not self-explanatory for a newcomer. Both wait for a later design pass.
+
+## D54 · T3.1 · The month's Excel file (Liam, Q11 and Q12)
+
+- **What it holds (6.2):**
+  - **The totals sheet** `סה"כ שעות`: one row per workplace in sheet order, each a formula pointing at that sheet's grand total, and a last row adding them up.
+  - **One sheet per workplace**, in right-to-left view:
+    - a row per confirmed name, compared ignoring capitals and spaces (the same rows as the month page, from the same code);
+    - a column per day, 1 to 31;
+    - a total per row and per day, as formulas.
+  - **`שמות`**: each confirmed name once, with the Hebrew spellings on this month's tickets.
+  - **`לא נכללו`**: one row per removed ticket.
+- **Labels in Hebrew (Liam, Q11).** `מקום עבודה`, `שעות`, `סה"כ` and `מקום עבודה | עובד | תאריך | שעות | סיבה | הוסר על ידי`, with the reasons `הוסר`, `הוחלף בכרטיס חדש` and `נסרק פעמיים`. Worker names stay in English letters.
+- **The file follows the current tickets (Liam, Q12).** A row or a sheet with no ready hours is left out, so a removal or a merge can make one disappear from the next download. "The layout only grows" holds while tickets are only added.
+- **Only ready tickets count (6.1).**
+  - Tickets still being read or reviewed are left out; the month page already says how many.
+  - The file is made from whatever is ready, at any time.
+  - A closing or closed month is refused, since its data is being deleted.
+- **Exact hours.**
+  - A cell holds the day's whole minutes added up, then divided by 60 once, shown with two decimals (D37). Nothing is rounded.
+  - Two kept tickets on one day share their cell, and it holds their sum.
+  - Each formula also stores its result, worked out from whole minutes, and Excel recalculates on opening.
+- **No hours are left out silently.** The file is made only when every ready ticket of the month has its row. The ready tickets are checked one by one, not just counted.
+  - **A download during reading waits.** Reading marks a clean ticket ready at once, but tickets join a workplace only once their whole upload is read (D45). Until then the download is refused with "Some tickets are still being sorted. Try again in a minute."
+  - The same message refuses a ready ticket still in a place merged away. A merge moves every ticket, so this should not happen. It also refuses a ready ticket dated outside the month.
+  - A ready ticket with no date or hours refuses the download as an error on our side. The checks never allow one.
+  - Removed tickets may lack anything (one removed before it was read), so their cells may be empty.
+- **One consistent picture.** The month, its rows, its ready tickets and its removed tickets are read together, in one database transaction. A removal or a merge half way through cannot show a ticket twice or not at all.
+- **Text that could be a formula** (starting with `=`, `+`, `-` or `@`, as 6.2 says) gets a leading apostrophe.
+  - **Tab and carriage return are escaped too.** The usual advice against spreadsheet formula injection lists them; it flags more for one character.
+  - **The apostrophe shows in the cell.** exceljs 4.4.0 cannot hide it the way Excel does, and no other library is added.
+  - **Pasting the names sheet as the names list drops it again.** The list reader removes a leading apostrophe only when one of those characters follows it, so a name like `'Neill` keeps its own.
+- **Sheet names:**
+  - the forbidden characters `\ / ? * [ ] :` and control characters are removed;
+  - an apostrophe at either end is removed (Excel refuses one there);
+  - a name is cut to 31 characters, including any ` (2)` added for a clash, so it never goes over;
+  - clashes are found ignoring capitals, as Excel compares them, and the fixed sheet names are taken first;
+  - an empty name becomes `מקום עבודה`.
+- **The download.** `GET /api/months/:id/excel` (reviewers and admins) returns `hours-YYYY-MM.xlsx`. The reply tells the browser and any proxy not to keep a copy, as with the scans.
+  - **The button.** The month page shows **Download Excel** while the month is open. It fetches the file and saves it, and is disabled while it works.
+  - **When the file cannot be made**, the page says why in plain English, as it does for its other errors. A plain link would have shown the server's raw reply instead.
+- **Left for T3.3:** counting downloads, which closing a month needs.
+- **exceljs 4.4.0, pinned.** It is the last stable release; the newer one is a pre-release.
+  - The audit reports one moderate problem in its `uuid` 8, which only affects uuid versions 3, 5 and 6 given a buffer.
+  - exceljs uses version 4, so it does not apply, and CI's audit (high and above) passes. No override.

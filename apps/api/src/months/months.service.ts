@@ -84,8 +84,8 @@ export class MonthsService {
    * The month page's tickets by workplace and row (section 9): one row per confirmed name, compared
    * ignoring capitals and spaces (5.2). Tickets with no confirmed name yet are listed apart.
    */
-  private async rows(monthId: string) {
-    const groups = await this.prisma.workplaceGroup.findMany({
+  async rows(monthId: string, db: PrismaClient | Prisma.TransactionClient = this.prisma) {
+    const groups = await db.workplaceGroup.findMany({
       where: { monthId, mergedIntoId: null },
       orderBy: { displayName: 'asc' },
       include: {
@@ -100,6 +100,7 @@ export class MonthsService {
             totalMinutes: true,
             status: true,
             workplaceRaw: true,
+            firstName: true,
           },
         },
       },

@@ -2,7 +2,7 @@
 // upload to storage (no network).
 import { MAX_UPLOAD_BYTES, NOT_ARRIVED, TOO_LARGE } from '@tally/shared';
 import { act } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   button,
   calls,
@@ -150,6 +150,42 @@ describe('the month page', () => {
     expect(text()).toContain('Name not confirmed yet');
     expect(text()).toContain('—');
     expect(text()).toContain('Needs review');
+  });
+
+  describe('Download Excel', () => {
+    const saved: string[] = [];
+    beforeEach(() => {
+      saved.length = 0;
+      URL.createObjectURL = vi.fn(() => 'blob:excel');
+      URL.revokeObjectURL = vi.fn();
+      vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+        this: HTMLAnchorElement,
+      ) {
+        saved.push(`${this.download} ${this.getAttribute('href')}`);
+      });
+      replies['GET /api/months/m-nov'] = { status: 200, body: SMALL };
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    it("saves the month's file", async () => {
+      replies['GET /api/months/m-nov/excel'] = { status: 200, body: 'xlsx bytes' };
+      await open('/months/m-nov');
+      await click('Download Excel');
+      expect(saved).toEqual(['hours-2026-11.xlsx blob:excel']);
+      expect(text()).not.toContain('went wrong');
+    });
+
+    it('says why when the file cannot be made, on the page', async () => {
+      replies['GET /api/months/m-nov/excel'] = {
+        status: 409,
+        body: { message: 'Some tickets are still being sorted. Try again in a minute.' },
+      };
+      await open('/months/m-nov');
+      await click('Download Excel');
+      expect(saved).toEqual([]);
+      expect(text()).toContain('Some tickets are still being sorted. Try again in a minute.');
+      expect(button('Download Excel')?.hasAttribute('disabled')).toBe(false);
+    });
   });
 
   const SMALL = {
