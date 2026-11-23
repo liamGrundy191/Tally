@@ -250,3 +250,11 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **The server stays the safeguard.** Your own account has no buttons, but the real protection is the server's last-admin rule, which holds for every change.
 - **Reviews found nothing serious.** The fixes were small but real: the page re-checks who is logged in when an admin was demoted elsewhere, and the invite link is forgotten as soon as you leave the page.
 - **Tested the way it is used.** A browser test invites a reviewer, who sets a password and does not see the Admin page.
+
+### 27. The Phase 2 gate: real tickets through the browser
+
+- **Liam saw the app work for the first time.** He reviewed 10 real tickets himself and called the flow "phenomenal"; the outlined doubtful boxes helped most. An agent reviewed the remaining 35 through the same screens.
+- **The money was spent once, on purpose.** The 45 tickets were read once, in Batch, for $6.55 (estimated $6.50), and the app was then restarted with a fake reader so no click in the review could cost anything.
+- **The safety rule held on real paper.** Before review, no wrong value was accepted without a flag. After review, 268 of 270 values match the answer file, and the other two follow from Liam's own answer that two places are one.
+- **The gate also found a bug.** A person who types a workplace by its other spelling on the list starts a separate workplace, which would split one place across two Excel sheets. It is fixed before the Excel exporter.
+- **The permission system did its job.** It refused to let an agent answer the workplace questions on a relayed approval, so Liam answered them himself in a minute.
