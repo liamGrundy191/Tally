@@ -296,6 +296,35 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
     expect((await get(a.id)).status).toBe('verified');
   });
 
+  it('stores a workplace typed as a list spelling under its list name, so it joins that place', async () => {
+    await prisma.listEntry.create({
+      data: { kind: 'workplace', name: 'בית הדר', spellings: ['Beit Hadar'] },
+    });
+    const a = await ticket({ workplaceRaw: 'בית הדר', status: 'verified', verifiedHow: 'auto' });
+    const b = await ticket({ workplaceRaw: null, firstName: 'Dana', workerName: 'Dana' });
+    const res = await save(
+      b.id,
+      { firstName: 'Dana', workplace: 'beit  hadar' },
+      { workerName: 'Dana' },
+    );
+    expect(res.status).toBe(200);
+    const saved = await get(b.id);
+    expect(saved.workplaceRaw).toBe('בית הדר');
+    expect(saved.workplaceGroupId).toBe((await get(a.id)).workplaceGroupId);
+  });
+
+  it('keeps a workplace as typed when two list places share that spelling', async () => {
+    await prisma.listEntry.createMany({
+      data: [
+        { kind: 'workplace', name: 'בית הדר', spellings: ['Hadar'] },
+        { kind: 'workplace', name: 'הדר', spellings: ['Hadar'] },
+      ],
+    });
+    const t = await ticket();
+    expect((await save(t.id, { workplace: 'Hadar' })).status).toBe(200);
+    expect((await get(t.id)).workplaceRaw).toBe('Hadar');
+  });
+
   it('keeps a ticket dated in a closing month out of it, and removes it on request', async () => {
     const october = await monthOf(prisma, new Date('2026-10-20'));
     await prisma.month.update({ where: { id: october.id }, data: { status: 'closing' } });
