@@ -3,11 +3,13 @@ import {
   Alert,
   Box,
   Button,
+  Checkbox,
   Dialog,
   DialogActions,
   DialogContent,
   DialogContentText,
   DialogTitle,
+  FormControlLabel,
   List,
   ListItem,
   Table,
@@ -71,6 +73,19 @@ const day = (iso: string | null) =>
         timeZone: 'UTC',
       })
     : '—';
+
+// The month's two files, as the server names them (6.2, 6.3).
+const mm = (m: MonthSummary) => `${m.year}-${String(m.month).padStart(2, '0')}`;
+const saveExcel = (m: MonthSummary) => download(`/api/months/${m.id}/excel`, `hours-${mm(m)}.xlsx`);
+const saveZip = (m: MonthSummary) => download(`/api/months/${m.id}/pdfs`, `tickets-${mm(m)}.zip`);
+/** When a month was closed, as a date in Israel. */
+const closedOn = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    timeZone: AGENCY_TIME_ZONE,
+  });
 
 /** From day 50, an open month is about to be deleted automatically (6.1). */
 function DeleteWarning({ m }: { m: MonthSummary }) {
@@ -246,17 +261,21 @@ export function Month() {
       void client.invalidateQueries({ queryKey: ['months'] });
     },
   });
-  const excel = useMutation({
-    mutationFn: () => {
-      const m = month.data!;
-      const name = `hours-${m.year}-${String(m.month).padStart(2, '0')}.xlsx`;
-      return download(`/api/months/${m.id}/excel`, name);
-    },
-  });
+  const excel = useMutation({ mutationFn: () => saveExcel(month.data!) });
   const [closing, setClosing] = useState(false);
   const [typed, setTyped] = useState('');
+  const [fresh, setFresh] = useState(true);
+  // Close (Liam, Q15): with the box ticked, the final files are downloaded first, and the month is
+  // closed only if both arrived, so the files kept are the month as it is closed.
   const close = useMutation({
-    mutationFn: () => api(`/api/months/${month.data!.id}/close`, 'POST', { name: typed }),
+    mutationFn: async () => {
+      const m = month.data!;
+      if (fresh) {
+        await saveExcel(m);
+        await saveZip(m);
+      }
+      await api(`/api/months/${m.id}/close`, 'POST', { name: typed });
+    },
     onSuccess: () => {
       setClosing(false);
       void client.invalidateQueries({ queryKey: ['months'] });
@@ -266,10 +285,9 @@ export function Month() {
   const pdfs = useMutation({
     mutationFn: (w?: { groupId: string; name: string }) => {
       const m = month.data!;
-      const mm = String(m.month).padStart(2, '0');
       return w
         ? download(`/api/months/${m.id}/pdfs?workplace=${w.groupId}`, `${w.name}.pdf`)
-        : download(`/api/months/${m.id}/pdfs`, `tickets-${m.year}-${mm}.zip`);
+        : saveZip(m);
     },
   });
   if (month.error)
@@ -281,8 +299,8 @@ export function Month() {
     return (
       <Page title={monthName(m)}>
         <Typography>
-          Closed on {day(m.closedAt)}. Its tickets and scans were deleted; the summary is kept:{' '}
-          {plural(m.summaryTicketCount ?? 0, 'ready ticket')},{' '}
+          Closed on {closedOn(m.closedAt!)}. Its tickets and scans were deleted; the summary is
+          kept: {plural(m.summaryTicketCount ?? 0, 'ready ticket')},{' '}
           {formatMinutes(m.summaryTotalMinutes ?? 0)} hours.
         </Typography>
       </Page>
@@ -336,7 +354,15 @@ export function Month() {
           >
             Workplace PDFs
           </Button>
-          <Button color="error" onClick={() => setClosing(true)}>
+          <Button
+            color="error"
+            onClick={() => {
+              setTyped('');
+              setFresh(true);
+              close.reset();
+              setClosing(true);
+            }}
+          >
             Close month
           </Button>
           {excel.error && <Alert severity="error">{excel.error.message}</Alert>}
@@ -439,24 +465,22 @@ export function Month() {
         <DialogTitle id="close-title">Close {monthName(m)}?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Closing deletes this month's tickets and scans for good; only a summary is kept. First
-            download the final files, then type the month's name.
+            Closing deletes this month's tickets and scans for good; only a summary is kept. Type
+            the month's name to close it.
           </DialogContentText>
-          <Box sx={{ my: 2 }}>
-            <Button variant="outlined" disabled={excel.isPending} onClick={() => excel.mutate()}>
-              Download Excel
-            </Button>{' '}
-            <Button
-              variant="outlined"
-              disabled={pdfs.isPending}
-              onClick={() => pdfs.mutate(undefined)}
-            >
-              Workplace PDFs
-            </Button>
-          </Box>
-          {(excel.error ?? pdfs.error) && (
-            <Alert severity="error">{(excel.error ?? pdfs.error)!.message}</Alert>
+          {needReview(m.tickets) > 0 && (
+            <Alert severity="warning" sx={{ my: 1 }}>
+              {plural(needReview(m.tickets), 'ticket')} still need review: review or remove them
+              first.
+            </Alert>
           )}
+          <FormControlLabel
+            control={<Checkbox checked={fresh} onChange={(e) => setFresh(e.target.checked)} />}
+            label="Download the final Excel and workplace PDFs now"
+          />
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Untick only if you already have the latest files.
+          </Typography>
           <TextField
             label={`Type ${monthName(m)}`}
             value={typed}

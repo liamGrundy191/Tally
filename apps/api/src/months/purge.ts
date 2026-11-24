@@ -14,6 +14,7 @@ import { type Prisma, PrismaClient } from '../generated/prisma/client.ts';
 import { PURGE_MONTH } from '../queue.ts';
 import { ReadingConfig } from '../reading/config.ts';
 import { Storage } from '../storage.ts';
+import { lockNewMonth } from './months.service.ts';
 import { lockMonth } from './organiser.ts';
 
 type Tx = Prisma.TransactionClient;
@@ -61,6 +62,30 @@ export class Purger {
           waiting === 1
             ? '1 ticket still needs review. Review or remove it before closing the month.'
             : `${waiting} tickets still need review. Review or remove them before closing the month.`,
+        );
+      }
+      // A ticket being read has no month yet, and may be dated in this one.
+      if ((await tx.ticket.count({ where: { status: 'processing' } })) > 0) {
+        throw new ConflictException(
+          'Some tickets are still being read. Try again when reading has finished.',
+        );
+      }
+      // Dated in this month but outside it, until a person settles the date or a doubt (6c).
+      const outside = await tx.ticket.count({
+        where: {
+          monthId: null,
+          status: { not: 'excluded' },
+          shiftDate: {
+            gte: new Date(Date.UTC(month.year, month.month - 1, 1)),
+            lt: new Date(Date.UTC(month.year, month.month, 1)),
+          },
+        },
+      });
+      if (outside > 0) {
+        throw new ConflictException(
+          outside === 1
+            ? '1 ticket dated in this month is waiting for a date or a check.'
+            : `${outside} tickets dated in this month are waiting for a date or a check.`,
         );
       }
       await this.markClosing(tx, monthId, userId);
@@ -111,6 +136,7 @@ export class Purger {
       await this.deleteTickets(tickets);
     }
     await this.prisma.$transaction(async (tx) => {
+      await lockNewMonth(tx); // before the month's lock, as everywhere (the lists may go)
       await lockMonth(tx, monthId);
       const again = await tx.month.findUniqueOrThrow({ where: { id: monthId } });
       if (again.status !== 'closing') return;
@@ -170,7 +196,8 @@ export class Purger {
 
   /**
    * The lists go with the last open month (5.4), but not while a file is being split or read: its
-   * tickets would be read without them, or start a new month that needs them.
+   * tickets would be read without them, or start a new month that needs them. The caller holds the
+   * new-month lock, so no month is being created meanwhile.
    */
   private async dropListsIfIdle(tx: Tx) {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('names'))`;
@@ -184,16 +211,20 @@ export class Purger {
 
   /**
    * The nightly check (6.1, 6.4): a month 60 days past its last day is closed even if nobody
-   * downloaded it; a month left `closing` is purged again; a removed ticket outside any month goes.
+   * downloaded it; a month left `closing` is purged again; then what no month holds any more.
    */
   async check() {
+    // Both clocks must agree: the settings' date (which tests fix) and the database's own, so a
+    // wrong clock on one machine alone never deletes a month early.
+    const [{ day }] = await this.prisma.$queryRaw<[{ day: string }]>`
+      SELECT to_char(now() AT TIME ZONE 'Asia/Jerusalem', 'YYYY-MM-DD') AS day`;
     const today = this.config.settings().today;
     const months = await this.prisma.month.findMany({
       where: { status: { in: ['open', 'closing'] } },
     });
     for (const m of months) {
       if (m.status === 'closing') await this.queue(m.id);
-      else if (today >= autoDeleteOn(m)) {
+      else if (today >= autoDeleteOn(m) && day >= autoDeleteOn(m)) {
         await this.prisma.$transaction(async (tx) => {
           await lockMonth(tx, m.id);
           const again = await tx.month.findUniqueOrThrow({ where: { id: m.id } });
@@ -201,11 +232,57 @@ export class Purger {
         }, LONG);
       }
     }
-    // A removed ticket dated in a month already closed belongs to no month (6.1): kept, nothing
-    // would ever delete it. One waiting for a date is not removed, and stays.
+    await this.deleteStrays();
+    // An upload left with no tickets (all removed or read again elsewhere): kept a week, then gone.
+    const empty = await this.prisma.upload.findMany({
+      where: {
+        s3KeyOriginal: null,
+        tickets: { none: {} },
+        createdAt: { lt: new Date(Date.now() - 7 * 24 * 3600_000) },
+      },
+      select: { id: true },
+    });
+    for (const { id } of empty) {
+      await this.storage.removePrefix(`pages/${id}/`);
+      await this.prisma.$transaction(async (tx) => {
+        const gone = await tx.upload.deleteMany({
+          where: { id, s3KeyOriginal: null, tickets: { none: {} } },
+        });
+        if (gone.count) {
+          await tx.auditEntry.deleteMany({ where: { entity: 'Upload', entityId: id } });
+        }
+      });
+    }
+    // The lists, if the last open month closed while a file was being read.
+    await this.prisma.$transaction(async (tx) => {
+      await lockNewMonth(tx);
+      await this.dropListsIfIdle(tx);
+    }, LONG);
+  }
+
+  /**
+   * A removed ticket dated in a month already closed belongs to no month (6.1.7), and nothing else
+   * would ever delete it. Only those go: one removed while waiting for a date may still be dated in
+   * an open month, and stays until that month closes.
+   */
+  private async deleteStrays() {
+    const closed = await this.prisma.month.findMany({ where: { status: 'closed' } });
+    const where = {
+      monthId: null,
+      status: 'excluded' as const,
+      OR: [
+        { flags: { some: { code: 'MONTH_CLOSED' } } },
+        ...closed.map((m) => ({
+          shiftDate: {
+            gte: new Date(Date.UTC(m.year, m.month - 1, 1)),
+            lt: new Date(Date.UTC(m.year, m.month, 1)),
+          },
+        })),
+      ],
+    };
     for (;;) {
       const strays = await this.prisma.ticket.findMany({
-        where: { monthId: null, status: 'excluded' },
+        where,
         select: { id: true, uploadId: true, s3KeyPage: true },
         take: BATCH,
       });

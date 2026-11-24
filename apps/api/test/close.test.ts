@@ -166,6 +166,10 @@ describe.skipIf(!databaseUrl || !storageConfigured)('closing a month (T3.3)', ()
       );
       expect((await close('not-a-month', 'October 2026')).status).toBe(404);
       expect((await close(crypto.randomUUID(), 'October 2026')).status).toBe(404);
+      // The month is checked before what was sent.
+      expect(
+        (await owner.send('POST', `/api/months/${crypto.randomUUID()}/close`, {})).status,
+      ).toBe(404);
     });
 
     it('refuses until the month’s name is typed', async () => {
@@ -209,6 +213,26 @@ describe.skipIf(!databaseUrl || !storageConfigured)('closing a month (T3.3)', ()
           })
         ).status,
       ).toBe(204);
+      // A ticket being read may be dated in this month.
+      const u = await upload('still-reading.pdf');
+      const reading = await ticket(u, null, null, 'Ann', { status: 'processing', shiftDate: null });
+      let res = await close(oct.monthId, 'October 2026');
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(
+        'Some tickets are still being read. Try again when reading has finished.',
+      );
+      await prisma.ticket.delete({ where: { id: reading.id } });
+      // A ticket dated in October that waits outside it for a person (6c).
+      const outside = await ticket(u, null, null, 'Ben', {
+        status: 'needs_review',
+        shiftDate: new Date(Date.UTC(2026, 9, 31)),
+      });
+      res = await close(oct.monthId, 'October 2026');
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(
+        '1 ticket dated in this month is waiting for a date or a check.',
+      );
+      await prisma.ticket.delete({ where: { id: outside.id } });
       expect((await close(oct.monthId, ' october  2026 ')).status).toBe(202);
       const m = await prisma.month.findUniqueOrThrow({ where: { id: oct.monthId } });
       expect(m).toMatchObject({
@@ -433,20 +457,66 @@ describe.skipIf(!databaseUrl || !storageConfigured)('closing a month (T3.3)', ()
       await closed(stuck.id);
     });
 
-    it('deletes removed tickets that belong to no month, keeping those waiting for a date', async () => {
+    it('deletes removed tickets that belong to no month only once their month is closed', async () => {
       const u = await upload('strays.pdf');
-      const removed = await ticket(u, null, null, 'Ann', {
-        status: 'excluded',
-        excludedReason: 'removed',
-        excludedById: ownerId,
+      const removed = { status: 'excluded', excludedReason: 'removed', excludedById: ownerId };
+      // Dated in November, which is closed.
+      const inClosed = await ticket(u, null, null, 'Ann', removed);
+      // Read into a month already closed (6.1.7), whatever its date says now.
+      const flagged = await ticket(u, null, null, 'Bea', {
+        ...removed,
+        shiftDate: new Date(Date.UTC(2026, 8, 5)),
+      });
+      await prisma.flag.create({
+        data: { ticketId: flagged.id, code: 'MONTH_CLOSED', field: 'date', detail: {} },
+      });
+      // Dated in September, still open: it may yet be wanted there.
+      const inOpen = await ticket(u, null, null, 'Cal', {
+        ...removed,
+        shiftDate: new Date(Date.UTC(2026, 8, 6)),
       });
       const waiting = await ticket(u, null, null, 'Ben', { status: 'needs_review' });
       await purger.check();
-      expect(await prisma.ticket.count({ where: { id: removed.id } })).toBe(0);
-      expect(await files.keys()).not.toContain(removed.s3KeyPage);
-      expect(await prisma.ticket.count({ where: { id: waiting.id } })).toBe(1);
-      expect(await files.keys()).toContain(waiting.s3KeyPage);
+      for (const t of [inClosed, flagged]) {
+        expect(await prisma.ticket.count({ where: { id: t.id } })).toBe(0);
+        expect(await files.keys()).not.toContain(t.s3KeyPage);
+      }
+      for (const t of [inOpen, waiting]) {
+        expect(await prisma.ticket.count({ where: { id: t.id } })).toBe(1);
+        expect(await files.keys()).toContain(t.s3KeyPage);
+      }
       expect(await prisma.upload.count({ where: { id: u } })).toBe(1);
+    });
+
+    it('deletes an upload left with no tickets after a week, with its pages and history', async () => {
+      const old = await upload('old-empty.pdf');
+      const recent = await upload('recent-empty.pdf');
+      await prisma.upload.update({
+        where: { id: old },
+        data: { createdAt: new Date(Date.now() - 8 * 24 * 3600_000) },
+      });
+      await files.storage.put(`pages/${old}/0.jpg`, scans[0]!, 'image/jpeg');
+      await prisma.auditEntry.create({
+        data: { userId: ownerId, action: 'upload', entity: 'Upload', entityId: old },
+      });
+      await purger.check();
+      expect(await prisma.upload.count({ where: { id: old } })).toBe(0);
+      expect(await prisma.auditEntry.count({ where: { entityId: old } })).toBe(0);
+      expect(await files.keys()).not.toContain(`pages/${old}/0.jpg`);
+      expect(await prisma.upload.count({ where: { id: recent } })).toBe(1);
+    });
+
+    it('deletes nothing early when only one of the two clocks says it is time', async () => {
+      const u = await upload('future.pdf');
+      const m = await seed(2030, 1, 'חוות עתיד'); // deleted from 1 April 2030
+      await ticket(u, m.monthId, m.groupId, 'Ann', { shiftDate: new Date(Date.UTC(2030, 0, 3)) });
+      today = '2031-01-01'; // the settings say so; the database's clock does not
+      try {
+        await purger.check();
+      } finally {
+        today = '2026-11-20';
+      }
+      expect(await status(m.monthId)).toBe('open');
     });
   });
 
@@ -469,8 +539,12 @@ describe.skipIf(!databaseUrl || !storageConfigured)('closing a month (T3.3)', ()
     await prisma.upload.update({ where: { id: u }, data: { s3KeyOriginal: 'uploads/x' } });
     await empty(2025, 2);
     expect(await prisma.listEntry.count()).toBeGreaterThan(0);
-    // Nothing open, nothing being read: the lists go (5.4).
+    // Nothing open, nothing being read: the nightly check deletes them (5.4)…
     await prisma.upload.update({ where: { id: u }, data: { s3KeyOriginal: null } });
+    await purger.check();
+    expect(await prisma.listEntry.count()).toBe(0);
+    // …and so does closing a month when nothing else is open.
+    await prisma.listEntry.create({ data: { kind: 'name', name: 'Ann' } });
     await empty(2025, 3);
     expect(await prisma.listEntry.count()).toBe(0);
   });

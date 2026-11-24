@@ -15,7 +15,6 @@ import { closeMonthSchema } from '@tally/shared';
 import { z } from 'zod';
 import { Access, CurrentUser } from '../auth/access.ts';
 import type { SessionUser } from '../auth/http.ts';
-import { validate } from '../validate.ts';
 import { ExcelExporter } from './excel.ts';
 import { WorkplacePdfExporter } from './pdfs.ts';
 import { MonthsService } from './months.service.ts';
@@ -91,7 +90,9 @@ export class MonthsController {
   @Post(':id/close')
   @HttpCode(202)
   async close(@CurrentUser() user: SessionUser, @Param('id') id: string, @Body() body: unknown) {
-    const { name } = validate(closeMonthSchema, body);
+    // The month is looked up first, so an unknown one is a 404 whatever was sent; a missing or
+    // wrong name is then refused as not the month's name.
+    const name = closeMonthSchema.safeParse(body).data?.name ?? '';
     await this.purger.close(user.id, monthId(id), name);
   }
 }

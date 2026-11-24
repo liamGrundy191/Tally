@@ -1,7 +1,12 @@
 // The workplace PDFs (section 6.3): one PDF per workplace with each ready ticket's scan as one page,
 // by date and then name, all in one ZIP or one workplace at a time. Made from the same ready
 // tickets as the Excel, so the two always agree (principle 7, D55).
-import { Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PDFDocument } from 'pdf-lib';
 import { PrismaClient } from '../generated/prisma/client.ts';
 import { Storage } from '../storage.ts';
@@ -65,7 +70,8 @@ export class WorkplacePdfExporter {
     // shortcut: holds every workplace PDF in memory (about the month's scans); stream them one by
     // one if the production server runs short (T4.3).
     const files = [];
-    for (const [i, p] of places.entries()) files.push({ name: names[i]!, data: await this.pdf(p) });
+    for (const [i, p] of places.entries())
+      files.push({ name: names[i]!, data: await this.pdf(monthId, p) });
     const mm = String(month.month).padStart(2, '0');
     return { zip: zip(files), filename: `tickets-${month.year}-${mm}.zip` };
   }
@@ -76,7 +82,7 @@ export class WorkplacePdfExporter {
     // A page opened before a merge still asks for the place it joined.
     const i = places.findIndex((p) => p.groupId === top(groupId));
     if (i < 0) throw new NotFoundException('This workplace has no ready tickets in this month.');
-    return { pdf: await this.pdf(places[i]!), filename: names[i]! };
+    return { pdf: await this.pdf(monthId, places[i]!), filename: names[i]! };
   }
 
   /** The same ready tickets as the Excel, and each workplace's file name. */
@@ -98,7 +104,10 @@ export class WorkplacePdfExporter {
     return { month, places, names, top: finalGroups(groups) };
   }
 
-  private async pdf(place: Awaited<ReturnType<typeof readyPlaces>>['places'][number]) {
+  private async pdf(
+    monthId: string,
+    place: Awaited<ReturnType<typeof readyPlaces>>['places'][number],
+  ) {
     // Rows come sorted by name, and a row's tickets by date and arrival: sorting by date alone
     // (a stable sort) gives date, then name, then the order the scans came in.
     const tickets = place.rows
@@ -110,6 +119,11 @@ export class WorkplacePdfExporter {
       const file = await this.storage.get(t.s3KeyPage);
       // Never a PDF short of a ticket without a word (6.1).
       if (!file) {
+        // Closed meanwhile: its scans are being deleted, which is not a fault.
+        const month = await this.prisma.month.findUnique({ where: { id: monthId } });
+        if (month?.status !== 'open') {
+          throw new ConflictException('This month is being closed or is closed.');
+        }
         throw new InternalServerErrorException(
           'The scan of a ticket is missing, so the PDFs were not made.',
         );

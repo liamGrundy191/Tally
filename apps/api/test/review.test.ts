@@ -270,6 +270,24 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
     expect(await open(b.id)).toEqual(['POSSIBLE_DUPLICATE']);
   });
 
+  it('drops answered questions about the old month when a ticket moves to another', async () => {
+    const t = await ticket();
+    const answered = { resolvedAt: new Date(), resolution: 'different_place', detail: {} };
+    await prisma.flag.createMany({
+      data: [
+        { ticketId: t.id, code: 'WORKPLACE_SIMILAR', ...answered },
+        { ticketId: t.id, code: 'POSSIBLE_DUPLICATE', ...answered },
+        { ticketId: t.id, code: 'CORRECTION_MARKS', ...answered },
+      ],
+    });
+    expect((await save(t.id, { date: '13/12/2026' })).status).toBe(200);
+    const moved = await get(t.id);
+    expect(moved.monthId).not.toBe(monthId);
+    expect(moved.flags.map((f) => f.code)).not.toContain('WORKPLACE_SIMILAR');
+    expect(moved.flags.map((f) => f.code)).not.toContain('POSSIBLE_DUPLICATE');
+    expect(moved.flags.map((f) => f.code)).toContain('CORRECTION_MARKS');
+  });
+
   it('regroups a ticket whose workplace is corrected, and drops its similar-place question', async () => {
     const a = await ticket({ workplaceRaw: 'בית הדר', status: 'verified', verifiedHow: 'auto' });
     const b = await ticket({

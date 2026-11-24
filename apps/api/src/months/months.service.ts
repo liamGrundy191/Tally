@@ -15,9 +15,20 @@ import { finalGroups, lockMonth } from './organiser.ts';
  */
 export async function monthOf(db: PrismaClient | Prisma.TransactionClient, date: Date) {
   const key = { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+  const found = await db.month.findUnique({ where: { year_month: key } });
+  if (found) return found;
+  // A new month waits while the lists are being deleted with the last open one (5.4, D56).
+  await lockNewMonth(db);
   await db.month.createMany({ data: [key], skipDuplicates: true });
   return db.month.findUniqueOrThrow({ where: { year_month: key } });
 }
+
+/**
+ * Held while a month is created, and while the lists are deleted for want of an open month. Always
+ * taken before a month's own lock, so the lock order stays the same everywhere.
+ */
+export const lockNewMonth = (db: PrismaClient | Prisma.TransactionClient) =>
+  db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('new-month'))`;
 
 @Injectable()
 export class MonthsService {

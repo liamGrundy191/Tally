@@ -323,4 +323,21 @@ describe.skipIf(!databaseUrl || !storageConfigured)('the workplace PDFs (T3.2)',
       await files.storage.put(missing.key, missing.scan, 'image/jpeg');
     }
   });
+
+  it('says the month is closing when its scans are deleted while the PDFs are made', async () => {
+    const get = files.storage.get;
+    // The month starts closing after the ready tickets were read, and its scans start going.
+    files.storage.get = async () => {
+      await prisma.month.update({ where: { id: monthId }, data: { status: 'closing' } });
+      return null;
+    };
+    try {
+      const res = await owner.send('GET', `/api/months/${monthId}/pdfs`);
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe('This month is being closed or is closed.');
+    } finally {
+      files.storage.get = get;
+      await prisma.month.update({ where: { id: monthId }, data: { status: 'open' } });
+    }
+  });
 });
