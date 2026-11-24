@@ -2,6 +2,7 @@
 // transaction as the rows it is about, so neither can exist without the other.
 import { Logger } from '@nestjs/common';
 import { PgBoss } from 'pg-boss';
+import { POOL_SIZE } from './db.ts';
 import { safeError } from './observability.ts';
 
 /** Splits an uploaded file into page images, one ticket per page (step 2). */
@@ -17,7 +18,7 @@ export const CHECK_MONTHS = 'check-months';
 export const RETRY_LIMIT = 4;
 
 export const createBoss = (url: string, schema?: string) =>
-  new PgBoss({ connectionString: url, ...(schema && { schema }) });
+  new PgBoss({ connectionString: url, max: POOL_SIZE, ...(schema && { schema }) });
 
 /** Creates the queue's tables and the queues, if they do not exist yet. */
 export async function startQueue(boss: PgBoss) {

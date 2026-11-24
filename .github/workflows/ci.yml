@@ -4,6 +4,8 @@ on:
   pull_request:
   push:
     branches: [main]
+  # The deploy runs these checks first (deploy.yml).
+  workflow_call:
 
 jobs:
   check:
@@ -57,3 +59,30 @@ jobs:
       - run: pnpm --filter @tally/web exec playwright install --with-deps chromium
       - run: pnpm e2e
       - run: pnpm audit --prod --audit-level high
+
+  # The production images (T4.3, D60): they build, hold no private files, run as non-root, and the
+  # rehearsal stack answers through Caddy with its security headers.
+  images:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      LOCAL: docker compose -p tally-local -f docker/compose.prod.yml -f docker/compose.local.yml --env-file docker/local.env
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -f docker/app.Dockerfile -t tally-app:local .
+      - run: docker build -f docker/web.Dockerfile -t tally-web:local .
+      - run: sh docker/scan-image.sh tally-app:local /app && sh docker/scan-image.sh tally-web:local /srv
+      - name: Not root, and poppler is there
+        run: |
+          [ "$(docker run --rm tally-app:local id -u)" != 0 ]
+          [ "$(docker run --rm --entrypoint id tally-web:local -u)" != 0 ]
+          docker run --rm tally-app:local pdftoppm -v
+      - name: Start the rehearsal stack and migrate
+        run: |
+          $LOCAL up -d postgres minio minio-setup
+          $LOCAL run --rm -w /app/apps/api api ./node_modules/.bin/prisma migrate deploy
+          $LOCAL up -d --wait api worker web
+      - name: Health, redirect and headers through Caddy
+        run: sh docker/check-local.sh
+      - if: failure()
+        run: $LOCAL logs --no-color
