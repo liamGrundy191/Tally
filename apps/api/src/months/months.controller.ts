@@ -66,6 +66,9 @@ export class MonthsController {
     @Query('workplace') workplace?: string,
   ) {
     if (workplace !== undefined) {
+      if (!z.uuid().safeParse(workplace).success) {
+        throw new NotFoundException('This workplace has no ready tickets in this month.');
+      }
       const file = await this.pdfs.one(monthId(id), workplace);
       // A Hebrew name needs filename* (RFC 5987); the plain one is for browsers without it.
       const encoded = encodeURIComponent(file.filename).replace(
