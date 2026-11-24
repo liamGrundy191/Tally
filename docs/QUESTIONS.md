@@ -187,3 +187,13 @@ Options: A) No entry: the summary is enough. B) A history entry as well.
 Recommendation: A.
 
 Answer (Liam): A (2026-11-24), "the summary is enough". He was unsure an audit log is needed at all and went with the recommendation. This bends section 8 on purpose.
+
+## Q17 · T4.2 · Error alerts · answered
+
+Context: When the live app hits an error, Sentry (section 10) can email someone, so problems are noticed. The reports hold no worker names or ticket values (D59). The account is set up with the server, in T4.3.
+
+Options: A) A free Sentry account in Liam's name; the alert emails go to him and he forwards them to whoever fixes things. B) The account and the emails belong to the developer. C) No Sentry: errors stay in the server's log and nobody is told.
+
+Recommendation: A, with the reports stored in Sentry's EU region (stricter privacy rules).
+
+Answer (Liam): A (2026-11-24).

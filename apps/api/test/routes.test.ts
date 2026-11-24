@@ -1,5 +1,6 @@
-// Every route declares who may call it (section 11), and only logging in and accepting an invite
-// are open to anyone: every other change goes through the login and CSRF checks (T4.1).
+// Every route declares who may call it (section 11), and only logging in, accepting an invite and
+// the health check are open to anyone: every other change goes through the login and CSRF checks
+// (T4.1); the health check changes nothing (T4.2).
 import 'reflect-metadata';
 import { RequestMethod } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
@@ -44,11 +45,11 @@ function routes() {
 }
 
 describe('routes', () => {
-  it('each declare their access, and only two are public, both POST', () => {
+  it('each declare their access; only two changes are public, and the health check', () => {
     const all = routes();
     expect(all.size).toBeGreaterThanOrEqual(25); // every route of section 8 was found
     for (const [route, access] of all) expect(access, route).toBeDefined();
     const open = [...all].filter(([, access]) => access === 'public').map(([route]) => route);
-    expect(open.sort()).toEqual(['POST auth/accept-invite', 'POST auth/login']);
+    expect(open.sort()).toEqual(['GET health//', 'POST auth/accept-invite', 'POST auth/login']);
   });
 });

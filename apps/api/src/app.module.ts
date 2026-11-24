@@ -5,6 +5,8 @@ import { AccessGuard } from './auth/access.ts';
 import { AuthController } from './auth/auth.controller.ts';
 import { AuthService } from './auth/auth.service.ts';
 import { createPrisma } from './db.ts';
+import { HealthController } from './health.controller.ts';
+import { flushReports } from './observability.ts';
 import { PrismaClient } from './generated/prisma/client.ts';
 import { ListsController } from './lists/lists.controller.ts';
 import { MonthsController } from './months/months.controller.ts';
@@ -38,6 +40,7 @@ import { UsersService } from './users/users.service.ts';
     TicketsController,
     ProgressController,
     TemplatesController,
+    HealthController,
   ],
   providers: [
     // Connect on first use or on start; main.ts refuses to start without DATABASE_URL.
@@ -73,5 +76,6 @@ export class AppModule implements OnModuleInit, OnModuleDestroy {
   async onModuleDestroy() {
     await this.boss.stop();
     await this.prisma.$disconnect();
+    await flushReports();
   }
 }
