@@ -39,9 +39,20 @@ export class AccessGuard implements CanActivate {
     ]);
     // A route that forgot to declare its access is refused, never opened by mistake.
     if (!level) throw new ForbiddenException('This route has no access rule.');
-    if (level === 'public') return true;
-
     const req = ctx.switchToHttp().getRequest<Req>();
+    if (level === 'public') {
+      // Logging in has no session to check a CSRF token against. A form on another site can
+      // only send form or plain text bodies, never JSON, so a change must be sent as JSON.
+      const type = String(req.headers['content-type'] ?? '')
+        .split(';')[0]!
+        .trim()
+        .toLowerCase();
+      if (CHANGES.has(req.method) && type !== 'application/json') {
+        throw new ForbiddenException('The page is out of date. Reload it and try again.');
+      }
+      return true;
+    }
+
     const token = readCookie(req, SESSION_COOKIE);
     const user = token ? await this.auth.userForSession(token) : null;
     if (!user) throw new UnauthorizedException('Please log in.');

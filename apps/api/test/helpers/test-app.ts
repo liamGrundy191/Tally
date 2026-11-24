@@ -4,7 +4,9 @@ import type { Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { AddressInfo } from 'node:net';
 import { PgBoss } from 'pg-boss';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from '../../src/app.module.ts';
+import { configureApp } from '../../src/http-setup.ts';
 import { PrismaClient } from '../../src/generated/prisma/client.ts';
 import { createBoss } from '../../src/queue.ts';
 import { ReadingConfig } from '../../src/reading/config.ts';
@@ -25,8 +27,8 @@ export async function testApp(
     .useValue(createBoss(db.url, db.queueSchema));
   if (opts.storage) builder = builder.overrideProvider(Storage).useValue(opts.storage);
   if (opts.reading) builder = builder.overrideProvider(ReadingConfig).useValue(opts.reading);
-  const app = (await builder.compile()).createNestApplication();
-  app.setGlobalPrefix('api');
+  const app = (await builder.compile()).createNestApplication<NestExpressApplication>();
+  configureApp(app);
   await app.listen(0, '127.0.0.1');
   return { app, base: `http://127.0.0.1:${(app.getHttpServer().address() as AddressInfo).port}` };
 }

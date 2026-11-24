@@ -86,6 +86,33 @@ describe('page images', () => {
     expect([second.format, second.width, second.height]).toEqual(['jpeg', 834, 556]);
   });
 
+  it('renders an over-sized page smaller, so it cannot fill the memory (T4.1)', async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([14_400, 14_400]); // the largest page a PDF allows: 200 inches square
+    doc.addPage([595.28, 841.89]); // A4
+    const pdf = await file('huge.pdf', Buffer.from(await doc.save()));
+    const huge = await sharp(await pdfPageToJpeg(pdf, 0)).metadata();
+    expect(Math.max(huge.width!, huge.height!)).toBeLessThanOrEqual(4000);
+    const a4 = await sharp(await pdfPageToJpeg(pdf, 1)).metadata();
+    expect(a4.height).toBe(2339); // still 200 dpi
+  });
+
+  it('renders the page as shown (its crop box), the size it was measured at', async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([14_400, 14_400]).setCropBox(0, 0, 100, 100);
+    const pdf = await file('cropped.pdf', Buffer.from(await doc.save()));
+    const page = await sharp(await pdfPageToJpeg(pdf, 0)).metadata();
+    // 100 points at 200 dpi; the 200-inch page behind the crop is not rendered.
+    expect([page.width, page.height]).toEqual([278, 278]);
+  });
+
+  it('fails a page too large to render even at 1 dpi, rather than rendering it blank', async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([2_000_000, 2_000_000]); // pdfinfo writes this size as 2e+06
+    const pdf = await file('enormous.pdf', Buffer.from(await doc.save()));
+    await expect(pdfPageToJpeg(pdf, 0)).rejects.toThrow(/too large to render/);
+  });
+
   it('turns a phone photo the right way up and removes its camera details', async () => {
     const photo = await sharp(await png(40, 20))
       .jpeg()

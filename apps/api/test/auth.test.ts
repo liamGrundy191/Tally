@@ -125,6 +125,46 @@ describe.skipIf(!databaseUrl)('logging in (T1.2)', () => {
       expect((await b.login(OWNER.email, OWNER.password)).status).toBe(200);
     });
 
+    it('counts failures per computer behind the proxy, and does not believe a forged address', async () => {
+      const login = (forwardedFor: string, password = 'wrong') =>
+        fetch(`${base}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-forwarded-for': forwardedFor },
+          body: JSON.stringify({ email: OWNER.email, password }),
+        });
+      const first = await login('203.0.113.9');
+      expect(first.status).toBe(401);
+      expect(first.headers.get('x-powered-by')).toBeNull();
+      expect((await prisma.loginFailure.findFirstOrThrow()).ip).toBe('203.0.113.9');
+      await prisma.loginFailure.createMany({
+        data: Array.from({ length: 49 }, () => ({ ip: '203.0.113.9' })),
+      });
+      expect((await login('203.0.113.9', OWNER.password)).status).toBe(429);
+      expect((await login('198.51.100.7', OWNER.password)).status).toBe(200);
+      // An address added in front of the one the proxy saw is not believed.
+      expect((await login('203.0.113.9, 198.51.100.7', OWNER.password)).status).toBe(200);
+    });
+
+    it('refuses a login sent by a form on another site', async () => {
+      const send = (type: string, body: string) =>
+        fetch(`${base}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'content-type': type },
+          body,
+        });
+      const form = new URLSearchParams(OWNER).toString();
+      for (const res of [
+        await send('application/x-www-form-urlencoded', form),
+        await send('text/plain', JSON.stringify(OWNER)),
+      ]) {
+        expect(res.status).toBe(403);
+        expect(res.headers.getSetCookie()).toEqual([]);
+      }
+      expect((await send('application/json; charset=utf-8', JSON.stringify(OWNER))).status).toBe(
+        200,
+      );
+    });
+
     it('explains bad input plainly', async () => {
       expect((await browser().send('POST', '/api/auth/login', {})).status).toBe(400);
     });
@@ -175,6 +215,14 @@ describe.skipIf(!databaseUrl)('logging in (T1.2)', () => {
         403,
       );
       expect((await b.send('GET', '/api/auth/me')).status).toBe(200);
+    });
+
+    it('gives a new CSRF token at every login, so one planted earlier is useless', async () => {
+      const b = browser();
+      b.cookies.set('tally_csrf', 'planted');
+      await b.login(OWNER.email, OWNER.password);
+      expect(b.cookies.get('tally_csrf')).not.toBe('planted');
+      expect((await b.send('POST', '/api/auth/logout')).status).toBe(204);
     });
 
     it('keeps working after the browser is closed and reopened', async () => {

@@ -286,3 +286,12 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Months delete themselves after 60 days**, with a warning from day 50, as the plan asks. Two independent clocks must agree first, so a wrong computer clock cannot wipe months early.
 - **The critic and reviewers earned their keep.** Before any code, the critic found that the automatic deletion would have used the real clock in tests and could have wiped local data, and that the shared lists could be deleted while an upload was being read. The reviews found the stale-download gap and tightened the nightly cleanup so it never removes a ticket that might belong to an open month.
 - **Checked on a copy of real data.** Closing a copy of the 45 gate tickets through the browser kept only the summary (45 tickets, 351:50 hours) and emptied the copy's storage, while the original gate data stayed untouched.
+
+### 31. Security pass (T4.1)
+
+- **An audit before fixes.** Every rule in the plan's security section was checked against the code with evidence. Most already held: invite-only accounts, strong password hashing, hashed session tokens, CSRF checks, a role on every route, private storage with short-lived links, ticket text kept out of the model's instructions, and pinned, audited dependencies.
+- **The gaps that mattered were about the real server.** Behind the coming web server every login would have looked like it came from one address, so a few password-guessing bots could have locked everyone out; the app now reads the real visitor address and ignores one a visitor makes up.
+- **Untrusted PDFs are boxed in.** The tools that read PDFs now have time limits, very large pages are rendered smaller, and a page that cannot be measured fails visibly instead of becoming a blank ticket. The reviewer reproduced a trick that slipped past the first size cap (a tiny visible area on a huge page) before it shipped.
+- **The checked file is the file that is read.** Before splitting an upload, the worker checks it is the same file that passed the upload checks, so a file swapped afterwards is refused.
+- **Login cannot be forged from another site.** The login and invite pages accept requests only from the app itself, and the security token is renewed at every login.
+- **What belongs to the server is written down.** HTTPS, the browser security policy and the storage settings are T4.3's job; a checklist in the decisions log lists every one, so nothing is forgotten when the server is set up.

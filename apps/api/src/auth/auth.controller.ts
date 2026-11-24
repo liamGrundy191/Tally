@@ -33,7 +33,7 @@ export class AuthController {
   ) {
     const { email, password } = validate(loginSchema, body);
     const { token, user } = await this.auth.login(email, password, req.ip ?? 'unknown');
-    this.startSession(req, res, token);
+    this.startSession(res, token);
     return user;
   }
 
@@ -60,20 +60,19 @@ export class AuthController {
   @Post('accept-invite')
   @HttpCode(200)
   @Access('public')
-  async acceptInvite(
-    @Body() body: unknown,
-    @Req() req: Request,
-    @Res({ passthrough: true }) res: Response,
-  ) {
+  async acceptInvite(@Body() body: unknown, @Res({ passthrough: true }) res: Response) {
     const { token, password } = validate(acceptInviteSchema, body);
     const user = await this.users.acceptInvite(token, password);
-    this.startSession(req, res, await this.auth.openSession(user.id));
+    this.startSession(res, await this.auth.openSession(user.id));
     return user;
   }
 
-  /** Sets the session cookie, and a CSRF cookie for the web app to copy into its requests. */
-  private startSession(req: Request, res: Response, token: string) {
+  /**
+   * Sets the session cookie, and a new CSRF cookie for the web app to copy into its requests:
+   * always new, so a token planted in the browser before logging in is of no use.
+   */
+  private startSession(res: Response, token: string) {
     res.cookie(SESSION_COOKIE, token, sessionCookie);
-    if (!readCookie(req, CSRF_COOKIE)) res.cookie(CSRF_COOKIE, newToken(), csrfCookie);
+    res.cookie(CSRF_COOKIE, newToken(), csrfCookie);
   }
 }

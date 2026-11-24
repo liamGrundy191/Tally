@@ -266,7 +266,7 @@ Liam learned how the agency really works: it updates its Excel through the month
 - **No two-step codes for now.** Liam: the app is for the owner, on one computer; it should meet industry standards without going overboard. The `totpSecret` column was removed. They can be added later if more people or computers use it.
 - **Invites are links the admin sends himself.** The plan has no email sending, so creating an invite shows a link; it works once, for 7 days, and a new invite for the same email replaces the old link. The token is in the link's `#` part, so it never reaches server or proxy logs.
 - **What is in place:** passwords hashed with argon2id; a wrong email and a wrong password get the same answer and take about as long; 10 wrong passwords lock the account for 15 minutes; 50 failed logins from one IP address in 15 minutes refuse that address; sessions are long random keys stored only as hashes, in an HttpOnly, Secure, SameSite=Lax cookie, ended after 12 idle hours, on logout, or when the account is disabled; a double-submit CSRF check on every change made while logged in; every route declares who may use it, and a route that does not is refused.
-- **Accepted limits:** after 10 tries an attacker can tell that an account is locked, so that the email exists; login and invite acceptance (the only routes used without a session) have no CSRF check, as SameSite cookies already protect them. Behind the production proxy (T4.3) Express must be told to trust it, or every login would seem to come from one address.
+- **Accepted limits:** after 10 tries an attacker can tell that an account is locked, so that the email exists. (Updated by D58: login and invite acceptance now accept only JSON, which a form on another site cannot send, and the API trusts the production proxy for the caller's address.)
 - **There is always one active admin:** the last one cannot be disabled or made a reviewer.
 - **Logins are not written to the audit trail.** Those entries would belong to no month, so they would pile up forever against the principle of keeping data for the shortest time. Changes to accounts (invites, accepted invites, role and disable changes) are audited.
 - **Liam's check moves to T2.1,** where there is a login page to try it on.
@@ -345,7 +345,7 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **The invite link's token** is read from the part after `#`, which never reaches the server's logs, and is then removed from the address bar.
 - **The ticket template download is built now** (Liam): `GET /api/templates/v1/pdf` gives logged-in users the blank printable ticket, and the Ticket template page has a Download button. No other task built it. It is a plain link: if the session has ended, the click shows the server's short "Please log in." reply instead of a page; acceptable for now, revisit in T4.3.
 - **`pnpm dev` and type errors.** The first build must pass, so a type error in the API stops `pnpm dev` from starting at all; fix it and start again. Do not set `MODE` in your own terminal: it beats `worker.env`, and both processes would run in the same mode.
-- **For T4.3:** MUI adds its styles with `<style>` tags, which a strict Content Security Policy blocks. T4.3 needs an Emotion cache with a CSP nonce.
+- **For T4.3:** MUI adds its styles with `<style>` tags, which a strict Content Security Policy blocks. (Replaced by D58: the policy allows inline styles only, `style-src 'self' 'unsafe-inline'`, instead of a nonce.)
 
 ## D48 · T2.2 · Home, the month page and uploading (price and Remove: Liam, Q4 and Q5)
 
@@ -504,3 +504,58 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **The other Phase 3 pieces were checked on the same data.** The workplace PDFs held all 45 original scans, each in its own workplace and in date order (D55). Closing a throwaway copy of the month left only its summary, 45 tickets and 351:50 hours, and an empty storage bucket (D56).
 - **Liam's checks:** he opened the Excel and approved it (the styling is plain on purpose and comes later), and he checked the workplace PDFs in Windows Explorer.
 - **Next (Liam):** a December trial on a real month. He copies one or two workplaces' tickets onto printed Tally tickets by hand, then the Excel totals are compared with the agency's own December figures and the review is timed.
+
+## D58 · T4.1 · The security pass against section 11
+
+- **Already met, with tests:**
+  - invite-only accounts;
+  - argon2id passwords of 12 characters or more on every path;
+  - sessions: random tokens stored as hashes, in an HttpOnly, Secure, SameSite=Lax cookie, ended after 12 idle hours, on logout or on disabling;
+  - the login limits;
+  - one-use invites for 7 days, stored as hashes;
+  - a double-submit CSRF check on every change made while logged in;
+  - a guard that refuses any route without an access rule;
+  - signed storage links for 5 minutes and one key, with keys from random ids;
+  - file type checked by content, with size, page and pixel limits;
+  - images re-encoded;
+  - Zod on every input and Prisma for all database access (raw SQL only as parameterised templates);
+  - ticket text and lists kept out of the prompt's instructions;
+  - Excel escaping;
+  - secrets only in the environment, with `.env.example` complete and nothing secret in git history;
+  - pinned dependencies and `pnpm audit` in CI;
+  - plain errors with no stack traces, no CORS, and Express's 100 KB body limit.
+- **Fixed in T4.1:**
+  - **The caller's address behind the proxy.** The API trusts a proxy on the machine or on a private network (`trust proxy`: loopback, link-local, private). The caller's address is the last one that is not private, so an address the caller adds in front is ignored. Without this, every login behind Caddy would seem to come from one address, and 50 failures from anyone would lock everyone out. Express's `X-Powered-By` header is gone. The tests now run the same HTTP settings as the server.
+  - **Untrusted PDFs.** Poppler is stopped after 30 seconds, both for reading a PDF's details and for each page. A page drawn larger than about 50 cm is rendered at a lower resolution, so its image is at most 4000 pixels long; A4 and A3 pages still render at 200 dpi. The page is measured and rendered by the same box, its crop box (the page as shown): the security review found that measuring one box and rendering the larger media box bypassed the cap. A size that cannot be read, or a page too large even at 1 dpi, fails that page instead of rendering it blank or full size. A split also stops after 25 minutes, before its job would expire at 30: the pages left are tried with the next attempt, keeping those done, and are recorded as failed on the last. Before, one odd PDF could hang an upload or crash the worker again and again. The local tools that render a whole PDF at once (Phase 0) have no time limit; uploads never go through them.
+  - **The file split is the file checked.** A signed upload link works for a few minutes, so a file could be replaced after it passed the checks. The worker now splits only a file of the checked size and SHA-256. Otherwise every page is marked as failed, and the job is not retried.
+  - **Login from another site's form.** Logging in and accepting an invite have no session to check a CSRF token against. They now accept only JSON, which a form on another site cannot send. The CSRF cookie is renewed at every login, so a token planted beforehand is useless.
+  - **A test lists every route,** found through every module the app imports, including handlers a controller inherits, and at least the 25 of section 8. Each has an access rule, and only logging in and accepting an invite are public, both POST.
+  - **The workplace id of one workplace's PDF is checked as a UUID,** like every other id.
+- **Notes, no change:**
+  - A download of the Excel or the PDFs is counted by a GET, so a link on another site could count one. Closing still needs a typed name, a checked POST and, by default, fresh downloads (D56).
+  - Knowing someone's email, an attacker can keep that account locked by failing 10 times every 15 minutes, and can learn that the email exists after 10 failures. Both follow from section 11's thresholds; the owner can be unlocked by another admin (D41).
+  - A photo may still be up to 268 million pixels, so the server needs memory for that (T4.3 sizing).
+  - The per-computer login limit counts one address. Someone with a block of IPv6 addresses (often a whole /64) can change address and keep guessing; the per-account lock after 10 failures still holds. Low priority, no change now.
+  - The `__Host-` cookie prefix (which stops a site on a sibling subdomain from planting a cookie) was considered and skipped: renewing the CSRF cookie at every login already makes a planted token useless, and the rename would touch the web app and every test that names the cookies.
+- **Content Security Policy for T4.3:**
+  `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' <bucket>; connect-src 'self' <bucket>; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'`
+  - `<bucket>` is the S3 address, because the browser uploads to it and shows scans from it.
+  - A nonce for styles was rejected. It needs three moving parts (Vite, an Emotion cache, and Caddy writing a new nonce into each page) to stop only style injection, while React already escapes everything it shows and no inline script is allowed. To be checked in a browser behind the real Caddy.
+- **T4.3 checklist:**
+  - HTTPS with HTTP redirected.
+  - HSTS: `Strict-Transport-Security: max-age=31536000`.
+  - The CSP above, plus `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store` on `/api/*`.
+  - The API and worker ports are never published, nor the Postgres and MinIO ports.
+  - Caddy's `trusted_proxies` is left unset, so Caddy replaces any `X-Forwarded-For` the caller sends. No CDN or load balancer goes in front unless `trusted_proxies` is set for it.
+  - Caddy must see the callers' real addresses, not Docker's: turn on Docker's `ip6tables`, or turn off its userland proxy, or run Caddy with host networking. Check `req.ip` once over IPv4 and once over IPv6.
+  - Postgres over TLS (`sslmode=verify-full`), reachable only from the app's network.
+  - Optional headers: `Permissions-Policy` (nothing allowed) and `Cross-Origin-Opener-Policy: same-origin`. If a web manifest is ever added, the CSP needs `manifest-src 'self'`.
+  - The S3 bucket:
+    - public access blocked;
+    - encryption at rest;
+    - versioning, with old versions deleted after 1 day;
+    - `uploads/` deleted after 2 days;
+    - CORS allowing PUT only from `APP_URL`;
+    - the app's key limited to get, put, delete and list on that bucket.
+  - Containers run as a non-root user, with poppler installed. `APP_URL` is set. Production secrets are kept in the server's environment, never in the compose file.
+- **Left to T4.2:** logs with no ticket values (Prisma's error text can hold names, so log codes and ids); Sentry with bodies and cookies removed; `GET /health`, which goes in the route test's list.

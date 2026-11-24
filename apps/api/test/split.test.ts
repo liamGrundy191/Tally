@@ -107,4 +107,40 @@ describe.skipIf(!databaseUrl || !storageConfigured)('splitting an upload (step 2
     });
     expect(await readJobs(uploadId)).toBe(1);
   });
+
+  it('stops when its time is up, before the job would expire (T4.1)', async () => {
+    const { uploadId } = await upload('slow.pdf', 2);
+    const splitter = app.get(Splitter);
+    // Out of time: the job is tried again, keeping any page already stored.
+    await expect(splitter.split(uploadId, { lastAttempt: false, deadlineMs: 0 })).rejects.toThrow(
+      /2 page\(s\) failed/,
+    );
+    expect(await pagesOf(uploadId)).toEqual([]);
+    // On the last attempt the pages are recorded as failed and the upload finishes as usual.
+    await splitter.split(uploadId, { lastAttempt: true, deadlineMs: 0 });
+    expect(await prisma.upload.findUnique({ where: { id: uploadId } })).toMatchObject({
+      s3KeyOriginal: null,
+      failedPages: [0, 1],
+    });
+    expect(await readJobs(uploadId)).toBe(1);
+  });
+
+  it('splits nothing from a file replaced after it was checked (T4.1)', async () => {
+    const { uploadId } = await upload('swapped.pdf', 2);
+    const { s3KeyOriginal } = await prisma.upload.findUniqueOrThrow({ where: { id: uploadId } });
+    // The signed upload link still works for a few minutes: another file is put in its place.
+    await storage.put(
+      s3KeyOriginal!,
+      Buffer.from(await slipsPdf(5, 'other.pdf')),
+      'application/pdf',
+    );
+    await split(uploadId); // not retried: trying again cannot help
+    expect(await pagesOf(uploadId)).toEqual([]);
+    expect(await prisma.upload.findUnique({ where: { id: uploadId } })).toMatchObject({
+      s3KeyOriginal: null,
+      failedPages: [0, 1],
+    });
+    expect(await storage.get(s3KeyOriginal!)).toBeNull();
+    expect(await readJobs(uploadId)).toBe(1);
+  });
 });
