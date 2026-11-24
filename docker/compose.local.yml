@@ -9,22 +9,24 @@
 # The API, worker and Caddy share MinIO's network, so http://localhost:19000 is the same storage
 # for the API inside and for the browser outside, and signed links work for both.
 
-x-local: &local
-  network_mode: service:minio
-  env_file: !override [local.env]
-  ports: !reset []
-  # The fake reader's prepared answers (EXTRACTOR=fake); never part of an image.
-  volumes: !override ['../fixtures:/app/fixtures:ro']
-
+# The !reset/!override tags are written on each service, not merged in from a shared block:
+# older Docker Compose versions (GitHub's runners) drop tags that arrive through `<<:`.
 services:
   api:
-    <<: *local
+    network_mode: service:minio
+    env_file: !override [local.env]
+    ports: !reset []
+    # The fake reader's prepared answers (EXTRACTOR=fake); never part of an image.
+    volumes: !override ['../fixtures:/app/fixtures:ro']
     depends_on:
       postgres:
         condition: service_healthy
 
   worker:
-    <<: *local
+    network_mode: service:minio
+    env_file: !override [local.env]
+    ports: !reset []
+    volumes: !override ['../fixtures:/app/fixtures:ro']
 
   web:
     network_mode: !override service:minio
