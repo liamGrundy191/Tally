@@ -699,3 +699,174 @@ describe('the upload page', () => {
     expect(url()).toBe('/');
   });
 });
+
+describe('closing a month', () => {
+  const MONTH = { ...NOVEMBER, workplaces: [], questions: [] };
+  const typeInDialog = async (value: string) => {
+    const input = document.querySelector<HTMLInputElement>('[role="dialog"] input[type="text"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+
+  const saved: string[] = [];
+  beforeEach(() => {
+    saved.length = 0;
+    URL.createObjectURL = vi.fn(() => 'blob:file');
+    URL.revokeObjectURL = vi.fn();
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      saved.push(this.download);
+    });
+    replies['GET /api/months/m-nov'] = { status: 200, body: MONTH };
+    replies['GET /api/months/m-nov/excel'] = { status: 200, body: 'xlsx' };
+    replies['GET /api/months/m-nov/pdfs'] = { status: 200, body: 'zip' };
+  });
+  afterEach(() => vi.restoreAllMocks());
+  const posted = () => calls.filter((c) => c.path === '/api/months/m-nov/close');
+  const closeNow = async () => {
+    await act(async () => dialogButton('Close month')!.click());
+    await settle();
+  };
+
+  it('asks for the month’s name, and shows why it cannot close', async () => {
+    replies['POST /api/months/m-nov/close'] = {
+      status: 409,
+      body: { message: 'Some tickets are still being read. Try again when reading has finished.' },
+    };
+    await open('/months/m-nov');
+    await click('Close month');
+    expect(document.body.textContent).toContain('Close November 2026?');
+    expect(document.body.textContent).toContain('12 tickets still need review');
+    expect(dialogButton('Close month')!.hasAttribute('disabled')).toBe(true);
+    await typeInDialog('November 2025');
+    expect(dialogButton('Close month')!.hasAttribute('disabled')).toBe(true);
+    await typeInDialog(' november  2026 ');
+    expect(dialogButton('Close month')!.hasAttribute('disabled')).toBe(false);
+    await closeNow();
+    expect(posted()[0]!.body).toEqual({ name: ' november  2026 ' });
+    expect(document.body.textContent).toContain(
+      'Some tickets are still being read. Try again when reading has finished.',
+    );
+  });
+
+  it('downloads the final Excel and PDFs first, ticked by default (Q15)', async () => {
+    replies['POST /api/months/m-nov/close'] = { status: 202, body: '' };
+    await open('/months/m-nov');
+    await click('Close month');
+    expect(
+      document.querySelector<HTMLInputElement>('[role="dialog"] input[type="checkbox"]')!.checked,
+    ).toBe(true);
+    await typeInDialog('November 2026');
+    await closeNow();
+    expect(saved).toEqual(['hours-2026-11.xlsx', 'tickets-2026-11.zip']);
+    expect(posted()).toHaveLength(1);
+  });
+
+  it('does not close when a file could not be downloaded', async () => {
+    replies['GET /api/months/m-nov/pdfs'] = {
+      status: 409,
+      body: { message: 'Some tickets are still being sorted. Try again in a minute.' },
+    };
+    await open('/months/m-nov');
+    await click('Close month');
+    await typeInDialog('November 2026');
+    await closeNow();
+    expect(saved).toEqual(['hours-2026-11.xlsx']);
+    expect(posted()).toHaveLength(0);
+    expect(document.body.textContent).toContain(
+      'Some tickets are still being sorted. Try again in a minute.',
+    );
+  });
+
+  it('closes straight away when unticked, and starts afresh when opened again', async () => {
+    replies['POST /api/months/m-nov/close'] = {
+      status: 409,
+      body: { message: 'Download the Excel and the workplace PDFs before closing the month.' },
+    };
+    await open('/months/m-nov');
+    await click('Close month');
+    await typeInDialog('November 2026');
+    await act(async () =>
+      document.querySelector<HTMLInputElement>('[role="dialog"] input[type="checkbox"]')!.click(),
+    );
+    await closeNow();
+    expect(saved).toEqual([]);
+    expect(posted()).toHaveLength(1);
+    await act(async () => dialogButton('Cancel')!.click());
+    await settle();
+    await click('Close month');
+    expect(
+      document.querySelector<HTMLInputElement>('[role="dialog"] input[type="text"]')!.value,
+    ).toBe('');
+    expect(
+      document.querySelector<HTMLInputElement>('[role="dialog"] input[type="checkbox"]')!.checked,
+    ).toBe(true);
+    expect(document.body.textContent).not.toContain(
+      'Download the Excel and the workplace PDFs before',
+    );
+  });
+
+  it('shows a month being closed, then only its summary', async () => {
+    replies['GET /api/months/m-nov'] = { status: 200, body: MONTH };
+    replies['POST /api/months/m-nov/close'] = { status: 202, body: '' };
+    await open('/months/m-nov');
+    await click('Close month');
+    await typeInDialog('November 2026');
+    replies['GET /api/months/m-nov'] = { status: 200, body: { ...MONTH, status: 'closing' } };
+    await closeNow();
+    expect(text()).toContain('This month is being closed');
+    expect(button('Download Excel')).toBeUndefined();
+    expect(text()).not.toContain('Lists that help reading');
+
+    replies['GET /api/months/m-nov'] = {
+      status: 200,
+      body: {
+        ...MONTH,
+        status: 'closed',
+        tickets: counts(),
+        closedAt: '2026-12-20T23:30:00.000Z',
+        summaryTicketCount: 640,
+        summaryTotalMinutes: 307_200,
+      },
+    };
+    await open('/months/m-nov');
+    expect(text()).toContain('Closed on 21/12/26'); // 23:30 UTC is the next day in Israel
+    expect(text()).toContain('640 ready tickets, 5120:00 hours');
+    expect(button('Close month')).toBeUndefined();
+  });
+
+  describe('the warning before a month is deleted by itself', () => {
+    afterEach(() => vi.useRealTimers());
+    const at = async (iso: string, path: string) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(iso));
+      replies['GET /api/months'] = { status: 200, body: [NOVEMBER] };
+      replies['GET /api/months/m-nov'] = { status: 200, body: MONTH };
+      replies['GET /api/tickets?month=none&status=needs_review'] = {
+        status: 200,
+        body: { total: 0, tickets: [] },
+      };
+      replies['GET /api/tickets?month=none&status=needs_manual_entry'] = {
+        status: 200,
+        body: { total: 0, tickets: [] },
+      };
+      await open(path);
+    };
+    const WARNING = 'November 2026 will be deleted automatically on 29/01/27';
+
+    it('shows from day 50 after the month, on Home and on the month page', async () => {
+      await at('2027-01-19T08:00:00Z', '/');
+      expect(text()).toContain(WARNING);
+      await at('2027-01-19T08:00:00Z', '/months/m-nov');
+      expect(text()).toContain(WARNING);
+    });
+
+    it('does not show the day before', async () => {
+      await at('2027-01-18T08:00:00Z', '/');
+      expect(text()).not.toContain('deleted automatically');
+    });
+  });
+});

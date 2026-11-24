@@ -157,3 +157,33 @@ Options: A) The Hebrew month: `חוות גולן נובמבר 2026.pdf`. B) The 
 Recommendation: A. The workplace reads the name, and the Hebrew month is clearer to it.
 
 Answer (Liam): A (2026-11-24). The ZIP is `tickets-2026-11.zip`.
+
+## Q14 · T3.3 · Tickets that still need review when a month is closed · answered
+
+Context: Tickets still waiting for review are in neither the final Excel nor the workplace PDFs, and closing deletes them, so their hours would be lost without a trace.
+
+Options: A) Closing is refused until every ticket of the month is ready or removed (removed ones are listed on the Excel's "removed" sheet). B) Closing is allowed, with a warning that says how many will be deleted.
+
+Recommendation: A, so no hours can vanish without a trace; removing a ticket is one click.
+
+Answer (Liam): A (2026-11-24).
+
+## Q15 · T3.3 · Downloads at close · answered
+
+Context: The plan allows closing after at least one download of each file. A file downloaded before later changes still counts, so hours changed since could be deleted without being in any file the user keeps.
+
+Options: A) The server refuses unless the downloads are newer than the month's last change. B) The Close window downloads both files when Close is pressed, with a checkbox ticked by default. C) Any earlier download counts.
+
+Recommendation: A.
+
+Answer (Liam): B (2026-11-24), his own idea: a checkbox, ticked by default, "Download the final Excel and workplace PDFs now". The server keeps the plan's rule of at least one download of each.
+
+## Q16 · T3.3 · A history entry for closing · answered
+
+Context: Section 8 says every change writes an audit entry. After the purge, a "month closed" entry would be the only row about the month outside its summary, which already records who closed it and when.
+
+Options: A) No entry: the summary is enough. B) A history entry as well.
+
+Recommendation: A.
+
+Answer (Liam): A (2026-11-24), "the summary is enough". He was unsure an audit log is needed at all and went with the recommendation. This bends section 8 on purpose.

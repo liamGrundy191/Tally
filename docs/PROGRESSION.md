@@ -277,3 +277,12 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **The critic caught a rule that would have blocked closing a month.** Refusing to download a month with nothing ready would have stopped such a month from ever being closed and deleted, so an empty month now gives an empty ZIP.
 - **Reviews found nothing serious.** The fixes were small but real: scans are loaded one at a time to keep memory low, storage locations stay on the server, file names drop invisible direction characters, and a download error shows next to the button that caused it.
 - **Checked on real data.** From the 45 real gate tickets, the ZIP held 31 workplace PDFs. Every page was the original scan, unchanged, in the right workplace and in the right order.
+
+### 30. Closing a month (T3.3)
+
+- **Closing deletes everything but a summary.** After a typed confirmation of the month's name, the month's tickets, scans, questions, history and downloads are deleted for good; only its name, dates, who closed it, the ticket count and the total hours stay. A test reads every row of every table after a close and finds nothing of the month left, while another open month is untouched.
+- **Built to fail safe.** The scans are deleted before the database rows, so a crash never leaves a scan nobody can find; a half-finished close is retried until it completes, and a month that is still open can never be purged.
+- **No hours can vanish (Liam's choices).** Closing is refused while any ticket still needs review or is being read. Liam's own idea fixed a gap both reviewers found, that an old download could stand in for the final files: the Close window downloads the final Excel and PDFs itself, with a box ticked by default.
+- **Months delete themselves after 60 days**, with a warning from day 50, as the plan asks. Two independent clocks must agree first, so a wrong computer clock cannot wipe months early.
+- **The critic and reviewers earned their keep.** Before any code, the critic found that the automatic deletion would have used the real clock in tests and could have wiped local data, and that the shared lists could be deleted while an upload was being read. The reviews found the stale-download gap and tightened the nightly cleanup so it never removes a ticket that might belong to an open month.
+- **Checked on a copy of real data.** Closing a copy of the 45 gate tickets through the browser kept only the summary (45 tickets, 351:50 hours) and emptied the copy's storage, while the original gate data stayed untouched.

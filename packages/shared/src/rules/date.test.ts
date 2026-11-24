@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { daysBetween, parseTicketDate, todayIn } from './date.ts';
+import {
+  autoDeleteOn,
+  daysBetween,
+  isMonthName,
+  monthName,
+  parseTicketDate,
+  todayIn,
+  warnFrom,
+} from './date.ts';
 
 describe('reading the ticket date (DD/MM/YY)', () => {
   it.each([
@@ -67,5 +75,28 @@ describe("today's date is taken in Israel time, not the server's clock", () => {
 
   it('21:30 UTC on 18 Nov is still 18 Nov in Israel', () => {
     expect(todayIn('Asia/Jerusalem', new Date('2026-11-18T21:30:00Z'))).toBe('2026-11-18');
+  });
+});
+
+describe('closing a month (6.1)', () => {
+  it('names a month the way the app shows it', () => {
+    expect(monthName({ year: 2026, month: 11 })).toBe('November 2026');
+    expect(monthName({ year: 2027, month: 1 })).toBe('January 2027');
+  });
+
+  it('accepts the typed name ignoring capitals and extra spaces, and nothing else', () => {
+    const nov = { year: 2026, month: 11 };
+    expect(isMonthName(' november   2026 ', nov)).toBe(true);
+    expect(isMonthName('November 2026', nov)).toBe(true);
+    expect(isMonthName('November 2025', nov)).toBe(false);
+    expect(isMonthName('October 2026', nov)).toBe(false);
+    expect(isMonthName('', nov)).toBe(false);
+  });
+
+  it('deletes a month 60 days after its last day, warning from day 50', () => {
+    expect(autoDeleteOn({ year: 2026, month: 11 })).toBe('2027-01-29');
+    expect(warnFrom({ year: 2026, month: 11 })).toBe('2027-01-19');
+    expect(autoDeleteOn({ year: 2026, month: 12 })).toBe('2027-03-01');
+    expect(autoDeleteOn({ year: 2028, month: 2 })).toBe('2028-04-29'); // leap February
   });
 });

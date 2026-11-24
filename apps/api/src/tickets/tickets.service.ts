@@ -351,6 +351,16 @@ export class TicketsService {
           },
         });
       }
+      // Answers about the old month name its places and tickets: they would outlive its purge (6.4).
+      if (monthChanged) {
+        await tx.flag.deleteMany({
+          where: {
+            ticketId: id,
+            resolvedAt: { not: null },
+            code: { in: QUESTIONS },
+          },
+        });
+      }
       await tx.flag.createMany({
         data: flags.map((f) => ({
           ticketId: id,

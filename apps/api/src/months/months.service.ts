@@ -1,7 +1,13 @@
 // Months (section 6.1): one per calendar month, created when its first ticket arrives.
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { type Month, type Prisma, PrismaClient, TicketStatus } from '../generated/prisma/client.ts';
-import { finalGroups } from './organiser.ts';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  type DownloadKind,
+  type Month,
+  type Prisma,
+  PrismaClient,
+  TicketStatus,
+} from '../generated/prisma/client.ts';
+import { finalGroups, lockMonth } from './organiser.ts';
 
 /**
  * Step 6c: the month a settled ticket date belongs to, created if this is its first ticket. Safe
@@ -9,9 +15,20 @@ import { finalGroups } from './organiser.ts';
  */
 export async function monthOf(db: PrismaClient | Prisma.TransactionClient, date: Date) {
   const key = { year: date.getUTCFullYear(), month: date.getUTCMonth() + 1 };
+  const found = await db.month.findUnique({ where: { year_month: key } });
+  if (found) return found;
+  // A new month waits while the lists are being deleted with the last open one (5.4, D56).
+  await lockNewMonth(db);
   await db.month.createMany({ data: [key], skipDuplicates: true });
   return db.month.findUniqueOrThrow({ where: { year_month: key } });
 }
+
+/**
+ * Held while a month is created, and while the lists are deleted for want of an open month. Always
+ * taken before a month's own lock, so the lock order stays the same everywhere.
+ */
+export const lockNewMonth = (db: PrismaClient | Prisma.TransactionClient) =>
+  db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('new-month'))`;
 
 @Injectable()
 export class MonthsService {
@@ -22,6 +39,24 @@ export class MonthsService {
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
     return this.withCounts(months);
+  }
+
+  /**
+   * Closing needs one download of each file (6.1). Recorded after the file is built, under the
+   * month's lock, so a download that races with Close is refused rather than left behind.
+   */
+  async recordDownload(userId: string, monthId: string, kind: DownloadKind) {
+    await this.prisma.$transaction(
+      async (tx) => {
+        await lockMonth(tx, monthId);
+        const month = await tx.month.findUnique({ where: { id: monthId } });
+        if (month?.status !== 'open') {
+          throw new ConflictException('This month is being closed or is closed.');
+        }
+        await tx.download.create({ data: { monthId, kind, userId } });
+      },
+      { timeout: 120_000, maxWait: 60_000 },
+    );
   }
 
   async get(id: string) {
