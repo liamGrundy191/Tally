@@ -101,6 +101,7 @@ export class MonthsService {
             status: true,
             workplaceRaw: true,
             firstName: true,
+            s3KeyPage: true,
           },
         },
       },

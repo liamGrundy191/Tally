@@ -147,3 +147,13 @@ Options: A) Drop it: each download shows exactly the current tickets. B) Keep it
 Recommendation: A. An empty row tells the owner nothing, and hours change only through tickets (6.1).
 
 Answer (Liam): A (2026-11-23).
+
+## Q13 · T3.2 · How each workplace PDF is named · answered
+
+Context: Each workplace gets one PDF of its tickets, which the agency sends to that workplace by email or WhatsApp. Section 6.3 says only "the workplace's name and the month". The ZIP that holds them all is only seen by the agency.
+
+Options: A) The Hebrew month: `חוות גולן נובמבר 2026.pdf`. B) The month as a number: `חוות גולן 2026-11.pdf`, like the Excel's `hours-2026-11.xlsx`.
+
+Recommendation: A. The workplace reads the name, and the Hebrew month is clearer to it.
+
+Answer (Liam): A (2026-11-24). The ZIP is `tickets-2026-11.zip`.

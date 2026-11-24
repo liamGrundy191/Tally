@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { hasHebrew } from '@tally/shared';
 import ExcelJS from 'exceljs';
-import { PrismaClient } from '../generated/prisma/client.ts';
+import { type Prisma, PrismaClient } from '../generated/prisma/client.ts';
 import { MonthsService } from './months.service.ts';
 
 // The columns, in one place (6.2).
@@ -66,6 +66,61 @@ export function sheetNames(names: string[]) {
 const quoted = (sheet: string) => `'${sheet.replace(/'/g, "''")}'`;
 const SORTING = 'Some tickets are still being sorted. Try again in a minute.';
 
+/**
+ * The month's ready tickets by workplace and row, as the month page groups them: what the Excel
+ * and the workplace PDFs are made from, so the two always agree (principle 7). Call it inside a
+ * RepeatableRead transaction. Refuses rather than leave a ready ticket out (6.1).
+ */
+export async function readyPlaces(
+  tx: Prisma.TransactionClient,
+  months: MonthsService,
+  monthId: string,
+) {
+  const month = await tx.month.findUnique({ where: { id: monthId } });
+  if (!month) throw new NotFoundException('There is no such month.');
+  // A closing month is being deleted; the last download comes before Close (6.1).
+  if (month.status !== 'open') {
+    throw new ConflictException('This month is being closed or is closed.');
+  }
+  const places = (await months.rows(monthId, tx))
+    .map((p) => ({
+      groupId: p.groupId,
+      name: p.name,
+      rows: p.rows
+        .map((r) => ({
+          name: r.name,
+          tickets: r.tickets.filter((t) => t.status === 'verified'),
+        }))
+        .filter((r) => r.tickets.length > 0),
+    }))
+    .filter((p) => p.rows.length > 0);
+  const ready = await tx.ticket.findMany({
+    where: { monthId, status: 'verified' },
+    select: { id: true },
+  });
+
+  // Never leave out hours without a word (6.1): every ready ticket needs its row and its cell.
+  const placed = places.flatMap((p) => p.rows.flatMap((r) => r.tickets));
+  if (placed.some((t) => t.totalMinutes === null || !t.shiftDate)) {
+    throw new InternalServerErrorException(
+      'A ready ticket has no date or hours, so the file was not made.',
+    );
+  }
+  // Reading marks a clean ticket ready at once, but it joins a workplace only once its whole
+  // upload is read (D45). Until then the file would miss it, so the download waits.
+  const ids = new Set(placed.map((t) => t.id));
+  const inMonth = (d: Date) =>
+    d.getUTCFullYear() === month.year && d.getUTCMonth() + 1 === month.month;
+  if (
+    ids.size !== ready.length ||
+    ready.some((t) => !ids.has(t.id)) ||
+    placed.some((t) => !inMonth(t.shiftDate!))
+  ) {
+    throw new ConflictException(SORTING);
+  }
+  return { month, places };
+}
+
 @Injectable()
 export class ExcelExporter {
   constructor(
@@ -75,58 +130,17 @@ export class ExcelExporter {
 
   async export(monthId: string) {
     // One consistent picture: a removal or a merge half way through cannot move a ticket twice.
-    const { month, places, ready, excluded } = await this.prisma.$transaction(
-      async (tx) => {
-        const month = await tx.month.findUnique({ where: { id: monthId } });
-        if (!month) throw new NotFoundException('There is no such month.');
-        // A closing month is being deleted; the last download comes before Close (6.1).
-        if (month.status !== 'open') {
-          throw new ConflictException('This month is being closed or is closed.');
-        }
-        const places = (await this.months.rows(monthId, tx))
-          .map((p) => ({
-            name: p.name,
-            rows: p.rows
-              .map((r) => ({
-                name: r.name,
-                tickets: r.tickets.filter((t) => t.status === 'verified'),
-              }))
-              .filter((r) => r.tickets.length > 0),
-          }))
-          .filter((p) => p.rows.length > 0);
-        const ready = await tx.ticket.findMany({
-          where: { monthId, status: 'verified' },
-          select: { id: true },
-        });
-        const excluded = await tx.ticket.findMany({
+    const { month, places, excluded } = await this.prisma.$transaction(
+      async (tx) => ({
+        ...(await readyPlaces(tx, this.months, monthId)),
+        excluded: await tx.ticket.findMany({
           where: { monthId, status: 'excluded' },
           orderBy: [{ shiftDate: 'asc' }, { createdAt: 'asc' }],
           include: { workplaceGroup: true, excludedBy: { select: { email: true } } },
-        });
-        return { month, places, ready, excluded };
-      },
+        }),
+      }),
       { isolationLevel: 'RepeatableRead' },
     );
-
-    // Never leave out hours without a word (6.1): every ready ticket needs its row and its cell.
-    const placed = places.flatMap((p) => p.rows.flatMap((r) => r.tickets));
-    if (placed.some((t) => t.totalMinutes === null || !t.shiftDate)) {
-      throw new InternalServerErrorException(
-        'A ready ticket has no date or hours, so the file was not made.',
-      );
-    }
-    // Reading marks a clean ticket ready at once, but it joins a workplace only once its whole
-    // upload is read (D45). Until then the file would miss it, so the download waits.
-    const ids = new Set(placed.map((t) => t.id));
-    const inMonth = (d: Date) =>
-      d.getUTCFullYear() === month.year && d.getUTCMonth() + 1 === month.month;
-    if (
-      ids.size !== ready.length ||
-      ready.some((t) => !ids.has(t.id)) ||
-      placed.some((t) => !inMonth(t.shiftDate!))
-    ) {
-      throw new ConflictException(SORTING);
-    }
 
     const book = new ExcelJS.Workbook();
     book.calcProperties.fullCalcOnLoad = true;

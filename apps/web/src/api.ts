@@ -195,7 +195,11 @@ export async function download(path: string, name: string) {
   const file = URL.createObjectURL(await res.blob());
   const a = document.createElement('a');
   a.href = file;
-  a.download = /filename="([^"]+)"/.exec(disposition)?.[1] ?? name;
+  // A Hebrew name comes as filename* (RFC 5987).
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1];
+  a.download = encoded
+    ? decodeURIComponent(encoded)
+    : (/filename="([^"]+)"/.exec(disposition)?.[1] ?? name);
   a.click();
   // Freed at once, some browsers cancel the download before it starts.
   setTimeout(() => URL.revokeObjectURL(file), 60_000);

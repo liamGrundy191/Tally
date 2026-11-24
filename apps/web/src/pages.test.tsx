@@ -186,6 +186,50 @@ describe('the month page', () => {
       expect(text()).toContain('Some tickets are still being sorted. Try again in a minute.');
       expect(button('Download Excel')?.hasAttribute('disabled')).toBe(false);
     });
+
+    it('saves all the workplace PDFs in one ZIP', async () => {
+      replies['GET /api/months/m-nov/pdfs'] = { status: 200, body: 'zip bytes' };
+      await open('/months/m-nov');
+      await click('Workplace PDFs');
+      expect(saved).toEqual(['tickets-2026-11.zip blob:excel']);
+    });
+
+    it('saves one workplace’s PDF under its Hebrew name, only where tickets are ready', async () => {
+      const name = 'דולב נובמבר 2026.pdf';
+      replies['GET /api/months/m-nov/pdfs?workplace=g1'] = {
+        status: 200,
+        body: 'pdf bytes',
+        headers: {
+          'content-disposition': `attachment; filename="workplace.pdf"; filename*=UTF-8''${encodeURIComponent(name)}`,
+        },
+      };
+      await open('/months/m-nov');
+      // Golan Farm has no ready ticket, so one button: דולב's.
+      expect(
+        [...container.querySelectorAll('button')].filter((b) => b.textContent === 'Download PDF'),
+      ).toHaveLength(1);
+      await click('Download PDF');
+      expect(saved).toEqual([`${name} blob:excel`]);
+    });
+
+    it('says why when the PDFs cannot be made, on the page', async () => {
+      replies['GET /api/months/m-nov/pdfs'] = {
+        status: 409,
+        body: { message: 'Some tickets are still being sorted. Try again in a minute.' },
+      };
+      await open('/months/m-nov');
+      await click('Workplace PDFs');
+      expect(saved).toEqual([]);
+      expect(text()).toContain('Some tickets are still being sorted. Try again in a minute.');
+    });
+
+    it('offers no downloads once the month is closing', async () => {
+      replies['GET /api/months/m-nov'] = { status: 200, body: { ...SMALL, status: 'closing' } };
+      await open('/months/m-nov');
+      for (const label of ['Download Excel', 'Workplace PDFs', 'Download PDF']) {
+        expect(button(label)).toBeUndefined();
+      }
+    });
   });
 
   const SMALL = {

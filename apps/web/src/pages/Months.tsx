@@ -228,6 +228,16 @@ export function Month() {
       return download(`/api/months/${m.id}/excel`, name);
     },
   });
+  // All the workplace PDFs in one ZIP, or one workplace's PDF (6.3).
+  const pdfs = useMutation({
+    mutationFn: (w?: { groupId: string; name: string }) => {
+      const m = month.data!;
+      const mm = String(m.month).padStart(2, '0');
+      return w
+        ? download(`/api/months/${m.id}/pdfs?workplace=${w.groupId}`, `${w.name}.pdf`)
+        : download(`/api/months/${m.id}/pdfs`, `tickets-${m.year}-${mm}.zip`);
+    },
+  });
   if (month.error)
     return <ErrorMessage message={month.error.message} retry={() => void month.refetch()} />;
   if (!month.data) return <Typography>Loading the month…</Typography>;
@@ -244,6 +254,7 @@ export function Month() {
         !search || matches(search, name, w.name, day(t.shiftDate));
       return {
         ...w,
+        ready: w.rows.some((r) => r.tickets.some((t) => t.status === 'verified')),
         rows: w.rows
           .map((r) => ({ ...r, tickets: r.tickets.filter(keep(r.name)) }))
           .filter((r) => r.tickets.length > 0),
@@ -261,8 +272,16 @@ export function Month() {
         <Box sx={{ my: 1 }}>
           <Button variant="contained" disabled={excel.isPending} onClick={() => excel.mutate()}>
             Download Excel
+          </Button>{' '}
+          <Button
+            variant="contained"
+            disabled={pdfs.isPending}
+            onClick={() => pdfs.mutate(undefined)}
+          >
+            Workplace PDFs
           </Button>
           {excel.error && <Alert severity="error">{excel.error.message}</Alert>}
+          {pdfs.error && <Alert severity="error">{pdfs.error.message}</Alert>}
         </Box>
       )}
       {needReview(m.tickets) > 0 && (
@@ -305,6 +324,11 @@ export function Month() {
           <Typography variant="h6" component="h2" dir="auto">
             {w.name}
           </Typography>
+          {m.status === 'open' && w.ready && (
+            <Button size="small" disabled={pdfs.isPending} onClick={() => pdfs.mutate(w)}>
+              Download PDF
+            </Button>
+          )}
           <Table size="small">
             <TableHead>
               <TableRow>
