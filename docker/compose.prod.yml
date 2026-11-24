@@ -8,11 +8,20 @@ x-app: &app
   image: tally-app:${TALLY_VERSION:?TALLY_VERSION is not set in .env}
   env_file: .env
   restart: unless-stopped
+  # The app needs no Linux capabilities and never gains any (D60).
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
   logging:
     driver: local # rotates by itself: 5 files of 20 MB
   volumes:
-    # The database's CA certificate, for TLS with verification (DATABASE_URL names this path).
-    - ./db-ca.pem:/etc/tally/db-ca.pem:ro
+    # The database's CA certificate (mode 644), for TLS with verification. A missing file stops
+    # the start instead of becoming an empty folder.
+    - type: bind
+      source: ./db-ca.pem
+      target: /etc/tally/db-ca.pem
+      read_only: true
+      bind:
+        create_host_path: false
 
 services:
   api:
@@ -36,6 +45,9 @@ services:
       MODE: worker
     # A reading job in progress is picked up again by the next worker (section 10).
     stop_grace_period: 30s
+    # A very large photo (up to 268 million pixels, D58) or a huge ZIP cannot starve the API and
+    # Caddy of the server's 4 GB: past 2 GB only the worker restarts, and its job is retried.
+    mem_limit: 2g
 
   web:
     image: tally-web:${TALLY_VERSION:?TALLY_VERSION is not set in .env}
@@ -43,7 +55,7 @@ services:
     network_mode: host
     environment:
       APP_URL: ${APP_URL:?APP_URL is not set in .env}
-      S3_ORIGIN: https://${S3_BUCKET}.s3.${S3_REGION}.amazonaws.com
+      S3_ORIGIN: https://${S3_BUCKET:?S3_BUCKET is not set in .env}.s3.${S3_REGION:?S3_REGION is not set in .env}.amazonaws.com
     volumes:
       # The HTTPS certificates: losing them runs into Let's Encrypt's rate limits.
       - caddy_data:/data

@@ -25,6 +25,6 @@ Turns scanned paper shift tickets into Excel sheets of hours per workplace, for 
 
 - **Where it runs (Q18–Q20):** one DigitalOcean server (Frankfurt) running `docker/compose.prod.yml` (Caddy, API, worker), a DigitalOcean managed Postgres with 7-day backups, files in AWS S3 (Frankfurt, `eu-central-1`), error alerts in Sentry (EU). All accounts are in Liam's name; every login is in his password manager.
 - **Settings:** `/opt/tally/.env` on the server (mode 600); secrets go in only through `sudo bash /opt/tally/set-secrets.sh`. A copy lives in the password manager.
-- **Deploy:** push a tag (`git tag v1.2.3 && git push origin v1.2.3`). GitHub runs the checks, builds the images, copies them to the server, runs the migrations and starts the new release. A failed migration leaves the running release untouched.
-- **Roll back:** GitHub, Actions, Deploy, Run workflow, choosing the earlier tag under "Use workflow from".
+- **Deploy:** push a tag (`git tag v1.2.3 && git push origin v1.2.3`). GitHub runs the checks, builds the images and copies them to the server; the migrations run with the new version, and only if they succeed is it recorded and started. A failed migration leaves the running release untouched.
+- **Roll back:** GitHub, Actions, Deploy, Run workflow, choosing the earlier tag under "Use workflow from". The checks are skipped: that tag passed them when it was released.
 - **First-time setup and the go-live checks:** `docs/DECISIONS.md`, D60.

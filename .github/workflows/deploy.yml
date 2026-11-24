@@ -1,7 +1,10 @@
-# Deploys a release to the server (PLAN section 12, T4.3, D60). Runs when a tag like v1.0.0 is
-# pushed, or by hand from the Actions tab: "Run workflow", choosing a tag under "Use workflow
-# from" (a redeploy, or a rollback to an earlier tag). The checks must pass first. The images are
-# built here and copied to the server over SSH; the settings and secrets never leave the server.
+# Deploys a release to the server (PLAN section 12, T4.3, D60).
+# - A pushed tag vX.Y.Z: the checks run first (ci.yml), then the deploy.
+# - By hand (Actions, Deploy, Run workflow, choosing a tag under "Use workflow from"): a redeploy or
+#   a rollback. The checks are skipped: that tag already passed them when it was released.
+# The images are built here and copied to the server over SSH; the app's settings and secrets
+# never leave the server. The SSH secrets live in the `production` environment, which only v*
+# tags may use (GitHub settings, D60).
 name: Deploy
 
 on:
@@ -9,27 +12,43 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency: deploy
 
 jobs:
   check:
+    if: github.event_name == 'push'
     uses: ./.github/workflows/ci.yml
 
   deploy:
     needs: check
-    if: github.ref_type == 'tag'
+    # Runs after a passed check, or by hand (check skipped); never from a branch.
+    if: >-
+      always() && github.ref_type == 'tag' &&
+      (needs.check.result == 'success' ||
+       (github.event_name == 'workflow_dispatch' && needs.check.result == 'skipped'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    environment: production
     env:
       TAG: ${{ github.ref_name }}
-      SERVER: ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }}
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+      APP_URL: ${{ vars.APP_URL }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Only release tags (vX.Y.Z)
+        run: |
+          echo "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || { echo "Not a release tag: $TAG"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: SSH key and the server's pinned host key
         run: |
           install -m 700 -d ~/.ssh
-          printf '%s\n' "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          printf '%s\n' "${{ secrets.SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/id_ed25519
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
       - name: Build the images
         run: |
@@ -39,22 +58,39 @@ jobs:
           sh docker/scan-image.sh "tally-web:$TAG" /srv
       - name: Copy them to the server
         run: |
-          docker save "tally-app:$TAG" "tally-web:$TAG" | gzip | ssh "$SERVER" 'gunzip | docker load'
-          scp docker/compose.prod.yml "$SERVER:/opt/tally/compose.yml"
-      # A failed migration stops here: the release that is running keeps running.
+          docker save "tally-app:$TAG" "tally-web:$TAG" | gzip | ssh "$SSH_USER@$SSH_HOST" 'gunzip | docker load'
+          scp docker/compose.prod.yml "$SSH_USER@$SSH_HOST:/opt/tally/compose.yml"
+      # The migrations run with the new version; only once they succeed is it written into .env
+      # and started. A failed migration leaves the running release as it was.
       - name: Migrate, then start the new release
         run: |
-          ssh "$SERVER" "set -e; cd /opt/tally
-            sed -i 's/^TALLY_VERSION=.*/TALLY_VERSION=$TAG/' .env
-            docker compose run --rm -w /app/apps/api api ./node_modules/.bin/prisma migrate deploy
-            docker compose up -d --remove-orphans
-            for repo in tally-app tally-web; do
-              docker image ls \$repo --format '{{.Tag}}' | sort -rV | tail -n +4 | xargs -r -I{} docker image rm \$repo:{}
-            done"
+          ssh "$SSH_USER@$SSH_HOST" "TAG=$TAG bash -s" <<'EOF'
+          set -euo pipefail
+          cd /opt/tally
+          TALLY_VERSION=$TAG docker compose run --rm -w /app/apps/api api ./node_modules/.bin/prisma migrate deploy
+          if grep -q '^TALLY_VERSION=' .env; then
+            sed -i "s/^TALLY_VERSION=.*/TALLY_VERSION=$TAG/" .env
+          else
+            echo "TALLY_VERSION=$TAG" >> .env
+          fi
+          docker compose up -d --remove-orphans
+          # Keep the 3 newest images of each kind (by creation time) for rollbacks; never the one
+          # just deployed or one a container uses.
+          used=$(docker ps -a --format '{{.Image}}')
+          for repo in tally-app tally-web; do
+            docker image ls "$repo" --format '{{.CreatedAt}}|{{.Tag}}' | sort -r | tail -n +4 | cut -d'|' -f2 |
+              while read -r t; do
+                [ "$t" = "$TAG" ] && continue
+                printf '%s\n' "$used" | grep -qx "$repo:$t" && continue
+                docker image rm "$repo:$t" || true
+              done
+          done
+          docker image prune -f
+          EOF
       - name: Wait until the site answers
         run: |
           for i in $(seq 1 30); do
-            [ "$(curl -fsS "${{ vars.APP_URL }}/api/health" || true)" = ok ] && exit 0
+            [ "$(curl -fsS "$APP_URL/api/health" || true)" = ok ] && exit 0
             sleep 10
           done
           echo "The site did not answer ok within 5 minutes."; exit 1

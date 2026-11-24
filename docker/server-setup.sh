@@ -1,6 +1,6 @@
 #!/bin/bash
 # Prepares a new Ubuntu 24.04 server for Tally (T4.3, D60). Run once as root; safe to run again.
-#   scp docker/server-setup.sh docker/set-secrets.sh root@<server>:/root/
+#   scp docker/server-setup.sh docker/set-secrets.sh docker/db-owner.sh root@<server>:/root/
 #   ssh root@<server> bash /root/server-setup.sh '<the deploy public key>'
 # Installs Docker (from Docker's own package list) and automatic security updates, allows only
 # SSH, HTTP and HTTPS in, adds 2 GB of swap, turns off password logins, and creates the `deploy`
@@ -19,6 +19,12 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.
 apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 dpkg-reconfigure -f noninteractive unattended-upgrades
+# Security updates restart the server when they need to, at 02:00 UTC (04:00 or 05:00 in Israel):
+# after the nightly month check at 03:00 Israel time, before anyone works.
+cat > /etc/apt/apt.conf.d/52tally-upgrades <<UPGRADES
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "02:00";
+UPGRADES
 
 ufw allow 22/tcp
 ufw allow 80/tcp
@@ -31,8 +37,12 @@ if [ ! -f /swapfile ]; then
   echo '/swapfile none swap sw 0 0' >> /etc/fstab
 fi
 
-sed -i 's/^#\?PasswordAuthentication .*/PasswordAuthentication no/' /etc/ssh/sshd_config
-systemctl reload ssh
+# Keys only. A file named 00-… is read first, so it wins over the cloud image's own settings.
+# Root keeps its key access (and the provider's web console works without SSH).
+printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\n' > /etc/ssh/sshd_config.d/00-tally.conf
+sshd -t && systemctl reload ssh
+sshd -T | grep -qx 'passwordauthentication no' || { echo "SSH still allows passwords"; exit 1; }
+sshd -T | grep -qx 'kbdinteractiveauthentication no' || { echo "SSH still allows keyboard logins"; exit 1; }
 
 id deploy >/dev/null 2>&1 || useradd -m -s /bin/bash -G docker deploy
 install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
@@ -42,6 +52,8 @@ chown deploy:deploy /home/deploy/.ssh/authorized_keys
 chmod 600 /home/deploy/.ssh/authorized_keys
 
 install -d -m 700 -o deploy -g deploy /opt/tally
-install -m 700 -o deploy -g deploy "$(dirname "$0")/set-secrets.sh" /opt/tally/set-secrets.sh
+for script in set-secrets.sh db-owner.sh; do
+  install -m 700 -o deploy -g deploy "$(dirname "$0")/$script" "/opt/tally/$script"
+done
 [ -f /opt/tally/.env ] || install -m 600 -o deploy -g deploy /dev/null /opt/tally/.env
 echo "Server ready. Next: the settings (/opt/tally/.env) and the database certificate (/opt/tally/db-ca.pem)."
