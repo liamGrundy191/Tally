@@ -295,3 +295,11 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **The checked file is the file that is read.** Before splitting an upload, the worker checks it is the same file that passed the upload checks, so a file swapped afterwards is refused.
 - **Login cannot be forged from another site.** The login and invite pages accept requests only from the app itself, and the security token is renewed at every login.
 - **What belongs to the server is written down.** HTTPS, the browser security policy and the storage settings are T4.3's job; a checklist in the decisions log lists every one, so nothing is forgotten when the server is set up.
+
+### 32. Logging, error alerts, health check and recovery guide (T4.2)
+
+- **Errors no longer leak names.** Before this task, an unexpected error could write a worker's name or a ticket value into the log, because database and spreadsheet errors quote the values they choke on. Now one rule keeps only an error's type, code and code location, never its text, everywhere errors are logged, reported or stored by the job queue.
+- **Error alerts that cannot see the data.** The error service (Sentry) receives only what is on an explicit allow-list: the error type and code, where in the code it happened, and job ids. It is off unless the server is given its address. Liam chose a free account in his name with reports stored in the EU, set up with the server.
+- **A health page anyone can check.** `/api/health` answers "ok" when the database, file storage and job queue all respond, and "unavailable" otherwise, with no details. It gives up on a hung check after 3 seconds and reuses its answer for 5, so it cannot be used to overload the app.
+- **Backups are proven, not assumed.** A test copies the database with the standard backup tool, restores it into a fresh database and checks every table and the job queue come back, so the app keeps nothing that a normal backup misses.
+- **A one-page recovery guide for a non-coder.** The new README opens with "nothing is urgent: the tickets are on paper", then lists each thing that can go wrong with either "you can do this" or "call a developer". The reviewer caught one step that would have left Liam stuck, and it went to the developer.
