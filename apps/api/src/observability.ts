@@ -6,9 +6,6 @@ import { type ArgumentsHost, Catch, HttpException, Logger } from '@nestjs/common
 import { BaseExceptionFilter } from '@nestjs/core';
 import * as Sentry from '@sentry/node';
 
-/** Node's own error codes (ECONNREFUSED, ETIMEDOUT, ERR_…): their text names no ticket. */
-const SYSTEM_CODE = /^(E[A-Z0-9]+|ERR_[A-Z0-9_]+)$/;
-
 export interface SafeError {
   error: string;
   code?: string | number;
@@ -19,15 +16,19 @@ export interface SafeError {
 
 export function safeError(e: unknown): SafeError {
   if (!(e instanceof Error)) return { error: typeof e };
-  const code = (e as { code?: unknown }).code;
-  const own = e instanceof HttpException || (typeof code === 'string' && SYSTEM_CODE.test(code));
+  const { code, syscall } = e as { code?: unknown; syscall?: unknown };
+  // A system call's error ("connect ECONNREFUSED 10.0.0.5:5432") names no ticket; Node's other
+  // errors (ERR_…) can quote the value they were given, so only their code is kept.
+  const own = e instanceof HttpException || typeof syscall === 'string';
   return {
     error: e.name,
     ...((typeof code === 'string' || typeof code === 'number') && { code }),
     ...(e instanceof HttpException && { status: e.getStatus() }),
     ...(own && { message: e.message }),
+    // The stack starts with the message, which may span lines that look like frames.
     frames: (e.stack ?? '')
       .split('\n')
+      .slice(e.message.split('\n').length)
       .filter((l) => /^\s+at /.test(l))
       .map((l) => l.trim()),
   };
@@ -69,7 +70,7 @@ export function scrub(event: Sentry.ErrorEvent, hint: Sentry.EventHint): Sentry.
       values: event.exception?.values?.map((v) => ({
         type: v.type,
         value: safe.message ?? String(safe.code ?? ''),
-        mechanism: v.mechanism,
+        mechanism: v.mechanism && { type: v.mechanism.type, handled: v.mechanism.handled },
         stacktrace: v.stacktrace && {
           frames: v.stacktrace.frames?.map((f) => ({
             filename: f.filename,

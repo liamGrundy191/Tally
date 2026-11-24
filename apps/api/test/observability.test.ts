@@ -58,11 +58,27 @@ describe('safeError', () => {
     expect(JSON.stringify(s)).not.toContain('Kwame');
   });
 
-  it('keeps the text of a system error, which names no ticket', () => {
+  it('keeps the text of a system call error, which names no ticket', () => {
     const e = Object.assign(new Error('connect ECONNREFUSED 10.0.0.5:5432'), {
       code: 'ECONNREFUSED',
+      syscall: 'connect',
     });
     expect(safeError(e).message).toBe('connect ECONNREFUSED 10.0.0.5:5432');
+  });
+
+  it("keeps only the code of Node's other errors, which can quote a value", () => {
+    const e = Object.assign(new TypeError('The argument "name" is invalid. Received "Kwame"'), {
+      code: 'ERR_INVALID_ARG_VALUE',
+    });
+    const s = safeError(e);
+    expect(s.code).toBe('ERR_INVALID_ARG_VALUE');
+    expect(JSON.stringify(s)).not.toContain('Kwame');
+  });
+
+  it('keeps no line of a message that looks like a stack frame', () => {
+    const s = safeError(new Error('Two places:\n   at Golan farm\n   at Kwame'));
+    expect(s.frames!.length).toBeGreaterThan(0);
+    expect(JSON.stringify(s)).not.toMatch(/Golan|Kwame/);
   });
 
   it('drops the text of any other error, and of things that are not errors', () => {
@@ -95,6 +111,7 @@ describe('Sentry', () => {
             {
               type: 'PrismaClientKnownRequestError',
               value: 'Unique constraint failed: (firstName)=(Kwame)',
+              mechanism: { type: 'generic', handled: true, data: { name: 'Kwame' } },
               stacktrace: { frames: [{ filename: 'reader.ts', lineno: 3, vars: { n: 'Kwame' } }] },
             },
           ],

@@ -58,7 +58,9 @@ export class HealthController {
     const all = await Promise.all([
       within('database', () => this.prisma.$queryRaw`SELECT 1`),
       within('storage', () =>
-        this.storage.s3.send(new HeadBucketCommand({ Bucket: this.storage.bucket })),
+        this.storage.s3.send(new HeadBucketCommand({ Bucket: this.storage.bucket }), {
+          abortSignal: AbortSignal.timeout(LIMIT_MS),
+        }),
       ),
       within('queue', async () => {
         if (!(await this.boss.getQueue(READ_UPLOAD))) throw new Error('no queue');

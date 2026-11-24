@@ -16,7 +16,7 @@ const log = new Logger('Worker');
  * the last attempt only, and passed on to pg-boss without its text, which pg-boss would keep in its
  * own table (D59).
  */
-export function job<T extends object>(
+export function job<T extends { uploadId?: string; monthId?: string }>(
   queue: string,
   run: (data: T, lastAttempt: boolean) => Promise<unknown>,
 ) {
@@ -26,7 +26,8 @@ export function job<T extends object>(
       return await run(j!.data, lastAttempt);
     } catch (e) {
       const safe = safeError(e);
-      const ids = { queue, jobId: j!.id, ...j!.data, attempt: j!.retryCount + 1 };
+      const { uploadId, monthId } = j!.data ?? {};
+      const ids = { queue, jobId: j!.id, uploadId, monthId, attempt: j!.retryCount + 1 };
       log[lastAttempt ? 'error' : 'warn']({ msg: 'job failed', ...ids, ...safe });
       if (lastAttempt) reportError(e, { queue, jobId: j!.id });
       // No `cause`: pg-boss would store the original error's text with it.
