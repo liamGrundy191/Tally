@@ -526,15 +526,17 @@ At Liam's request, three reviewers checked everything built so far: the API, the
   - plain errors with no stack traces, no CORS, and Express's 100 KB body limit.
 - **Fixed in T4.1:**
   - **The caller's address behind the proxy.** The API trusts a proxy on the machine or on a private network (`trust proxy`: loopback, link-local, private). The caller's address is the last one that is not private, so an address the caller adds in front is ignored. Without this, every login behind Caddy would seem to come from one address, and 50 failures from anyone would lock everyone out. Express's `X-Powered-By` header is gone. The tests now run the same HTTP settings as the server.
-  - **Untrusted PDFs.** Poppler is stopped after 30 seconds for reading a PDF's details and 120 seconds per page. A page drawn larger than about 50 cm is rendered at a lower resolution, so its image is at most 4000 pixels long. A4 and A3 pages still render at 200 dpi. Before, one odd PDF could hang an upload or crash the worker again and again.
+  - **Untrusted PDFs.** Poppler is stopped after 30 seconds, both for reading a PDF's details and for each page. A page drawn larger than about 50 cm is rendered at a lower resolution, so its image is at most 4000 pixels long; A4 and A3 pages still render at 200 dpi. The page is measured and rendered by the same box, its crop box (the page as shown): the security review found that measuring one box and rendering the larger media box bypassed the cap. A size that cannot be read, or a page too large even at 1 dpi, fails that page instead of rendering it blank or full size. A split also stops after 25 minutes, before its job would expire at 30: the pages left are tried with the next attempt, keeping those done, and are recorded as failed on the last. Before, one odd PDF could hang an upload or crash the worker again and again. The local tools that render a whole PDF at once (Phase 0) have no time limit; uploads never go through them.
   - **The file split is the file checked.** A signed upload link works for a few minutes, so a file could be replaced after it passed the checks. The worker now splits only a file of the checked size and SHA-256. Otherwise every page is marked as failed, and the job is not retried.
   - **Login from another site's form.** Logging in and accepting an invite have no session to check a CSRF token against. They now accept only JSON, which a form on another site cannot send. The CSRF cookie is renewed at every login, so a token planted beforehand is useless.
-  - **A test lists every route.** Each has an access rule, and only logging in and accepting an invite are public, both POST.
+  - **A test lists every route,** found through every module the app imports, including handlers a controller inherits, and at least the 25 of section 8. Each has an access rule, and only logging in and accepting an invite are public, both POST.
   - **The workplace id of one workplace's PDF is checked as a UUID,** like every other id.
 - **Notes, no change:**
   - A download of the Excel or the PDFs is counted by a GET, so a link on another site could count one. Closing still needs a typed name, a checked POST and, by default, fresh downloads (D56).
   - Knowing someone's email, an attacker can keep that account locked by failing 10 times every 15 minutes, and can learn that the email exists after 10 failures. Both follow from section 11's thresholds; the owner can be unlocked by another admin (D41).
   - A photo may still be up to 268 million pixels, so the server needs memory for that (T4.3 sizing).
+  - The per-computer login limit counts one address. Someone with a block of IPv6 addresses (often a whole /64) can change address and keep guessing; the per-account lock after 10 failures still holds. Low priority, no change now.
+  - The `__Host-` cookie prefix (which stops a site on a sibling subdomain from planting a cookie) was considered and skipped: renewing the CSRF cookie at every login already makes a planted token useless, and the rename would touch the web app and every test that names the cookies.
 - **Content Security Policy for T4.3:**
   `default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' <bucket>; connect-src 'self' <bucket>; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'`
   - `<bucket>` is the S3 address, because the browser uploads to it and shows scans from it.
@@ -543,8 +545,11 @@ At Liam's request, three reviewers checked everything built so far: the API, the
   - HTTPS with HTTP redirected.
   - HSTS: `Strict-Transport-Security: max-age=31536000`.
   - The CSP above, plus `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` and `Cache-Control: no-store` on `/api/*`.
-  - The API and worker ports are never published.
-  - Caddy's `trusted_proxies` is left unset, so Caddy replaces any `X-Forwarded-For` the caller sends.
+  - The API and worker ports are never published, nor the Postgres and MinIO ports.
+  - Caddy's `trusted_proxies` is left unset, so Caddy replaces any `X-Forwarded-For` the caller sends. No CDN or load balancer goes in front unless `trusted_proxies` is set for it.
+  - Caddy must see the callers' real addresses, not Docker's: turn on Docker's `ip6tables`, or turn off its userland proxy, or run Caddy with host networking. Check `req.ip` once over IPv4 and once over IPv6.
+  - Postgres over TLS (`sslmode=verify-full`), reachable only from the app's network.
+  - Optional headers: `Permissions-Policy` (nothing allowed) and `Cross-Origin-Opener-Policy: same-origin`. If a web manifest is ever added, the CSP needs `manifest-src 'self'`.
   - The S3 bucket:
     - public access blocked;
     - encryption at rest;

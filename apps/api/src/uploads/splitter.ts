@@ -13,6 +13,9 @@ import { PrismaClient } from '../generated/prisma/client.ts';
 import { READ_UPLOAD } from '../queue.ts';
 import { Storage, saveTo } from '../storage.ts';
 
+/** A split stops in good time before its job expires (30 minutes, queue.ts), page by page. */
+const SPLIT_DEADLINE_MS = 25 * 60_000;
+
 @Injectable()
 export class Splitter {
   private readonly log = new Logger(Splitter.name);
@@ -28,7 +31,11 @@ export class Splitter {
    * turned into an image does not stop the others (principle 4): it is tried again with the job,
    * and on the last attempt it is recorded on the upload so the user can scan it again.
    */
-  async split(uploadId: string, { lastAttempt }: { lastAttempt: boolean }) {
+  async split(
+    uploadId: string,
+    { lastAttempt, deadlineMs = SPLIT_DEADLINE_MS }: { lastAttempt: boolean; deadlineMs?: number },
+  ) {
+    const stopAt = Date.now() + deadlineMs;
     const upload = await this.prisma.upload.findUnique({
       where: { id: uploadId },
       include: { tickets: { select: { pageIndex: true } } },
@@ -54,7 +61,8 @@ export class Splitter {
         if (replaced) this.log.warn(`Upload ${uploadId}: the file changed after it was checked.`);
         for (let pageIndex = 0; pageIndex < pages; pageIndex++) {
           if (done.has(pageIndex)) continue;
-          if (replaced) {
+          // Out of time: the rest wait for the next attempt (pages done are kept), or fail.
+          if (replaced || Date.now() >= stopAt) {
             failed.push(pageIndex);
             continue;
           }
