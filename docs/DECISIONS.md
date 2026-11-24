@@ -495,3 +495,12 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **The reader joins a month under its lock** and checks it is still open, so a ticket read just as Close begins gets `MONTH_CLOSED` instead of slipping in after the purge passed.
 - **Tests** never delete by the real clock: the check takes "today" from the reading settings, which tests fix. The API tests now allow 20 seconds each however they are run (database and file storage are slow on some machines).
 - **Known gaps, accepted:** the job queue keeps finished jobs (ids only, never values) for a day (the new queues) or a week (uploads), within the backup window; earlier history of a ticket that moved months goes with the old month; an uploaded file whose splitting crashed between its last two steps stays until the bucket's rule for `uploads/` deletes it (2 days, section 12); old object versions are left to the bucket's rule (6.4, T4.3); a download is recorded when its file is sent, not when its snapshot was read (the checkbox covers the difference).
+
+## D57 · Phase 3 gate · Passed: the Excel totals for the Phase 0 set match the answer file exactly
+
+- **The gate** (plan section 13): "Excel totals for the Phase 0 set match `truth.csv` exactly."
+- **The check (2026-11-23 and 24, local, no reading cost).** The month's Excel was built from the 45 real tickets reviewed at the Phase 2 gate (D53). Every workplace's total and the grand total (21,110 minutes, 351.83 hours) equal the answer file. Every formula adds up: each worker's row, each day and each sheet. The two Morphium places count as one, as Liam answered in D53.
+- **Before the check,** one ticket saved before the D53 fix was saved again so it joined its listed workplace. Two others saved before that fix still show as sheets with English names, with correct hours; new tickets cannot do this.
+- **The other Phase 3 pieces were checked on the same data.** The workplace PDFs held all 45 original scans, each in its own workplace and in date order (D55). Closing a throwaway copy of the month left only its summary, 45 tickets and 351:50 hours, and an empty storage bucket (D56).
+- **Liam's checks:** he opened the Excel and approved it (the styling is plain on purpose and comes later), and he checked the workplace PDFs in Windows Explorer.
+- **Next (Liam):** a December trial on a real month. He copies one or two workplaces' tickets onto printed Tally tickets by hand, then the Excel totals are compared with the agency's own December figures and the review is timed.
