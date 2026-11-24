@@ -281,7 +281,7 @@ export function Month() {
             Workplace PDFs
           </Button>
           {excel.error && <Alert severity="error">{excel.error.message}</Alert>}
-          {pdfs.error && <Alert severity="error">{pdfs.error.message}</Alert>}
+          {pdfs.error && !pdfs.variables && <Alert severity="error">{pdfs.error.message}</Alert>}
         </Box>
       )}
       {needReview(m.tickets) > 0 && (
@@ -325,9 +325,17 @@ export function Month() {
             {w.name}
           </Typography>
           {m.status === 'open' && w.ready && (
-            <Button size="small" disabled={pdfs.isPending} onClick={() => pdfs.mutate(w)}>
+            <Button
+              size="small"
+              aria-label={`Download PDF for ${w.name}`}
+              disabled={pdfs.isPending}
+              onClick={() => pdfs.mutate(w)}
+            >
               Download PDF
             </Button>
+          )}
+          {pdfs.error && pdfs.variables?.groupId === w.groupId && (
+            <Alert severity="error">{pdfs.error.message}</Alert>
           )}
           <Table size="small">
             <TableHead>

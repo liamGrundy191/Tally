@@ -82,6 +82,12 @@ export async function readyPlaces(
   if (month.status !== 'open') {
     throw new ConflictException('This month is being closed or is closed.');
   }
+  const ready = await tx.ticket.findMany({
+    where: { monthId, status: 'verified' },
+    select: { id: true, s3KeyPage: true },
+  });
+  // The scan's key stays on the server: the month page's rows never carry it.
+  const keyOf = new Map(ready.map((t) => [t.id, t.s3KeyPage]));
   const places = (await months.rows(monthId, tx))
     .map((p) => ({
       groupId: p.groupId,
@@ -89,15 +95,13 @@ export async function readyPlaces(
       rows: p.rows
         .map((r) => ({
           name: r.name,
-          tickets: r.tickets.filter((t) => t.status === 'verified'),
+          tickets: r.tickets
+            .filter((t) => t.status === 'verified')
+            .map((t) => ({ ...t, s3KeyPage: keyOf.get(t.id)! })),
         }))
         .filter((r) => r.tickets.length > 0),
     }))
     .filter((p) => p.rows.length > 0);
-  const ready = await tx.ticket.findMany({
-    where: { monthId, status: 'verified' },
-    select: { id: true },
-  });
 
   // Never leave out hours without a word (6.1): every ready ticket needs its row and its cell.
   const placed = places.flatMap((p) => p.rows.flatMap((r) => r.tickets));

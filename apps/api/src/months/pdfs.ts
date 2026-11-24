@@ -7,6 +7,7 @@ import { PrismaClient } from '../generated/prisma/client.ts';
 import { Storage } from '../storage.ts';
 import { readyPlaces } from './excel.ts';
 import { MonthsService } from './months.service.ts';
+import { finalGroups } from './organiser.ts';
 import { zip } from './zip.ts';
 
 const MONTHS = [
@@ -23,7 +24,9 @@ const MONTHS = [
   'נובמבר',
   'דצמבר',
 ];
-const SCAN_DPI = 200; // pages are scanned at 200 dpi, so each prints at its paper's size
+// A page of an uploaded PDF is stored at 200 dpi, so it prints at its paper's size; a photo keeps
+// its pixels, and PDF viewers fit it to the page.
+const SCAN_DPI = 200;
 
 /**
  * "<workplace> <month> <year>.pdf" (Liam, Q13): characters Windows or a ZIP path forbid are
@@ -33,10 +36,11 @@ export function fileNames(places: string[], month: string) {
   const taken = new Set<string>();
   return places.map((place) => {
     let base = place
-      .replace(/[\\/:*?"<>|]|\p{Cc}/gu, '')
+      .replace(/[\\/:*?"<>|]|[\p{Cc}\p{Cf}]/gu, '') // and invisible format characters
       .trim()
       .replace(/[. ]+$/, '');
     base = [...base].slice(0, 100).join('').trim() || 'מקום עבודה'; // never half a character
+    if (/^(con|prn|aux|nul|com\d|lpt\d)(\.|$)/i.test(base)) base = `_${base}`; // Windows device names
     for (let i = 1; ; i++) {
       const name = `${base} ${month}${i === 1 ? '' : ` (${i})`}.pdf`;
       if (!taken.has(name.toLowerCase())) {
@@ -68,23 +72,30 @@ export class WorkplacePdfExporter {
 
   /** One workplace's PDF. */
   async one(monthId: string, groupId: string) {
-    const { places, names } = await this.ready(monthId);
-    const i = places.findIndex((p) => p.groupId === groupId);
+    const { places, names, top } = await this.ready(monthId);
+    // A page opened before a merge still asks for the place it joined.
+    const i = places.findIndex((p) => p.groupId === top(groupId));
     if (i < 0) throw new NotFoundException('This workplace has no ready tickets in this month.');
     return { pdf: await this.pdf(places[i]!), filename: names[i]! };
   }
 
   /** The same ready tickets as the Excel, and each workplace's file name. */
   private async ready(monthId: string) {
-    const { month, places } = await this.prisma.$transaction(
-      (tx) => readyPlaces(tx, this.months, monthId),
+    const { month, places, groups } = await this.prisma.$transaction(
+      async (tx) => ({
+        ...(await readyPlaces(tx, this.months, monthId)),
+        groups: await tx.workplaceGroup.findMany({
+          where: { monthId },
+          select: { id: true, mergedIntoId: true },
+        }),
+      }),
       { isolationLevel: 'RepeatableRead' },
     );
     const names = fileNames(
       places.map((p) => p.name),
       `${MONTHS[month.month - 1]} ${month.year}`,
     );
-    return { month, places, names };
+    return { month, places, names, top: finalGroups(groups) };
   }
 
   private async pdf(place: Awaited<ReturnType<typeof readyPlaces>>['places'][number]) {
@@ -93,21 +104,18 @@ export class WorkplacePdfExporter {
     const tickets = place.rows
       .flatMap((r) => r.tickets)
       .sort((a, b) => a.shiftDate!.getTime() - b.shiftDate!.getTime());
-    const scans = await Promise.all(
-      tickets.map(async (t) => {
-        const file = await this.storage.get(t.s3KeyPage);
-        // Never a PDF short of a ticket without a word (6.1).
-        if (!file) {
-          throw new InternalServerErrorException(
-            'The scan of a ticket is missing, so the PDFs were not made.',
-          );
-        }
-        // A copy of its own: pdf-lib reads a small Buffer's shared pool from its start.
-        return new Uint8Array(Buffer.concat(await file.body.toArray()));
-      }),
-    );
     const doc = await PDFDocument.create();
-    for (const scan of scans) {
+    // One scan at a time, so only one is held besides the PDF being built.
+    for (const t of tickets) {
+      const file = await this.storage.get(t.s3KeyPage);
+      // Never a PDF short of a ticket without a word (6.1).
+      if (!file) {
+        throw new InternalServerErrorException(
+          'The scan of a ticket is missing, so the PDFs were not made.',
+        );
+      }
+      // A copy of its own: pdf-lib reads a small Buffer's shared pool from its start.
+      const scan = new Uint8Array(Buffer.concat(await file.body.toArray()));
       const image = await doc.embedJpg(scan); // the JPEG as stored, not encoded again
       const width = (image.width * 72) / SCAN_DPI;
       const height = (image.height * 72) / SCAN_DPI;

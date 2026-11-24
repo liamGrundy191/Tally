@@ -210,6 +210,28 @@ describe('the month page', () => {
       ).toHaveLength(1);
       await click('Download PDF');
       expect(saved).toEqual([`${name} blob:excel`]);
+      expect(button('Download PDF')?.getAttribute('aria-label')).toBe('Download PDF for דולב');
+    });
+
+    it('falls back to its own name when the server’s is broken', async () => {
+      replies['GET /api/months/m-nov/pdfs?workplace=g1'] = {
+        status: 200,
+        body: 'pdf bytes',
+        headers: { 'content-disposition': "attachment; filename*=UTF-8''%E0%A4%A" },
+      };
+      await open('/months/m-nov');
+      await click('Download PDF');
+      expect(saved).toEqual(['דולב.pdf blob:excel']);
+    });
+
+    it('says why one workplace’s PDF cannot be made, under that workplace', async () => {
+      const why = 'This workplace has no ready tickets in this month.';
+      replies['GET /api/months/m-nov/pdfs?workplace=g1'] = { status: 404, body: { message: why } };
+      await open('/months/m-nov');
+      await click('Download PDF');
+      const place = [...container.querySelectorAll('h2')].find((h) => h.textContent === 'דולב')!;
+      expect(place.parentElement!.textContent).toContain(why);
+      expect(text().split(why)).toHaveLength(2); // shown once, not at the top as well
     });
 
     it('says why when the PDFs cannot be made, on the page', async () => {

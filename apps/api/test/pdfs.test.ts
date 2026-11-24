@@ -66,7 +66,19 @@ describe('file names and the ZIP', () => {
   it('names each workplace PDF safely, with the month, and numbers names that collide', () => {
     expect(
       fileNames(
-        ['חוות גולן', 'a/../b', 'Dolev', 'dolev', 'x:*?"<>|\\y', ' . ', 'z'.repeat(200)],
+        [
+          'חוות גולן',
+          'a/../b',
+          'Dolev',
+          'dolev',
+          'x:*?"<>|\\y',
+          ' . ',
+          'z'.repeat(200),
+          '‮גולן‏', // a right-to-left override and mark: invisible, so removed
+          'CON',
+          'com1.x',
+          'Conway',
+        ],
         MONTH,
       ),
     ).toEqual([
@@ -77,6 +89,10 @@ describe('file names and the ZIP', () => {
       `xy ${MONTH}.pdf`,
       `מקום עבודה ${MONTH}.pdf`,
       `${'z'.repeat(100)} ${MONTH}.pdf`,
+      `גולן ${MONTH}.pdf`,
+      `_CON ${MONTH}.pdf`, // Windows device names
+      `_com1.x ${MONTH}.pdf`,
+      `Conway ${MONTH}.pdf`,
     ]);
   });
 
@@ -235,6 +251,18 @@ describe.skipIf(!databaseUrl || !storageConfigured)('the workplace PDFs (T3.2)',
     expect(all).toHaveLength(6);
   });
 
+  it('gives a place merged away the PDF of the place it joined', async () => {
+    const res = await owner.download(`/api/months/${monthId}/pdfs?workplace=${merged}`);
+    expect(res.status).toBe(200);
+    expect(await pages(res.bytes)).toEqual(expected.get(`חוות גולן ${MONTH}.pdf`));
+  });
+
+  it('never sends a scan’s storage key to the browser', async () => {
+    const res = await owner.send('GET', `/api/months/${monthId}`);
+    expect(res.status).toBe(200);
+    expect(JSON.stringify(res.body)).not.toMatch(/s3KeyPage|pages\//);
+  });
+
   it('gives one workplace at a time, named in Hebrew', async () => {
     const res = await owner.download(`/api/months/${monthId}/pdfs?workplace=${golan}`);
     expect(res.status).toBe(200);
@@ -251,7 +279,7 @@ describe.skipIf(!databaseUrl || !storageConfigured)('the workplace PDFs (T3.2)',
     expect((await owner.download('/api/months/not-a-month/pdfs')).status).toBe(404);
     const none = '00000000-0000-4000-8000-000000000000';
     expect((await owner.download(`/api/months/${none}/pdfs`)).status).toBe(404);
-    for (const w of ['not-a-place', none, merged]) {
+    for (const w of ['not-a-place', none]) {
       expect((await owner.download(`/api/months/${monthId}/pdfs?workplace=${w}`)).status).toBe(404);
     }
     for (const status of ['closing', 'closed'] as const) {
