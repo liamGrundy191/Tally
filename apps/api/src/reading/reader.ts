@@ -1,7 +1,7 @@
 // Pipeline steps 3–7 (section 4), run by the worker for one upload at a time: the second look at
 // names (6a) needs every ticket of the upload read first, and batch mode sends each round of the
 // whole upload as one batch.
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   type ExtractionResult,
   type Flag,
@@ -31,6 +31,8 @@ const CONCURRENCY = 4;
 
 @Injectable()
 export class Reader {
+  private readonly log = new Logger(Reader.name);
+
   constructor(
     private readonly prisma: PrismaClient,
     private readonly storage: Storage,
@@ -168,6 +170,8 @@ export class Reader {
     const flags: Flag[] = c
       ? [...c.flags]
       : [{ code: 'EXTRACTION_ERROR', detail: { error: r.error } }];
+    // Ids only: the reason is in the flag, which a reviewer sees (D59).
+    if (!c) this.log.warn({ msg: 'ticket not read', ticketId: r.id });
     // 5.2: the name in English letters, for the worker's Excel row.
     const written = c?.fields.firstName ?? null;
     let workerName: string | null = null;

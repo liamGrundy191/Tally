@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fromPrisma, PgBoss } from 'pg-boss';
 import { PrismaClient } from '../generated/prisma/client.ts';
+import { safeError } from '../observability.ts';
 import { READ_UPLOAD } from '../queue.ts';
 import { Storage, saveTo } from '../storage.ts';
 
@@ -75,7 +76,12 @@ export class Splitter {
             await this.storage.put(s3KeyPage, image, 'image/jpeg');
             await this.prisma.ticket.create({ data: { uploadId, pageIndex, s3KeyPage } });
           } catch (e) {
-            this.log.warn(`Upload ${uploadId}, page ${pageIndex + 1}: ${(e as Error).message}`);
+            this.log.warn({
+              msg: 'page not split',
+              uploadId,
+              page: pageIndex + 1,
+              ...safeError(e),
+            });
             failed.push(pageIndex);
           }
         }

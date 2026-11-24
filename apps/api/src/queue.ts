@@ -2,6 +2,7 @@
 // transaction as the rows it is about, so neither can exist without the other.
 import { Logger } from '@nestjs/common';
 import { PgBoss } from 'pg-boss';
+import { safeError } from './observability.ts';
 
 /** Splits an uploaded file into page images, one ticket per page (step 2). */
 export const SPLIT_UPLOAD = 'split-upload';
@@ -21,7 +22,7 @@ export const createBoss = (url: string, schema?: string) =>
 /** Creates the queue's tables and the queues, if they do not exist yet. */
 export async function startQueue(boss: PgBoss) {
   const log = new Logger('Queue');
-  boss.on('error', (e) => log.error(e));
+  boss.on('error', (e) => log.error(safeError(e)));
   await boss.start();
   // A job that fails is tried again, 5 attempts in all, waiting longer each time (section 10).
   const retries = { retryLimit: RETRY_LIMIT, retryBackoff: true, retryDelay: 5 };

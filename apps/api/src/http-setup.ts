@@ -1,5 +1,6 @@
 // The HTTP settings, shared by the server and the tests so the tests run what production runs.
 import type { NestExpressApplication } from '@nestjs/platform-express';
+import { SafeErrorFilter } from './observability.ts';
 
 export function configureApp(app: NestExpressApplication) {
   app.setGlobalPrefix('api');
@@ -7,4 +8,6 @@ export function configureApp(app: NestExpressApplication) {
   // an address the client adds in front is ignored (the per-computer login limit, section 11).
   app.set('trust proxy', 'loopback, linklocal, uniquelocal');
   app.disable('x-powered-by');
+  // An unexpected error is logged and reported without its text (D59).
+  app.useGlobalFilters(new SafeErrorFilter(app.getHttpAdapter()));
 }
