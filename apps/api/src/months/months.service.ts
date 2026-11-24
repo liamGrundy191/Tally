@@ -1,7 +1,13 @@
 // Months (section 6.1): one per calendar month, created when its first ticket arrives.
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { type Month, type Prisma, PrismaClient, TicketStatus } from '../generated/prisma/client.ts';
-import { finalGroups } from './organiser.ts';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  type DownloadKind,
+  type Month,
+  type Prisma,
+  PrismaClient,
+  TicketStatus,
+} from '../generated/prisma/client.ts';
+import { finalGroups, lockMonth } from './organiser.ts';
 
 /**
  * Step 6c: the month a settled ticket date belongs to, created if this is its first ticket. Safe
@@ -22,6 +28,24 @@ export class MonthsService {
       orderBy: [{ year: 'desc' }, { month: 'desc' }],
     });
     return this.withCounts(months);
+  }
+
+  /**
+   * Closing needs one download of each file (6.1). Recorded after the file is built, under the
+   * month's lock, so a download that races with Close is refused rather than left behind.
+   */
+  async recordDownload(userId: string, monthId: string, kind: DownloadKind) {
+    await this.prisma.$transaction(
+      async (tx) => {
+        await lockMonth(tx, monthId);
+        const month = await tx.month.findUnique({ where: { id: monthId } });
+        if (month?.status !== 'open') {
+          throw new ConflictException('This month is being closed or is closed.');
+        }
+        await tx.download.create({ data: { monthId, kind, userId } });
+      },
+      { timeout: 120_000, maxWait: 60_000 },
+    );
   }
 
   async get(id: string) {

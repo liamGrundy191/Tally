@@ -53,3 +53,34 @@ export function todayIn(timeZone: string, now: Date = new Date()): string {
 }
 
 export const AGENCY_TIME_ZONE = 'Asia/Jerusalem';
+
+const MONTHS = [
+  'January',
+  'February',
+  'March',
+  'April',
+  'May',
+  'June',
+  'July',
+  'August',
+  'September',
+  'October',
+  'November',
+  'December',
+];
+type MonthKey = { year: number; month: number };
+
+/** A month's name as the app shows it, and as it is typed to close it: "November 2026". */
+export const monthName = (m: MonthKey) => `${MONTHS[m.month - 1]} ${m.year}`;
+
+const typed = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+/** Closing asks for the month's name (6.1); capitals and extra spaces do not matter. */
+export const isMonthName = (text: string, m: MonthKey) => typed(text) === typed(monthName(m));
+
+/** The month's last day plus `days`, as YYYY-MM-DD. */
+const afterLastDay = (m: MonthKey, days: number) =>
+  new Date(Date.UTC(m.year, m.month, days)).toISOString().slice(0, 10);
+/** A month is deleted automatically 60 days after its last day (6.1), in Israel's calendar. */
+export const autoDeleteOn = (m: MonthKey) => afterLastDay(m, 60);
+/** From day 50 a banner warns that the month will be deleted (6.1). */
+export const warnFrom = (m: MonthKey) => afterLastDay(m, 50);

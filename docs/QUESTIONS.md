@@ -157,3 +157,13 @@ Options: A) The Hebrew month: `חוות גולן נובמבר 2026.pdf`. B) The 
 Recommendation: A. The workplace reads the name, and the Hebrew month is clearer to it.
 
 Answer (Liam): A (2026-11-24). The ZIP is `tickets-2026-11.zip`.
+
+## Q14 · T3.3 · Tickets that still need review when a month is closed · answered
+
+Context: Tickets still waiting for review are in neither the final Excel nor the workplace PDFs, and closing deletes them, so their hours would be lost without a trace.
+
+Options: A) Closing is refused until every ticket of the month is ready or removed (removed ones are listed on the Excel's "removed" sheet). B) Closing is allowed, with a warning that says how many will be deleted.
+
+Recommendation: A, so no hours can vanish without a trace; removing a ticket is one click.
+
+Answer (Liam): A (2026-11-24).

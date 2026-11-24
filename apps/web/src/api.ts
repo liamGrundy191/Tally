@@ -32,6 +32,10 @@ export interface MonthSummary {
   month: number;
   status: 'open' | 'closing' | 'closed';
   tickets: Counts;
+  /** Kept after the month is deleted (6.4): the ready tickets and their minutes. */
+  closedAt: string | null;
+  summaryTicketCount: number | null;
+  summaryTotalMinutes: number | null;
 }
 
 export interface MonthTicket {
@@ -309,7 +313,8 @@ export function useMonth(id: string) {
   return useQuery<MonthDetail, ApiError>({
     queryKey: ['months', id],
     queryFn: () => api(`/api/months/${encodeURIComponent(id)}`),
-    refetchInterval,
+    // A month being closed is asked again until it is gone.
+    refetchInterval: (q) => (q.state.data?.status === 'closing' ? POLL_MS : refetchInterval()),
   });
 }
 

@@ -1,18 +1,25 @@
 import {
+  Body,
   Controller,
   Get,
   Header,
+  HttpCode,
   NotFoundException,
   Param,
+  Post,
   Query,
   StreamableFile,
 } from '@nestjs/common';
 import { Readable } from 'node:stream';
+import { closeMonthSchema } from '@tally/shared';
 import { z } from 'zod';
-import { Access } from '../auth/access.ts';
+import { Access, CurrentUser } from '../auth/access.ts';
+import type { SessionUser } from '../auth/http.ts';
+import { validate } from '../validate.ts';
 import { ExcelExporter } from './excel.ts';
 import { WorkplacePdfExporter } from './pdfs.ts';
 import { MonthsService } from './months.service.ts';
+import { Purger } from './purge.ts';
 
 const monthId = (id: string) => {
   if (!z.uuid().safeParse(id).success) throw new NotFoundException('There is no such month.');
@@ -26,6 +33,7 @@ export class MonthsController {
     private readonly months: MonthsService,
     private readonly excel: ExcelExporter,
     private readonly pdfs: WorkplacePdfExporter,
+    private readonly purger: Purger,
   ) {}
 
   @Get()
@@ -41,8 +49,9 @@ export class MonthsController {
   /** The month's Excel file (6.2), made from the ready tickets as they are now. */
   @Get(':id/excel')
   @Header('Cache-Control', 'private, no-store')
-  async download(@Param('id') id: string) {
+  async download(@CurrentUser() user: SessionUser, @Param('id') id: string) {
     const { file, filename } = await this.excel.export(monthId(id));
+    await this.months.recordDownload(user.id, id, 'excel');
     return new StreamableFile(file, {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       disposition: `attachment; filename="${filename}"`,
@@ -52,7 +61,11 @@ export class MonthsController {
   /** The workplace PDFs (6.3): all of them in one ZIP, or one workplace's with ?workplace=. */
   @Get(':id/pdfs')
   @Header('Cache-Control', 'private, no-store')
-  async workplacePdfs(@Param('id') id: string, @Query('workplace') workplace?: string) {
+  async workplacePdfs(
+    @CurrentUser() user: SessionUser,
+    @Param('id') id: string,
+    @Query('workplace') workplace?: string,
+  ) {
     if (workplace !== undefined) {
       const file = await this.pdfs.one(monthId(id), workplace);
       // A Hebrew name needs filename* (RFC 5987); the plain one is for browsers without it.
@@ -66,9 +79,19 @@ export class MonthsController {
       });
     }
     const file = await this.pdfs.all(monthId(id));
+    // Only all the PDFs count towards closing (6.1), not one workplace's.
+    await this.months.recordDownload(user.id, id, 'pdfs');
     return new StreamableFile(Readable.from(file.zip), {
       type: 'application/zip',
       disposition: `attachment; filename="${file.filename}"`,
     });
+  }
+
+  /** Close month (6.1): the month's name typed, both files downloaded, every ticket settled. */
+  @Post(':id/close')
+  @HttpCode(202)
+  async close(@CurrentUser() user: SessionUser, @Param('id') id: string, @Body() body: unknown) {
+    const { name } = validate(closeMonthSchema, body);
+    await this.purger.close(user.id, monthId(id), name);
   }
 }

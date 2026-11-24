@@ -3,6 +3,11 @@ import {
   Alert,
   Box,
   Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogContentText,
+  DialogTitle,
   List,
   ListItem,
   Table,
@@ -13,7 +18,15 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { formatMinutes } from '@tally/shared';
+import {
+  AGENCY_TIME_ZONE,
+  autoDeleteOn,
+  formatMinutes,
+  isMonthName,
+  monthName,
+  todayIn,
+  warnFrom,
+} from '@tally/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router';
@@ -21,6 +34,7 @@ import {
   api,
   download,
   type Counts,
+  type MonthSummary,
   type MonthTicket,
   type TicketStatus,
   stuck,
@@ -43,12 +57,7 @@ const STATUS: Record<TicketStatus, string> = {
 };
 
 export const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-export const monthName = (m: { year: number; month: number }) =>
-  new Date(Date.UTC(m.year, m.month - 1)).toLocaleDateString('en-GB', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  });
+export { monthName };
 /** Removed tickets are left out of the month's count. */
 const total = (c: Counts) => c.processing + c.verified + c.needs_review + c.needs_manual_entry;
 const needReview = (c: Counts) => c.needs_review + c.needs_manual_entry;
@@ -62,6 +71,17 @@ const day = (iso: string | null) =>
         timeZone: 'UTC',
       })
     : '—';
+
+/** From day 50, an open month is about to be deleted automatically (6.1). */
+function DeleteWarning({ m }: { m: MonthSummary }) {
+  if (m.status !== 'open' || todayIn(AGENCY_TIME_ZONE) < warnFrom(m)) return null;
+  return (
+    <Alert severity="warning" sx={{ my: 1 }}>
+      {monthName(m)} will be deleted automatically on {day(`${autoDeleteOn(m)}T00:00:00Z`)}.
+      Download its files and close it before then.
+    </Alert>
+  );
+}
 
 /** One line per upload still being read; the finished ones as one count. */
 export function UploadsProgress() {
@@ -133,18 +153,23 @@ export function Home() {
           </Typography>
         </>
       ) : (
-        <List>
+        <>
           {open.map((m) => (
-            <ListItem key={m.id} disableGutters>
-              <Typography>
-                <Link to={`/months/${m.id}`}>{monthName(m)}</Link>:{' '}
-                {plural(total(m.tickets), 'ticket')}
-                {needReview(m.tickets) > 0 && `, ${needReview(m.tickets)} need review`}
-                {m.status === 'closing' && ' (being closed)'}
-              </Typography>
-            </ListItem>
+            <DeleteWarning key={m.id} m={m} />
           ))}
-        </List>
+          <List>
+            {open.map((m) => (
+              <ListItem key={m.id} disableGutters>
+                <Typography>
+                  <Link to={`/months/${m.id}`}>{monthName(m)}</Link>:{' '}
+                  {plural(total(m.tickets), 'ticket')}
+                  {needReview(m.tickets) > 0 && `, ${needReview(m.tickets)} need review`}
+                  {m.status === 'closing' && ' (being closed)'}
+                </Typography>
+              </ListItem>
+            ))}
+          </List>
+        </>
       )}
       {(review.error ?? manual.error) && (
         <ErrorMessage
@@ -228,6 +253,15 @@ export function Month() {
       return download(`/api/months/${m.id}/excel`, name);
     },
   });
+  const [closing, setClosing] = useState(false);
+  const [typed, setTyped] = useState('');
+  const close = useMutation({
+    mutationFn: () => api(`/api/months/${month.data!.id}/close`, 'POST', { name: typed }),
+    onSuccess: () => {
+      setClosing(false);
+      void client.invalidateQueries({ queryKey: ['months'] });
+    },
+  });
   // All the workplace PDFs in one ZIP, or one workplace's PDF (6.3).
   const pdfs = useMutation({
     mutationFn: (w?: { groupId: string; name: string }) => {
@@ -242,6 +276,27 @@ export function Month() {
     return <ErrorMessage message={month.error.message} retry={() => void month.refetch()} />;
   if (!month.data) return <Typography>Loading the month…</Typography>;
   const m = month.data;
+  // A closed month keeps only its summary (6.4); one being closed shows nothing to act on.
+  if (m.status === 'closed') {
+    return (
+      <Page title={monthName(m)}>
+        <Typography>
+          Closed on {day(m.closedAt)}. Its tickets and scans were deleted; the summary is kept:{' '}
+          {plural(m.summaryTicketCount ?? 0, 'ready ticket')},{' '}
+          {formatMinutes(m.summaryTotalMinutes ?? 0)} hours.
+        </Typography>
+      </Page>
+    );
+  }
+  if (m.status === 'closing') {
+    return (
+      <Page title={monthName(m)}>
+        <Typography>
+          This month is being closed: its tickets and scans are being deleted.
+        </Typography>
+      </Page>
+    );
+  }
   const listed = m.workplaces.reduce(
     (n, w) => n + w.unnamed.length + w.rows.reduce((r, row) => r + row.tickets.length, 0),
     0,
@@ -268,6 +323,7 @@ export function Month() {
         {plural(total(m.tickets), 'ticket')}: {m.tickets.verified} ready
         {m.tickets.processing > 0 && `, ${m.tickets.processing} being read`}.
       </Typography>
+      <DeleteWarning m={m} />
       {m.status === 'open' && (
         <Box sx={{ my: 1 }}>
           <Button variant="contained" disabled={excel.isPending} onClick={() => excel.mutate()}>
@@ -279,6 +335,9 @@ export function Month() {
             onClick={() => pdfs.mutate(undefined)}
           >
             Workplace PDFs
+          </Button>
+          <Button color="error" onClick={() => setClosing(true)}>
+            Close month
           </Button>
           {excel.error && <Alert severity="error">{excel.error.message}</Alert>}
           {pdfs.error && !pdfs.variables && <Alert severity="error">{pdfs.error.message}</Alert>}
@@ -376,6 +435,49 @@ export function Month() {
         onConfirm={() => remove.mutate(removing!)}
         onClose={() => setRemoving(null)}
       />
+      <Dialog open={closing} onClose={() => setClosing(false)} aria-labelledby="close-title">
+        <DialogTitle id="close-title">Close {monthName(m)}?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Closing deletes this month's tickets and scans for good; only a summary is kept. First
+            download the final files, then type the month's name.
+          </DialogContentText>
+          <Box sx={{ my: 2 }}>
+            <Button variant="outlined" disabled={excel.isPending} onClick={() => excel.mutate()}>
+              Download Excel
+            </Button>{' '}
+            <Button
+              variant="outlined"
+              disabled={pdfs.isPending}
+              onClick={() => pdfs.mutate(undefined)}
+            >
+              Workplace PDFs
+            </Button>
+          </Box>
+          {(excel.error ?? pdfs.error) && (
+            <Alert severity="error">{(excel.error ?? pdfs.error)!.message}</Alert>
+          )}
+          <TextField
+            label={`Type ${monthName(m)}`}
+            value={typed}
+            onChange={(e) => setTyped(e.target.value)}
+            size="small"
+            fullWidth
+            autoFocus
+          />
+          {close.error && <Alert severity="error">{close.error.message}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClosing(false)}>Cancel</Button>
+          <Button
+            color="error"
+            disabled={!isMonthName(typed, m) || close.isPending}
+            onClick={() => close.mutate()}
+          >
+            Close month
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Lists />
     </Page>
   );

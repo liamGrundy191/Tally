@@ -699,3 +699,102 @@ describe('the upload page', () => {
     expect(url()).toBe('/');
   });
 });
+
+describe('closing a month', () => {
+  const MONTH = { ...NOVEMBER, workplaces: [], questions: [] };
+  const typeInDialog = async (value: string) => {
+    const input = document.querySelector<HTMLInputElement>('[role="dialog"] input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+
+  it('asks for the month’s name, offers the downloads, and shows why it cannot close', async () => {
+    replies['GET /api/months/m-nov'] = { status: 200, body: MONTH };
+    replies['POST /api/months/m-nov/close'] = {
+      status: 409,
+      body: { message: 'Download the Excel and the workplace PDFs before closing the month.' },
+    };
+    await open('/months/m-nov');
+    await click('Close month');
+    expect(document.body.textContent).toContain('Close November 2026?');
+    expect(dialogButton('Download Excel')).toBeDefined();
+    expect(dialogButton('Workplace PDFs')).toBeDefined();
+    expect(dialogButton('Close month')!.hasAttribute('disabled')).toBe(true);
+    await typeInDialog('November 2025');
+    expect(dialogButton('Close month')!.hasAttribute('disabled')).toBe(true);
+    await typeInDialog(' november  2026 ');
+    expect(dialogButton('Close month')!.hasAttribute('disabled')).toBe(false);
+    await act(async () => dialogButton('Close month')!.click());
+    await settle();
+    expect(calls.find((c) => c.path === '/api/months/m-nov/close')!.body).toEqual({
+      name: ' november  2026 ',
+    });
+    expect(document.body.textContent).toContain(
+      'Download the Excel and the workplace PDFs before closing the month.',
+    );
+  });
+
+  it('shows a month being closed, then only its summary', async () => {
+    replies['GET /api/months/m-nov'] = { status: 200, body: MONTH };
+    replies['POST /api/months/m-nov/close'] = { status: 202, body: '' };
+    await open('/months/m-nov');
+    await click('Close month');
+    await typeInDialog('November 2026');
+    replies['GET /api/months/m-nov'] = { status: 200, body: { ...MONTH, status: 'closing' } };
+    await act(async () => dialogButton('Close month')!.click());
+    await settle();
+    expect(text()).toContain('This month is being closed');
+    expect(button('Download Excel')).toBeUndefined();
+    expect(text()).not.toContain('Lists that help reading');
+
+    replies['GET /api/months/m-nov'] = {
+      status: 200,
+      body: {
+        ...MONTH,
+        status: 'closed',
+        tickets: counts(),
+        closedAt: '2026-12-20T10:00:00.000Z',
+        summaryTicketCount: 640,
+        summaryTotalMinutes: 307_200,
+      },
+    };
+    await open('/months/m-nov');
+    expect(text()).toContain('Closed on 20/12/26');
+    expect(text()).toContain('640 ready tickets, 5120:00 hours');
+    expect(button('Close month')).toBeUndefined();
+  });
+
+  describe('the warning before a month is deleted by itself', () => {
+    afterEach(() => vi.useRealTimers());
+    const at = async (iso: string, path: string) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(iso));
+      replies['GET /api/months'] = { status: 200, body: [NOVEMBER] };
+      replies['GET /api/months/m-nov'] = { status: 200, body: MONTH };
+      replies['GET /api/tickets?month=none&status=needs_review'] = {
+        status: 200,
+        body: { total: 0, tickets: [] },
+      };
+      replies['GET /api/tickets?month=none&status=needs_manual_entry'] = {
+        status: 200,
+        body: { total: 0, tickets: [] },
+      };
+      await open(path);
+    };
+    const WARNING = 'November 2026 will be deleted automatically on 29/01/27';
+
+    it('shows from day 50 after the month, on Home and on the month page', async () => {
+      await at('2027-01-19T08:00:00Z', '/');
+      expect(text()).toContain(WARNING);
+      await at('2027-01-19T08:00:00Z', '/months/m-nov');
+      expect(text()).toContain(WARNING);
+    });
+
+    it('does not show the day before', async () => {
+      await at('2027-01-18T08:00:00Z', '/');
+      expect(text()).not.toContain('deleted automatically');
+    });
+  });
+});

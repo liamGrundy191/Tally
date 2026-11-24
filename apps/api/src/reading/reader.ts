@@ -22,7 +22,7 @@ import { prepareTicket } from '@tally/shared/imaging';
 import { createHash } from 'node:crypto';
 import { Prisma, PrismaClient } from '../generated/prisma/client.ts';
 import { monthOf } from '../months/months.service.ts';
-import { Organiser } from '../months/organiser.ts';
+import { Organiser, lockMonth } from '../months/organiser.ts';
 import { Storage } from '../storage.ts';
 import { ReadingConfig } from './config.ts';
 
@@ -183,63 +183,71 @@ export class Reader {
         flags.push({ code: 'NAME_NOT_CONFIRMED', field: 'firstName', detail: { written } });
       }
     }
-    await this.prisma.$transaction(async (tx) => {
-      // 6c: a ticket whose date is settled joins its month; one with any doubt about the date
-      // waits outside any month until a person confirms it.
-      let monthId: string | null = null;
-      if (c?.fields.shiftDate && !flags.some((f) => f.field === 'date')) {
-        const month = await monthOf(tx, new Date(c.fields.shiftDate));
-        if (month.status === 'open') monthId = month.id;
-        else
-          flags.push({
-            code: 'MONTH_CLOSED',
-            field: 'date',
-            detail: { year: month.year, month: month.month },
-          });
-      }
-      const status = !c
-        ? 'needs_manual_entry'
-        : flags.length > 0 || this.config.reviewEverything
-          ? 'needs_review'
-          : 'verified';
-      const workplace = c?.fields.workplace ?? null;
-      const saved = await tx.ticket.updateMany({
-        where: { id: r.id, status: 'processing' }, // a ticket is saved once
-        data: {
-          monthId,
-          templateVersion: TEMPLATE_V1.version,
-          firstName: written,
-          workerName,
-          // A list spelling ("Dolev") stands for its place, named in Hebrew (D36).
-          workplaceRaw:
-            workplace && c?.workplaceFromList ? (placeOf.get(workplace) ?? workplace) : workplace,
-          shiftDate: c?.fields.shiftDate ? new Date(c.fields.shiftDate) : null,
-          startMinutes: c?.fields.startMinutes ?? null,
-          endMinutes: c?.fields.endMinutes ?? null,
-          totalMinutes: c?.fields.totalMinutes ?? null,
-          totalFromMath: c?.totalFromMath ?? false,
-          suggestions: c?.suggestions ?? {},
-          status,
-          verifiedHow: status === 'verified' ? 'auto' : null,
-          version: { increment: 1 }, // a review opened before this reading cannot overwrite it
-        },
-      });
-      if (saved.count === 0) return;
-      // Every confirmed name joins the names list, so it keeps up with new workers (5.4).
-      if (workerName && !englishOf.has(normaliseName(workerName))) {
-        await tx.listEntry.createMany({
-          data: [{ kind: 'name', name: workerName }],
-          skipDuplicates: true,
+    await this.prisma.$transaction(
+      async (tx) => {
+        // 6c: a ticket whose date is settled joins its month; one with any doubt about the date
+        // waits outside any month until a person confirms it.
+        let monthId: string | null = null;
+        if (c?.fields.shiftDate && !flags.some((f) => f.field === 'date')) {
+          let month = await monthOf(tx, new Date(c.fields.shiftDate));
+          // Under the month's lock: a month that starts closing now must not gain a ticket the
+          // purge has already passed over (6.4).
+          await lockMonth(tx, month.id);
+          month = await tx.month.findUniqueOrThrow({ where: { id: month.id } });
+          if (month.status === 'open') monthId = month.id;
+          else
+            flags.push({
+              code: 'MONTH_CLOSED',
+              field: 'date',
+              detail: { year: month.year, month: month.month },
+            });
+        }
+        const status = !c
+          ? 'needs_manual_entry'
+          : flags.length > 0 || this.config.reviewEverything
+            ? 'needs_review'
+            : 'verified';
+        const workplace = c?.fields.workplace ?? null;
+        const saved = await tx.ticket.updateMany({
+          where: { id: r.id, status: 'processing' }, // a ticket is saved once
+          data: {
+            monthId,
+            templateVersion: TEMPLATE_V1.version,
+            firstName: written,
+            workerName,
+            // A list spelling ("Dolev") stands for its place, named in Hebrew (D36).
+            workplaceRaw:
+              workplace && c?.workplaceFromList ? (placeOf.get(workplace) ?? workplace) : workplace,
+            shiftDate: c?.fields.shiftDate ? new Date(c.fields.shiftDate) : null,
+            startMinutes: c?.fields.startMinutes ?? null,
+            endMinutes: c?.fields.endMinutes ?? null,
+            totalMinutes: c?.fields.totalMinutes ?? null,
+            totalFromMath: c?.totalFromMath ?? false,
+            suggestions: c?.suggestions ?? {},
+            status,
+            verifiedHow: status === 'verified' ? 'auto' : null,
+            version: { increment: 1 }, // a review opened before this reading cannot overwrite it
+          },
         });
-      }
-      await tx.flag.createMany({
-        data: flags.map((f) => ({
-          ticketId: r.id,
-          code: f.code,
-          field: f.field ?? null,
-          detail: (f.detail ?? {}) as Prisma.InputJsonValue,
-        })),
-      });
-    });
+        if (saved.count === 0) return;
+        // Every confirmed name joins the names list, so it keeps up with new workers (5.4).
+        if (workerName && !englishOf.has(normaliseName(workerName))) {
+          await tx.listEntry.createMany({
+            data: [{ kind: 'name', name: workerName }],
+            skipDuplicates: true,
+          });
+        }
+        await tx.flag.createMany({
+          data: flags.map((f) => ({
+            ticketId: r.id,
+            code: f.code,
+            field: f.field ?? null,
+            detail: (f.detail ?? {}) as Prisma.InputJsonValue,
+          })),
+        });
+        // The month's lock may be held while the organiser sorts a big month (up to 2 minutes).
+      },
+      { timeout: 120_000, maxWait: 60_000 },
+    );
   }
 }

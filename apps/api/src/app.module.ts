@@ -13,6 +13,7 @@ import { ExcelExporter } from './months/excel.ts';
 import { WorkplacePdfExporter } from './months/pdfs.ts';
 import { MonthsService } from './months/months.service.ts';
 import { Organiser } from './months/organiser.ts';
+import { Purger } from './months/purge.ts';
 import { createBoss, startQueue } from './queue.ts';
 import { ReadingConfig } from './reading/config.ts';
 import { Reader } from './reading/reader.ts';
@@ -53,6 +54,7 @@ import { UsersService } from './users/users.service.ts';
     ExcelExporter,
     WorkplacePdfExporter,
     Organiser,
+    Purger,
     TicketsService,
     // Every route must declare its access (section 11).
     { provide: APP_GUARD, useClass: AccessGuard },

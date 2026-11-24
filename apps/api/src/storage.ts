@@ -2,7 +2,9 @@
 // for a file as uploaded, `pages/<upload id>/<page>.jpg` for its page images (D42).
 import {
   DeleteObjectCommand,
+  DeleteObjectsCommand,
   GetObjectCommand,
+  ListObjectsV2Command,
   NoSuchKey,
   PutObjectCommand,
   S3Client,
@@ -72,6 +74,36 @@ export class Storage {
 
   async remove(key: string) {
     await this.s3.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
+  }
+
+  /** Deletes files, 1000 to a request. A missing file counts as deleted (a purge run again). */
+  async removeMany(keys: string[]) {
+    for (let i = 0; i < keys.length; i += 1000) {
+      const res = await this.s3.send(
+        new DeleteObjectsCommand({
+          Bucket: this.bucket,
+          Delete: { Objects: keys.slice(i, i + 1000).map((Key) => ({ Key })), Quiet: true },
+        }),
+      );
+      // S3 reports a file it could not delete in the answer, not as an error.
+      if (res.Errors?.length) {
+        throw new Error(
+          `${res.Errors.length} file(s) could not be deleted: ${res.Errors[0]!.Message}`,
+        );
+      }
+    }
+  }
+
+  /** Deletes every file whose key starts with `prefix`. */
+  async removePrefix(prefix: string) {
+    let ContinuationToken: string | undefined;
+    do {
+      const res = await this.s3.send(
+        new ListObjectsV2Command({ Bucket: this.bucket, Prefix: prefix, ContinuationToken }),
+      );
+      await this.removeMany((res.Contents ?? []).map((o) => o.Key!));
+      ContinuationToken = res.NextContinuationToken;
+    } while (ContinuationToken);
   }
 }
 

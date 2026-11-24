@@ -1,9 +1,10 @@
 // The background worker (MODE=worker): the same app, taking jobs from the queue instead of
 // answering requests.
 import type { INestApplicationContext } from '@nestjs/common';
-import type { ReadSpeed } from '@tally/shared';
+import { AGENCY_TIME_ZONE, type ReadSpeed } from '@tally/shared';
 import { PgBoss } from 'pg-boss';
-import { READ_UPLOAD, RETRY_LIMIT, SPLIT_UPLOAD } from './queue.ts';
+import { Purger } from './months/purge.ts';
+import { CHECK_MONTHS, PURGE_MONTH, READ_UPLOAD, RETRY_LIMIT, SPLIT_UPLOAD } from './queue.ts';
 import { Reader } from './reading/reader.ts';
 import { Splitter } from './uploads/splitter.ts';
 
@@ -20,4 +21,10 @@ export async function startWorker(app: INestApplicationContext) {
     { localConcurrency: 4 },
     ([job]) => reader.read(job!.data.uploadId, job!.data.speed),
   );
+  const purger = app.get(Purger);
+  await boss.work<{ monthId: string }>(PURGE_MONTH, ([job]) => purger.purge(job!.data.monthId));
+  await boss.work(CHECK_MONTHS, () => purger.check());
+  // Every night in Israel time (6.1), and once now: a purge cut short by a restart is finished.
+  await boss.schedule(CHECK_MONTHS, '0 3 * * *', null, { tz: AGENCY_TIME_ZONE });
+  await boss.send(CHECK_MONTHS);
 }
