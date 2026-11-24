@@ -9,7 +9,7 @@ import { routes } from './routes.tsx';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-type Answer = { status: number; body?: unknown } | 'offline';
+type Answer = { status: number; body?: unknown; headers?: Record<string, string> } | 'offline';
 /** A fixed answer, or one made from the request body (e.g. a new key for each sign). */
 export type Reply = Answer | ((body: unknown) => Answer);
 export const ADMIN = { id: 'u1', email: 'admin@example.com', role: 'admin' };
@@ -40,7 +40,7 @@ export function useFakeApi() {
         const answer = typeof reply === 'function' ? reply(body) : reply;
         if (answer === 'offline') throw new TypeError('Failed to fetch');
         const text = answer.body === undefined ? null : JSON.stringify(answer.body);
-        return new Response(text, { status: answer.status });
+        return new Response(text, { status: answer.status, headers: answer.headers });
       }),
     );
   });

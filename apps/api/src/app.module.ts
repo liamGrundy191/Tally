@@ -10,6 +10,7 @@ import { ListsController } from './lists/lists.controller.ts';
 import { MonthsController } from './months/months.controller.ts';
 import { FlagsController } from './months/flags.controller.ts';
 import { ExcelExporter } from './months/excel.ts';
+import { WorkplacePdfExporter } from './months/pdfs.ts';
 import { MonthsService } from './months/months.service.ts';
 import { Organiser } from './months/organiser.ts';
 import { createBoss, startQueue } from './queue.ts';
@@ -50,6 +51,7 @@ import { UsersService } from './users/users.service.ts';
     Reader,
     MonthsService,
     ExcelExporter,
+    WorkplacePdfExporter,
     Organiser,
     TicketsService,
     // Every route must declare its access (section 11).
