@@ -641,3 +641,14 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **A forgotten password:** run Install again and create a login with another email; the old one can be removed on the Admin page. No reset screen (not in the plan).
 - **No backups on the laptop:** the paper tickets are the backup (D61).
 - **Checked on this computer:** Install from nothing (build, five migrations, start, health), login and a reload with 30-day cookies, an upload read by the fake reader, the review screen's images from storage, the Excel and the ZIP, no Content Security Policy errors; Open when running, after a stop with the ticket still there, after storage restarted alone, and with Docker reported as not running. Not checkable here: the hidden key prompt, the login questions typed by a person, and a real reboot (Liam's checks on the laptop).
+
+## D63 · T5.1 · The design pass: the month as four steps (Liam)
+
+- **Who it is for:** Liam's father, alone, on the home laptop (D61). English screens in plainer words (Liam: English, not Hebrew; one person does everything).
+- **Home is the month at hand.** The newest open month as four steps, each with what is left and one main button: 1 Print tickets, 2 Upload scans, 3 Check tickets (with workplace questions and tickets waiting for a date), 4 Download and close the month. A finished step shows a tick. Other open months are links above. With no month yet, Home shows the first two steps. The month page is the same screen.
+- **Folded away:** "All tickets this month" (search, the tickets by workplace, Remove) and "Spelling lists" (the lists that help reading), so the steps fit on one screen. `/months/<id>#lists` opens the lists.
+- **Hidden, not removed:** the top bar has only This month and Print tickets; the Workplaces page opens from step 3 when there are questions; the admin page is "Logins" in the account menu (under the email), with Log out. Invites and roles are unchanged.
+- **Plainer words:** Review → Check; Confirm and next → Correct, next; Batch / Now → Cheaper / Faster; "Name for the Excel (English letters)" → "Name in English (for the Excel)"; Needs review → To check. Skip, Read again and Remove ticket are under **More** on the check screen; the "Only tickets with" filter opens on request.
+- **The look:** one calm green-teal colour, normal-case buttons, larger text, soft cards on a light grey page, the same width on every page except the check screen (which needs the room, D49). MUI's theme only: no new library.
+- **Close month stays clickable** while tickets are left to check: its dialog says why it cannot close yet, and the server refuses (Q14).
+- **Not changed:** what Tally does, its checks, the Excel and the PDFs.

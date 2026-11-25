@@ -24,15 +24,15 @@ import {
 } from '@tally/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { type DragEvent, useEffect, useReducer, useRef, useState } from 'react';
-import { useBlocker } from 'react-router';
+import { Link, useBlocker } from 'react-router';
 import { api, ApiError } from '../api.ts';
 import { Page } from './simple.tsx';
 
 /** Estimated price per ticket, in cents (Q4): batch measured in Phase 0 (D38), now not yet. */
 const CENTS_PER_TICKET: Record<ReadSpeed, number> = { batch: 15, now: 30 };
 const SPEEDS: [ReadSpeed, string][] = [
-  ['batch', 'Batch: usually read within an hour, at most a day; about 15 cents a ticket.'],
-  ['now', 'Now: read straight away; about 30 cents a ticket, not yet measured.'],
+  ['batch', 'Cheaper: usually ready within an hour (at most a day); about 15 cents a ticket.'],
+  ['now', 'Faster: ready in minutes; about 30 cents a ticket.'],
 ];
 const AT_ONCE = 3;
 /** An upload with no progress for this long has stalled: it is stopped and can be retried. */
@@ -200,9 +200,9 @@ export function Upload() {
   const cents = done.reduce((n, i) => n + i.pages! * CENTS_PER_TICKET[i.speed], 0);
 
   return (
-    <Page title="Upload">
+    <Page title="Upload scans">
       <Typography component="h2" variant="h6">
-        Speed
+        How fast should Tally read them?
       </Typography>
       <RadioGroup value={speed} onChange={(e) => setSpeed(e.target.value as ReadSpeed)}>
         {SPEEDS.map(([value, label]) => (
@@ -251,8 +251,19 @@ export function Upload() {
       </Typography>
 
       {done.length > 0 && (
-        <Alert severity="success" sx={{ mt: 2 }}>
-          {pages === 1 ? '1 ticket' : `${pages} tickets`}, about ${(cents / 100).toFixed(2)}
+        <Alert
+          severity="success"
+          sx={{ mt: 2 }}
+          action={
+            !busy && (
+              <Button color="inherit" component={Link} to="/">
+                Back to this month
+              </Button>
+            )
+          }
+        >
+          {pages === 1 ? '1 ticket' : `${pages} tickets`}, about ${(cents / 100).toFixed(2)}.
+          {!busy && ' Tally is reading them: you can leave this page.'}
         </Alert>
       )}
       <List>

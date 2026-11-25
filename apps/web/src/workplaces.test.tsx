@@ -186,7 +186,7 @@ describe('the Workplaces page', () => {
 
   it('links to the month page for the lists while a month is open', async () => {
     await open('/workplaces');
-    expect(button('The lists that help reading')?.getAttribute('href')).toBe('/months/m-nov#lists');
+    expect(button('The spelling lists')?.getAttribute('href')).toBe('/months/m-nov#lists');
     expect(container.querySelector('#lists')).toBeNull();
   });
 
@@ -199,7 +199,7 @@ describe('the Workplaces page', () => {
     };
     await open('/workplaces');
     expect(text()).toContain('No open month.');
-    expect(text()).toContain('Lists that help reading');
+    expect(text()).toContain('Spelling lists');
     await edit('Workplace list', 'דולב');
     expect(text()).toContain('1 entry (was 1)');
     await act(async () => replaceButtons()[0]!.click());
@@ -240,8 +240,9 @@ const replaceButtons = () =>
 describe('the lists on the month page', () => {
   it('links the workplace questions and shows each list as editable text', async () => {
     await open('/months/m-nov');
-    expect(button('1 workplace question to answer')?.getAttribute('href')).toBe('/workplaces');
-    expect(text()).toContain('Lists that help reading');
+    expect(text()).toContain('1 workplace question to answer');
+    expect(button('Answer workplace questions')?.getAttribute('href')).toBe('/workplaces');
+    expect(text()).toContain('Spelling lists');
     expect(area('Workplace list').value).toBe('דולב = Dolev');
     expect(area('Names list').value).toBe('Dana = דנה\nKwame');
     expect(area('Workplace list').getAttribute('dir')).toBe('auto');

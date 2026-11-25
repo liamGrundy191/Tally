@@ -1,6 +1,10 @@
 // Home, the month page and the uploads still being read (section 9).
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Alert,
+  Avatar,
   Box,
   Button,
   Checkbox,
@@ -12,6 +16,7 @@ import {
   FormControlLabel,
   List,
   ListItem,
+  Paper,
   Table,
   TableBody,
   TableCell,
@@ -30,8 +35,8 @@ import {
   warnFrom,
 } from '@tally/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { type ReactNode, useState } from 'react';
+import { Link, useLocation, useParams } from 'react-router';
 import {
   api,
   download,
@@ -53,8 +58,8 @@ import { ErrorMessage, Page } from './simple.tsx';
 const STATUS: Record<TicketStatus, string> = {
   processing: 'Being read',
   verified: 'Ready',
-  needs_review: 'Needs review',
-  needs_manual_entry: 'Needs typing in',
+  needs_review: 'To check',
+  needs_manual_entry: 'To type in',
   excluded: 'Removed',
 };
 
@@ -108,11 +113,8 @@ export function UploadsProgress() {
   const lines = uploads.filter((u) => unfinished(u) || stuck(u) || u.failedPages.length > 0);
   if (uploads.length === 0) return null;
   return (
-    <Box sx={{ my: 2 }}>
-      <Typography variant="h6" component="h2">
-        Uploads
-      </Typography>
-      <List dense>
+    <Box sx={{ mt: 1 }}>
+      <List dense disablePadding>
         {lines.map((u) => {
           const read = Object.values(u.tickets).reduce((a, b) => a + b, 0) - u.tickets.processing;
           const state = stuck(u)
@@ -139,67 +141,121 @@ export function UploadsProgress() {
   );
 }
 
-export function Home() {
-  const months = useMonths();
+/** One step of the month (design pass, T5.1): a number, a title, what is left, one action. */
+function Step(props: { n: number; title: string; done?: boolean; children: ReactNode }) {
+  return (
+    <Paper sx={{ p: 2.5, mb: 2, display: 'flex', gap: 2, alignItems: 'flex-start' }}>
+      <Avatar
+        sx={{
+          bgcolor: props.done ? 'success.main' : 'primary.main',
+          width: 32,
+          height: 32,
+          fontSize: 16,
+        }}
+        aria-hidden
+      >
+        {props.done ? '✓' : props.n}
+      </Avatar>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>
+          {props.title}
+        </Typography>
+        {props.children}
+      </Box>
+    </Paper>
+  );
+}
+
+const Actions = ({ children }: { children: ReactNode }) => (
+  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1.5 }}>{children}</Box>
+);
+
+function PrintStep() {
+  return (
+    <Step n={1} title="Print tickets">
+      <Typography color="text.secondary">
+        Blank tickets for the workers, four on each A4 sheet.
+      </Typography>
+      <Actions>
+        <Button variant="outlined" href="/api/templates/v1/pdf">
+          Print blank tickets
+        </Button>
+      </Actions>
+    </Step>
+  );
+}
+
+/** Tickets read without a date belong to no month yet (D45). */
+function WaitingForDate() {
   const review = useWaitingCount('needs_review');
   const manual = useWaitingCount('needs_manual_entry');
   const waiting = (review.data?.total ?? 0) + (manual.data?.total ?? 0);
-  const open = months.data?.filter((m) => m.status !== 'closed') ?? [];
+  const error = review.error ?? manual.error;
+  if (error)
+    return (
+      <ErrorMessage
+        message={error.message}
+        retry={() => void Promise.all([review.refetch(), manual.refetch()])}
+      />
+    );
+  if (waiting === 0) return null;
   return (
-    <Page title="Home">
-      <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-        <Button variant="contained" component={Link} to="/upload">
-          Upload
-        </Button>
-        <Button variant="contained" component={Link} to="/review">
-          Review next
-        </Button>
-      </Box>
-      {months.error ? (
-        <ErrorMessage message={months.error.message} retry={() => void months.refetch()} />
-      ) : months.isPending ? (
-        <Typography>Loading the months…</Typography>
-      ) : open.length === 0 ? (
-        <>
-          <Typography>No months yet. Upload scans to start.</Typography>
-          <Typography>
-            Before the first upload, set up the lists that help reading on the{' '}
-            <Link to="/workplaces">Workplaces page</Link>.
-          </Typography>
-        </>
-      ) : (
-        <>
-          {open.map((m) => (
-            <DeleteWarning key={m.id} m={m} />
-          ))}
-          <List>
-            {open.map((m) => (
-              <ListItem key={m.id} disableGutters>
-                <Typography>
-                  <Link to={`/months/${m.id}`}>{monthName(m)}</Link>:{' '}
-                  {plural(total(m.tickets), 'ticket')}
-                  {needReview(m.tickets) > 0 && `, ${needReview(m.tickets)} need review`}
-                  {m.status === 'closing' && ' (being closed)'}
-                </Typography>
-              </ListItem>
-            ))}
-          </List>
-        </>
-      )}
-      {(review.error ?? manual.error) && (
-        <ErrorMessage
-          message={(review.error ?? manual.error)!.message}
-          retry={() => void Promise.all([review.refetch(), manual.refetch()])}
-        />
-      )}
-      {waiting > 0 && (
-        <Typography>
-          <Link to="/review?month=none">
-            {waiting === 1 ? '1 ticket waits' : `${waiting} tickets wait`} for a date.
-          </Link>
+    <Typography sx={{ mt: 1 }}>
+      <Link to="/review?month=none">
+        {waiting === 1 ? '1 ticket waits' : `${waiting} tickets wait`} for a date.
+      </Link>
+    </Typography>
+  );
+}
+
+/** The folded-away parts: every ticket of the month, and the spelling lists. */
+function More(props: { title: string; open?: boolean; children: ReactNode }) {
+  return (
+    <Accordion defaultExpanded={props.open} disableGutters sx={{ mb: 1 }}>
+      <AccordionSummary
+        expandIcon={
+          <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden>
+            <path d="M7 10l5 5 5-5z" fill="currentColor" />
+          </svg>
+        }
+      >
+        <Typography sx={{ fontWeight: 600 }}>{props.title}</Typography>
+      </AccordionSummary>
+      <AccordionDetails>{props.children}</AccordionDetails>
+    </Accordion>
+  );
+}
+
+const newest = (a: MonthSummary, b: MonthSummary) => b.year - a.year || b.month - a.month;
+
+/** Home is the month at hand (design pass): the newest open month, step by step. */
+export function Home() {
+  const months = useMonths();
+  const { hash } = useLocation();
+  if (months.error)
+    return <ErrorMessage message={months.error.message} retry={() => void months.refetch()} />;
+  if (months.isPending) return <Typography>Loading the months…</Typography>;
+  const open = months.data.filter((m) => m.status !== 'closed').sort(newest);
+  if (open.length > 0) return <Month id={open[0]!.id} others={open.slice(1)} />;
+  return (
+    <Page title="This month">
+      <PrintStep />
+      <Step n={2} title="Upload scans">
+        <Typography color="text.secondary">
+          No tickets yet. Scan the filled-in tickets and upload them: Tally reads them and sorts
+          them into months.
         </Typography>
-      )}
-      <UploadsProgress />
+        <WaitingForDate />
+        <UploadsProgress />
+        <Actions>
+          <Button variant="contained" component={Link} to="/upload">
+            Upload scans
+          </Button>
+        </Actions>
+      </Step>
+      <More title="Spelling lists" open={hash === '#lists'}>
+        <Lists bare />
+      </More>
     </Page>
   );
 }
@@ -247,8 +303,10 @@ function TicketRows(props: {
 const matches = (search: string, ...texts: string[]) =>
   texts.some((x) => x.toLowerCase().includes(search.trim().toLowerCase()));
 
-export function Month() {
-  const { id } = useParams();
+export function Month(props: { id?: string; others?: MonthSummary[] }) {
+  const params = useParams();
+  const id = props.id ?? params.id;
+  const { hash } = useLocation();
   const month = useMonth(id!);
   const client = useQueryClient();
   const [search, setSearch] = useState('');
@@ -335,125 +393,183 @@ export function Month() {
       };
     })
     .filter((w) => w.rows.length + w.unnamed.length > 0);
+  const toCheck = needReview(m.tickets);
+  const empty = total(m.tickets) === 0;
   return (
     <Page title={monthName(m)}>
-      <Typography>
-        {plural(total(m.tickets), 'ticket')}: {m.tickets.verified} ready
-        {m.tickets.processing > 0 && `, ${m.tickets.processing} being read`}.
-      </Typography>
+      {props.others && props.others.length > 0 && (
+        <Typography sx={{ mb: 2 }}>
+          Also open:{' '}
+          {props.others.map((o, i) => (
+            <span key={o.id}>
+              {i > 0 && ', '}
+              <Link to={`/months/${o.id}`}>{monthName(o)}</Link>
+              {needReview(o.tickets) > 0 && ` (${needReview(o.tickets)} to check)`}
+            </span>
+          ))}
+        </Typography>
+      )}
       <DeleteWarning m={m} />
-      {m.status === 'open' && (
-        <Box sx={{ my: 1 }}>
-          <Button variant="contained" disabled={excel.isPending} onClick={() => excel.mutate()}>
-            Download Excel
-          </Button>{' '}
-          <Button
-            variant="contained"
-            disabled={pdfs.isPending}
-            onClick={() => pdfs.mutate(undefined)}
-          >
-            Workplace PDFs
-          </Button>
-          <Button
-            color="error"
-            onClick={() => {
-              setTyped('');
-              setFresh(true);
-              close.reset();
-              setClosing(true);
-            }}
-          >
-            Close month
-          </Button>
-          {excel.error && <Alert severity="error">{excel.error.message}</Alert>}
-          {pdfs.error && !pdfs.variables && <Alert severity="error">{pdfs.error.message}</Alert>}
-        </Box>
-      )}
-      {needReview(m.tickets) > 0 && (
-        <Typography>
-          {plural(needReview(m.tickets), 'ticket')} still need review and are left out of downloads.{' '}
-          <Button variant="contained" size="small" component={Link} to={`/review?month=${m.id}`}>
-            Review next
-          </Button>
+      <PrintStep />
+      <Step n={2} title="Upload scans" done={!empty && m.tickets.processing === 0}>
+        <Typography color="text.secondary">
+          {plural(total(m.tickets), 'ticket')} so far
+          {m.tickets.processing > 0 && `, ${m.tickets.processing} still being read`}.
         </Typography>
-      )}
-      {m.tickets.excluded > 0 && (
-        <Typography>{plural(m.tickets.excluded, 'ticket')} removed.</Typography>
-      )}
-      {unsorted > 0 && (
-        <Typography>
-          {unsorted === 1 ? '1 ticket is' : `${unsorted} tickets are`} not sorted into a workplace
-          yet.
+        <UploadsProgress />
+        <Actions>
+          <Button variant={empty ? 'contained' : 'outlined'} component={Link} to="/upload">
+            Upload scans
+          </Button>
+        </Actions>
+      </Step>
+      <Step
+        n={3}
+        title="Check tickets"
+        done={toCheck === 0 && m.questions.length === 0 && m.tickets.processing === 0}
+      >
+        <Typography color="text.secondary">
+          {toCheck > 0
+            ? `${plural(toCheck, 'ticket')} to check. Until checked, they are left out of the downloads.`
+            : m.tickets.processing > 0
+              ? 'Nothing to check yet: tickets are still being read.'
+              : 'Every ticket is checked.'}
         </Typography>
-      )}
-      {m.questions.length > 0 && (
-        <Typography>
-          <Link to="/workplaces">{plural(m.questions.length, 'workplace question')} to answer</Link>
-          : until then their tickets are left out of downloads.
-        </Typography>
-      )}
-      <UploadsProgress />
-      {remove.error && <Alert severity="error">{remove.error.message}</Alert>}
-      <TextField
-        label="Search by name, workplace or date"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        size="small"
-        fullWidth
-        sx={{ mt: 2 }}
-        slotProps={{ htmlInput: { dir: 'auto' } }}
-      />
-      {search && places.length === 0 && <Typography sx={{ mt: 2 }}>No ticket matches.</Typography>}
-      {places.map((w) => (
-        <Box key={w.groupId} sx={{ mt: 3 }}>
-          <Typography variant="h6" component="h2" dir="auto">
-            {w.name}
+        {m.questions.length > 0 && (
+          <Typography sx={{ mt: 1 }}>
+            {plural(m.questions.length, 'workplace question')} to answer: until then their tickets
+            are left out of the downloads.
           </Typography>
-          {m.status === 'open' && w.ready && (
+        )}
+        {unsorted > 0 && (
+          <Typography sx={{ mt: 1 }}>
+            {unsorted === 1 ? '1 ticket is' : `${unsorted} tickets are`} not sorted into a workplace
+            yet.
+          </Typography>
+        )}
+        {props.id && <WaitingForDate />}
+        <Actions>
+          {toCheck > 0 && (
+            // From Home, every ticket to check, those still waiting for a date included.
             <Button
-              size="small"
-              aria-label={`Download PDF for ${w.name}`}
-              disabled={pdfs.isPending}
-              onClick={() => pdfs.mutate(w)}
+              variant="contained"
+              component={Link}
+              to={props.id ? '/review' : `/review?month=${m.id}`}
             >
-              Download PDF
+              Check next
             </Button>
           )}
-          {pdfs.error && pdfs.variables?.groupId === w.groupId && (
-            <Alert severity="error">{pdfs.error.message}</Alert>
+          {m.questions.length > 0 && (
+            <Button variant="outlined" component={Link} to="/workplaces">
+              Answer workplace questions
+            </Button>
           )}
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Name</TableCell>
-                <TableCell>Date</TableCell>
-                <TableCell>Hours</TableCell>
-                <TableCell>Status</TableCell>
-                <TableCell />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {w.rows.map((r) => (
-                <TicketRows
-                  key={r.name}
-                  name={r.name}
-                  tickets={r.tickets}
-                  monthId={m.id}
-                  onRemove={setRemoving}
-                />
-              ))}
-              {w.unnamed.length > 0 && (
-                <TicketRows
-                  name="Name not confirmed yet"
-                  tickets={w.unnamed}
-                  monthId={m.id}
-                  onRemove={setRemoving}
-                />
+        </Actions>
+      </Step>
+      {m.status === 'open' && (
+        <Step n={4} title="Download and close the month">
+          <Typography color="text.secondary">
+            {plural(m.tickets.verified, 'ticket')} ready for the Excel
+            {m.tickets.excluded > 0 && `; ${m.tickets.excluded} removed`}. When the month is done,
+            download the files, then close it: closing deletes its tickets and scans.
+          </Typography>
+          <Actions>
+            <Button variant="contained" disabled={excel.isPending} onClick={() => excel.mutate()}>
+              Download Excel
+            </Button>
+            <Button
+              variant="outlined"
+              disabled={pdfs.isPending}
+              onClick={() => pdfs.mutate(undefined)}
+            >
+              Workplace PDFs
+            </Button>
+            <Box sx={{ flexGrow: 1 }} />
+            <Button
+              color="error"
+              onClick={() => {
+                setTyped('');
+                setFresh(true);
+                close.reset();
+                setClosing(true);
+              }}
+            >
+              Close month
+            </Button>
+          </Actions>
+          {excel.error && <Alert severity="error">{excel.error.message}</Alert>}
+          {pdfs.error && !pdfs.variables && <Alert severity="error">{pdfs.error.message}</Alert>}
+        </Step>
+      )}
+      <Box sx={{ mt: 3 }}>
+        <More title={`All tickets this month (${total(m.tickets)})`}>
+          {remove.error && <Alert severity="error">{remove.error.message}</Alert>}
+          <TextField
+            label="Search by name, workplace or date"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            size="small"
+            fullWidth
+            slotProps={{ htmlInput: { dir: 'auto' } }}
+          />
+          {search && places.length === 0 && (
+            <Typography sx={{ mt: 2 }}>No ticket matches.</Typography>
+          )}
+          {places.map((w) => (
+            <Box key={w.groupId} sx={{ mt: 3 }}>
+              <Typography variant="h6" component="h3" dir="auto">
+                {w.name}
+              </Typography>
+              {m.status === 'open' && w.ready && (
+                <Button
+                  size="small"
+                  aria-label={`Download PDF for ${w.name}`}
+                  disabled={pdfs.isPending}
+                  onClick={() => pdfs.mutate(w)}
+                >
+                  Download PDF
+                </Button>
               )}
-            </TableBody>
-          </Table>
-        </Box>
-      ))}
+              {pdfs.error && pdfs.variables?.groupId === w.groupId && (
+                <Alert severity="error">{pdfs.error.message}</Alert>
+              )}
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Hours</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {w.rows.map((r) => (
+                    <TicketRows
+                      key={r.name}
+                      name={r.name}
+                      tickets={r.tickets}
+                      monthId={m.id}
+                      onRemove={setRemoving}
+                    />
+                  ))}
+                  {w.unnamed.length > 0 && (
+                    <TicketRows
+                      name="Name not confirmed yet"
+                      tickets={w.unnamed}
+                      monthId={m.id}
+                      onRemove={setRemoving}
+                    />
+                  )}
+                </TableBody>
+              </Table>
+            </Box>
+          ))}
+        </More>
+        <More title="Spelling lists" open={hash === '#lists'}>
+          <Lists bare />
+        </More>
+      </Box>
       <ConfirmDialog
         open={removing !== null}
         {...REMOVE}
@@ -470,8 +586,7 @@ export function Month() {
           </DialogContentText>
           {needReview(m.tickets) > 0 && (
             <Alert severity="warning" sx={{ my: 1 }}>
-              {plural(needReview(m.tickets), 'ticket')} still need review: review or remove them
-              first.
+              {plural(needReview(m.tickets), 'ticket')} still to check: check or remove them first.
             </Alert>
           )}
           <FormControlLabel
@@ -502,7 +617,6 @@ export function Month() {
           </Button>
         </DialogActions>
       </Dialog>
-      <Lists />
     </Page>
   );
 }

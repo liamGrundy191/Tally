@@ -6,6 +6,7 @@ import {
   button,
   calls,
   click,
+  menuItem,
   client,
   container,
   dialogButton,
@@ -152,7 +153,8 @@ describe('the users list', () => {
     await open('/admin');
     await settle();
     expect(asked).toBeGreaterThan(1);
-    expect(button('Admin')).toBeUndefined();
+    await click(REVIEWER.email);
+    expect(menuItem('Logins')).toBeUndefined();
     expect(text()).toContain('Only an admin can open this page.');
   });
 

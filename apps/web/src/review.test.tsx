@@ -11,6 +11,7 @@ import { prefill } from './review/TicketForm.tsx';
 import {
   button,
   calls,
+  choose,
   click,
   container,
   dialogButton,
@@ -204,7 +205,7 @@ describe('reviewing a ticket with the keyboard', () => {
     await press('Tab');
     expect(focused().id).toBe('f-workerName');
     await press('Tab');
-    expect(focused().textContent).toBe('Confirm and next');
+    expect(focused().textContent).toBe('Correct, next');
     // Back again with Shift+Tab, from a flagged box.
     document.getElementById('f-workerName')!.focus();
     await press('Tab', { shiftKey: true });
@@ -219,7 +220,7 @@ describe('reviewing a ticket with the keyboard', () => {
     await type('Total', '08:00');
     await press('Enter');
     expect(focused().id).toBe('f-workerName');
-    await type('Name for the Excel', 'Ziv');
+    await type('Name in English', 'Ziv');
     await press('Enter', { repeat: true }); // a held key does nothing
     expect(put()).toHaveLength(0);
     queue([]);
@@ -240,7 +241,7 @@ describe('reviewing a ticket with the keyboard', () => {
     });
     // Verified: on to the next ticket, and the queue is empty.
     expect(url()).toBe('/review');
-    expect(text()).toContain('Nothing left to review.');
+    expect(text()).toContain('Nothing left to check.');
   });
 
   it('saves with Enter when only one box is flagged', async () => {
@@ -255,7 +256,7 @@ describe('reviewing a ticket with the keyboard', () => {
 
   it('never fills in a name for the Excel that is not in English letters', async () => {
     await review(ticket({ workerName: 'זיו', flags: [flag('CORRECTION_MARKS', 'startTime')] }));
-    expect(input('Name for the Excel').value).toBe('');
+    expect(input('Name in English').value).toBe('');
   });
 
   it('sends a confirmation as written only for values left as they were', async () => {
@@ -280,15 +281,15 @@ describe('reviewing a ticket with the keyboard', () => {
     await review(ticket({ workerName: 'Ziv', flags: [flag('PASS_DISAGREEMENT', 'firstName')] }));
     replies['PUT /api/tickets/t1'] = { status: 200, body: ticket({ status: 'verified' }) };
     await type('First name', 'זיוה');
-    expect(input('Name for the Excel').value).toBe('');
-    await click('Confirm and next');
+    expect(input('Name in English').value).toBe('');
+    await click('Correct, next');
     expect(put()[0]!.body).toMatchObject({ workerName: null });
   });
 
   it('refuses a name with Hebrew letters before saving', async () => {
     await review(ticket({ flags: [flag('NAME_NOT_CONFIRMED', 'firstName')] }));
-    await type('Name for the Excel', 'זיו');
-    await click('Confirm and next');
+    await type('Name in English', 'זיו');
+    await click('Correct, next');
     expect(put()).toHaveLength(0);
     expect(text()).toContain('Type the name in English letters.');
   });
@@ -301,10 +302,10 @@ describe('reviewing a ticket with the keyboard', () => {
       flags: [flag('HOURS_OUT_OF_RANGE', 'totalWorked', { minutes: 60, minHours: 2 })],
     });
     replies['PUT /api/tickets/t1'] = { status: 200, body: after };
-    await click('Confirm and next');
+    await click('Correct, next');
     expect(url()).toBe('/review/t1');
     expect(text()).toContain('Saved. This ticket still needs: Total of 1:00 is unusually short.');
-    expect(input('Name for the Excel').value).toBe('Ziv');
+    expect(input('Name in English').value).toBe('Ziv');
     expect(focused().id).toBe('f-totalWorked');
   });
 
@@ -314,12 +315,12 @@ describe('reviewing a ticket with the keyboard', () => {
       status: 409,
       body: { message: 'Someone else changed this ticket. Reload it.' },
     };
-    await click('Confirm and next');
+    await click('Correct, next');
     expect(text()).toContain('Someone else changed this ticket. Reload it.');
     replies['GET /api/tickets/t1'] = { status: 200, body: { ...DISPUTED, version: 5 } };
     await click('Reload');
     expect(text()).not.toContain('Someone else changed');
-    await click('Confirm and next');
+    await click('Correct, next');
     expect(put()[1]!.body).toMatchObject({ version: 5 });
   });
 
@@ -389,7 +390,7 @@ describe('the rest of the screen', () => {
     expect(calls.find((c) => c.path === '/api/flags/q1/resolve')!.body).toEqual({
       decision: 'keep_both',
     });
-    expect(text()).toContain('Nothing left to review.');
+    expect(text()).toContain('Nothing left to check.');
   });
 
   it('after a duplicate answer that leaves work, puts the focus on the flagged box', async () => {
@@ -415,8 +416,8 @@ describe('the rest of the screen', () => {
     await review(DISPUTED);
     replies['PUT /api/tickets/t1'] = { status: 200, body: { ...DISPUTED, version: 4 } };
     await act(async () => {
-      button('Confirm and next')!.click();
-      button('Confirm and next')!.click();
+      button('Correct, next')!.click();
+      button('Correct, next')!.click();
     });
     await settle();
     expect(put()).toHaveLength(1);
@@ -441,14 +442,14 @@ describe('the rest of the screen', () => {
 
   it('removes a ticket only after asking, with Cancel first', async () => {
     await review(DISPUTED);
-    await click('Remove');
+    await choose('More', 'Remove ticket');
     expect(focused().textContent).toBe('Cancel');
     expect(document.body.textContent).toContain('It leaves the Excel and the workplace PDF.');
     await act(async () => dialogButton('Cancel')!.click());
     await settle();
     expect(calls.some((c) => c.path.endsWith('/exclude'))).toBe(false);
     replies['POST /api/tickets/t1/exclude'] = { status: 204 };
-    await click('Remove');
+    await choose('More', 'Remove ticket');
     queue([]);
     await act(async () => dialogButton('Remove')!.click());
     await settle();
@@ -459,7 +460,7 @@ describe('the rest of the screen', () => {
   it('asks before reading a ticket again, then goes on', async () => {
     await review(DISPUTED);
     replies['POST /api/tickets/t1/reprocess'] = { status: 204 };
-    await click('Reprocess');
+    await choose('More', 'Read again');
     expect(document.body.textContent).toContain('Reading it costs money.');
     queue([]);
     await act(async () => dialogButton('Read again')!.click());
@@ -490,12 +491,12 @@ describe('the queue', () => {
     expect(url()).toBe('/review/b');
     expect(text()).toContain('3 tickets left; 1 of them wait for a workplace answer');
     expect(button('Workplaces page')?.getAttribute('href')).toBe('/workplaces');
-    await click('Skip');
+    await choose('More', 'Skip for now');
     expect(url()).toBe('/review/c');
-    await click('Skip');
-    expect(text()).toContain('Nothing left to review.');
+    await choose('More', 'Skip for now');
+    expect(text()).toContain('Nothing left to check.');
     expect(text()).toContain('You skipped 2 tickets.');
-    await click('Review the skipped tickets');
+    await click('Check the skipped tickets');
     expect(url()).toBe('/review/b');
   });
 
@@ -509,7 +510,7 @@ describe('the queue', () => {
       body: { total: 0, tickets: [] },
     };
     await open('/review?month=none&flag=DATE_INVALID');
-    expect(text()).toContain('Nothing left to review.');
+    expect(text()).toContain('Nothing left to check.');
     expect(calls.map((c) => c.path)).toContain(
       '/api/tickets?month=none&status=needs_review&flag=DATE_INVALID',
     );

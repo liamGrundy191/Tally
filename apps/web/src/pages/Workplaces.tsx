@@ -193,7 +193,7 @@ function MonthPlaces({ id }: { id: string }) {
       </Stack>
       <Typography sx={{ mt: 3 }}>
         {plural(tickets, 'ticket')} in {plural(places.length, 'workplace')}.{' '}
-        <Link to={`/months/${m.id}#lists`}>The lists that help reading</Link> are on the month page.
+        <Link to={`/months/${m.id}#lists`}>The spelling lists</Link> are on the month page.
       </Typography>
       {places.length > 0 && (
         <Table size="small">

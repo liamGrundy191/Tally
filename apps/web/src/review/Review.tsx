@@ -83,6 +83,8 @@ export function ReviewLayout() {
   const [skipped, setSkipped] = useState<string[]>([]);
   const month = params.get('month');
   const flag = params.get('flag');
+  // Design pass (T5.1): the filter is rarely needed, so it opens on request.
+  const [filtering, setFiltering] = useState(flag !== null);
   const list = (status: TicketStatus, f = flag) =>
     `/api/tickets?${new URLSearchParams({ ...(month && { month }), status, ...(f && { flag: f }) })}`;
   const search = new URLSearchParams({ ...(month && { month }), ...(flag && { flag }) }).toString();
@@ -122,7 +124,7 @@ export function ReviewLayout() {
         sx={{ mb: 3, alignItems: { md: 'center' } }}
       >
         <Typography variant="h4" component="h1">
-          Review
+          Check tickets
         </Typography>
         <Typography role="status" sx={{ flexGrow: 1 }}>
           {review === undefined || manual === undefined ? (
@@ -142,22 +144,26 @@ export function ReviewLayout() {
             </>
           )}
         </Typography>
-        <TextField
-          select
-          size="small"
-          label="Only tickets with"
-          value={flag ?? ''}
-          onChange={(e) => filter(e.target.value)}
-          sx={{ minWidth: 260 }}
-          slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
-        >
-          <MenuItem value="">All tickets</MenuItem>
-          {FLAG_CODES.map((c) => (
-            <MenuItem key={c} value={c}>
-              {FLAG_LABELS[c]}
-            </MenuItem>
-          ))}
-        </TextField>
+        {!filtering ? (
+          <Button onClick={() => setFiltering(true)}>Show only some tickets</Button>
+        ) : (
+          <TextField
+            select
+            size="small"
+            label="Only tickets with"
+            value={flag ?? ''}
+            onChange={(e) => filter(e.target.value)}
+            sx={{ minWidth: 260 }}
+            slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
+          >
+            <MenuItem value="">All tickets</MenuItem>
+            {FLAG_CODES.map((c) => (
+              <MenuItem key={c} value={c}>
+                {FLAG_LABELS[c]}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
       </Stack>
       {counts.find((c) => c.error) && (
         <ErrorMessage message={counts.find((c) => c.error)!.error!.message} />
@@ -182,18 +188,18 @@ export function ReviewNext() {
   return (
     <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
       <Typography variant="h5" component="h2">
-        Nothing left to review.
+        Nothing left to check.
       </Typography>
       {queue.skipped.length > 0 && (
         <>
           <Typography>You skipped {plural(queue.skipped.length, 'ticket')}.</Typography>
           <Button variant="contained" onClick={queue.forgetSkipped}>
-            Review the skipped tickets
+            Check the skipped tickets
           </Button>
         </>
       )}
       <Button component={Link} to="/">
-        Go to Home
+        Back to this month
       </Button>
     </Stack>
   );

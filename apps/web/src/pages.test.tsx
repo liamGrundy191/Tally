@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   button,
   calls,
+  choose as pick,
   click,
   container,
   dialogButton,
@@ -58,8 +59,12 @@ beforeEach(() => {
 });
 
 describe('Home', () => {
-  it('shows the open months with their counts and the tickets waiting for a date', async () => {
-    replies['GET /api/months'] = { status: 200, body: [NOVEMBER, OCTOBER, SEPTEMBER] };
+  it('shows the newest open month as steps, the other open months, and tickets waiting for a date', async () => {
+    replies['GET /api/months'] = { status: 200, body: [OCTOBER, NOVEMBER, SEPTEMBER] };
+    replies['GET /api/months/m-nov'] = {
+      status: 200,
+      body: { ...NOVEMBER, workplaces: [], questions: [] },
+    };
     replies['GET /api/tickets?month=none&status=needs_review'] = {
       status: 200,
       body: { total: 3, tickets: [] },
@@ -69,14 +74,23 @@ describe('Home', () => {
       body: { total: 1, tickets: [] },
     };
     await open('/');
-    expect(text()).toContain('November 2026: 640 tickets, 12 need review');
-    expect(text()).toContain('October 2026: 0 tickets');
+    expect(text()).toContain('November 2026');
+    for (const step of [
+      'Print tickets',
+      'Upload scans',
+      'Check tickets',
+      'Download and close the month',
+    ])
+      expect([...container.querySelectorAll('h2')].map((h) => h.textContent)).toContain(step);
+    expect(text()).toContain('640 tickets so far.');
+    expect(text()).toContain('12 tickets to check.');
+    expect(text()).toContain('Also open: October 2026');
     expect(text()).not.toContain('September');
-    expect(text()).toContain('4 tickets wait for a date');
+    expect(button('October 2026')?.getAttribute('href')).toBe('/months/m-oct');
     expect(button('4 tickets wait for a date.')?.getAttribute('href')).toBe('/review?month=none');
-    expect(button('Review next')?.getAttribute('href')).toBe('/review');
-    expect(button('November 2026')?.getAttribute('href')).toBe('/months/m-nov');
-    await click('Upload');
+    expect(button('Check next')?.getAttribute('href')).toBe('/review');
+    expect(button('Print blank tickets')?.getAttribute('href')).toBe('/api/templates/v1/pdf');
+    await click('Upload scans');
     expect(url()).toBe('/upload');
   });
 
@@ -88,14 +102,13 @@ describe('Home', () => {
     expect(button('Try again')).toBeDefined();
   });
 
-  it('says so when there is no month yet', async () => {
+  it('shows the first two steps and the spelling lists when there is no month yet', async () => {
     replies['GET /api/months'] = { status: 200, body: [] };
     await open('/');
-    expect(text()).toContain('No months yet.');
-    expect(text()).toContain(
-      'Before the first upload, set up the lists that help reading on the Workplaces page.',
-    );
-    expect(button('Workplaces page')?.getAttribute('href')).toBe('/workplaces');
+    expect(text()).toContain('No tickets yet.');
+    expect(text()).toContain('Spelling lists');
+    expect(button('Upload scans')?.getAttribute('href')).toBe('/upload');
+    expect(text()).not.toContain('Check tickets');
   });
 });
 
@@ -137,11 +150,13 @@ describe('the month page', () => {
     };
     await open('/months/m-nov');
     expect(text()).toContain('November 2026');
-    expect(text()).toContain('5 tickets');
-    expect(text()).toContain('2 tickets still need review and are left out of downloads');
-    expect(text()).toContain('1 ticket removed');
+    expect(text()).toContain('5 tickets so far');
+    expect(text()).toContain(
+      '2 tickets to check. Until checked, they are left out of the downloads.',
+    );
+    expect(text()).toContain('3 tickets ready for the Excel; 1 removed');
     expect(text()).toContain('2 tickets are not sorted into a workplace yet');
-    const place = [...container.querySelectorAll('h2')].find((h) => h.textContent === 'דולב')!;
+    const place = [...container.querySelectorAll('h3')].find((h) => h.textContent === 'דולב')!;
     expect(place.getAttribute('dir')).toBe('auto');
     expect(text()).not.toContain('Empty place');
     expect(text()).toContain('10/11/26');
@@ -149,7 +164,7 @@ describe('the month page', () => {
     expect(text()).toContain('8:30');
     expect(text()).toContain('Name not confirmed yet');
     expect(text()).toContain('—');
-    expect(text()).toContain('Needs review');
+    expect(text()).toContain('To check');
   });
 
   describe('Download Excel', () => {
@@ -229,7 +244,7 @@ describe('the month page', () => {
       replies['GET /api/months/m-nov/pdfs?workplace=g1'] = { status: 404, body: { message: why } };
       await open('/months/m-nov');
       await click('Download PDF');
-      const place = [...container.querySelectorAll('h2')].find((h) => h.textContent === 'דולב')!;
+      const place = [...container.querySelectorAll('h3')].find((h) => h.textContent === 'דולב')!;
       expect(place.parentElement!.textContent).toContain(why);
       expect(text().split(why)).toHaveLength(2); // shown once, not at the top as well
     });
@@ -277,7 +292,7 @@ describe('the month page', () => {
   it('searches the tickets by name, workplace or date, and opens one for review', async () => {
     replies['GET /api/months/m-nov'] = { status: 200, body: SMALL };
     await open('/months/m-nov');
-    expect(button('Review next')?.getAttribute('href')).toBe('/review?month=m-nov');
+    expect(button('Check next')?.getAttribute('href')).toBe('/review?month=m-nov');
     const search = async (value: string) => {
       const input = container.querySelector('input')!;
       await act(async () => {
@@ -332,11 +347,11 @@ describe('live progress', () => {
     replies['GET /api/progress'] = { status: 200, body: [upload({ filename: 'סריקה.pdf' })] };
     await open('/');
     expect(text()).toContain('סריקה.pdf: reading: 12 of 40 pages done');
-    const asked = () => calls.filter((c) => c.path === '/api/progress').length;
-    expect(asked()).toBe(1);
+    const opened = calls.filter((c) => c.path === '/api/progress').length;
+    const asked = () => calls.filter((c) => c.path === '/api/progress').length - opened;
     await act(async () => vi.advanceTimersByTime(3000));
     await settle();
-    expect(asked()).toBe(2);
+    expect(asked()).toBe(1);
 
     replies['GET /api/progress'] = {
       status: 200,
@@ -348,7 +363,7 @@ describe('live progress', () => {
     expect(text()).toContain('2 pages could not be opened: scan them again');
     await act(async () => vi.advanceTimersByTime(9000));
     await settle();
-    expect(asked()).toBe(3);
+    expect(asked()).toBe(2);
   });
 
   it('says when an upload is splitting, and when reading it stopped', async () => {
@@ -365,6 +380,7 @@ describe('live progress', () => {
       ],
     };
     await open('/');
+    const opened = calls.filter((c) => c.path === '/api/progress').length;
     expect(text()).toContain('scan3.pdf: getting the pages ready to read…');
     expect(text()).toContain('Reading this upload stopped. Tell your admin.');
     expect(text()).toContain('old.pdf: reading: 12 of 40 pages done');
@@ -377,7 +393,7 @@ describe('live progress', () => {
     await settle();
     await act(async () => vi.advanceTimersByTime(9000));
     await settle();
-    expect(calls.filter((c) => c.path === '/api/progress').length).toBe(2);
+    expect(calls.filter((c) => c.path === '/api/progress').length).toBe(opened + 1);
   });
 });
 
@@ -486,9 +502,9 @@ describe('the upload page', () => {
   it('uploads each file on its own, 3 at a time, and shows how far each has come', async () => {
     await open('/upload');
     expect(text()).toContain('about 15 cents a ticket');
-    expect(text()).toContain('about 30 cents a ticket, not yet measured');
+    expect(text()).toContain('Faster: ready in minutes; about 30 cents a ticket.');
     const now = [...container.querySelectorAll('input[type=radio]')].find((r) =>
-      (r as HTMLInputElement).labels?.[0]?.textContent?.startsWith('Now'),
+      (r as HTMLInputElement).labels?.[0]?.textContent?.startsWith('Faster'),
     ) as HTMLInputElement;
     await act(async () => now.click());
     await choose(pdf('a.pdf'), pdf('b.pdf'), pdf('c.pdf'), pdf('d.pdf'));
@@ -674,14 +690,14 @@ describe('the upload page', () => {
     replies['GET /api/months'] = { status: 200, body: [] };
     await open('/upload');
     await choose(pdf('a.pdf'));
-    await click('Log out');
+    await pick(REVIEWER.email, 'Log out');
     expect(document.body.textContent).toContain('Files are still uploading.');
     await act(async () => anywhere('Stay')!.click());
     await settle();
     expect(url()).toBe('/upload');
     expect(calls.some((c) => c.path === '/api/auth/logout')).toBe(false);
 
-    await click('Home');
+    await click('This month');
     await act(async () => anywhere('Leave')!.click());
     await settle();
     expect(url()).toBe('/');
@@ -693,7 +709,7 @@ describe('the upload page', () => {
     replies['GET /api/months'] = { status: 200, body: [] };
     await open('/upload');
     await choose(pdf('a.pdf'));
-    await click('Home');
+    await click('This month');
     expect(document.body.textContent).toContain('Files are still uploading.');
     await FakeXhr.all[0]!.respond(200);
     expect(url()).toBe('/');
@@ -739,7 +755,7 @@ describe('closing a month', () => {
     await open('/months/m-nov');
     await click('Close month');
     expect(document.body.textContent).toContain('Close November 2026?');
-    expect(document.body.textContent).toContain('12 tickets still need review');
+    expect(document.body.textContent).toContain('12 tickets still to check');
     expect(dialogButton('Close month')!.hasAttribute('disabled')).toBe(true);
     await typeInDialog('November 2025');
     expect(dialogButton('Close month')!.hasAttribute('disabled')).toBe(true);

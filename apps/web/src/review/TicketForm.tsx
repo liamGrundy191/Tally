@@ -1,6 +1,6 @@
 // The review form (plan 9): the six boxes in the paper's order, then the name for the Excel.
 // Keyboard (Liam, Q6): Tab moves between the flagged boxes and their checkboxes, then to
-// "Confirm and next"; Enter moves to the next flagged box not yet visited, and saves once every
+// "Correct, next"; Enter moves to the next flagged box not yet visited, and saves once every
 // flagged box was visited. With nothing flagged, Enter saves.
 import {
   Alert,
@@ -9,6 +9,8 @@ import {
   Button,
   Checkbox,
   FormControlLabel,
+  Menu,
+  MenuItem,
   Stack,
   TextField,
 } from '@mui/material';
@@ -21,7 +23,7 @@ import {
   hasHebrew,
   saveTicketSchema,
 } from '@tally/shared';
-import { type KeyboardEvent, type ReactNode, useEffect, useRef } from 'react';
+import { type KeyboardEvent, type ReactNode, useEffect, useRef, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import type { Ticket, TicketDetail, TicketFlag } from '../api.ts';
 import { dayOf, reason } from './flags.tsx';
@@ -35,7 +37,7 @@ export const LABELS: Record<Control, string> = {
   startTime: 'Start',
   endTime: 'End',
   totalWorked: 'Total',
-  workerName: 'Name for the Excel (English letters)',
+  workerName: 'Name in English (for the Excel)',
 };
 export type FormValues = Record<Control, string> & { accept: Record<string, boolean> };
 export type SaveBody = {
@@ -120,6 +122,12 @@ export function TicketForm(props: {
   const visited = useRef(new Set<string>());
   // Two clicks in one frame would send the save twice: the page's "busy" comes a render later.
   const saving = useRef(false);
+  // Design pass (T5.1): the rarer actions wait under "More".
+  const [more, setMore] = useState<HTMLElement | null>(null);
+  const pick = (action: () => void) => () => {
+    setMore(null);
+    action();
+  };
 
   const open = openFlags(ticket);
   const manual = ticket.status === 'needs_manual_entry';
@@ -344,17 +352,22 @@ export function TicketForm(props: {
         />
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
           <Button ref={confirmRef} type="submit" variant="contained" disabled={props.busy}>
-            Confirm and next
+            Correct, next
           </Button>
-          <Button onClick={props.onSkip} disabled={props.busy}>
-            Skip
+          <Button
+            onClick={(e) => setMore(e.currentTarget)}
+            disabled={props.busy}
+            aria-haspopup="menu"
+          >
+            More
           </Button>
-          <Button onClick={props.onReprocess} disabled={props.busy}>
-            Reprocess
-          </Button>
-          <Button color="error" onClick={props.onRemove} disabled={props.busy}>
-            Remove
-          </Button>
+          <Menu anchorEl={more} open={more !== null} onClose={() => setMore(null)}>
+            <MenuItem onClick={pick(props.onSkip)}>Skip for now</MenuItem>
+            <MenuItem onClick={pick(props.onReprocess)}>Read again</MenuItem>
+            <MenuItem onClick={pick(props.onRemove)} sx={{ color: 'error.main' }}>
+              Remove ticket
+            </MenuItem>
+          </Menu>
         </Stack>
       </Stack>
     </form>

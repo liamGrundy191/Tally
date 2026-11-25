@@ -124,7 +124,7 @@ export function Admin() {
   };
 
   return (
-    <Page title="Admin">
+    <Page title="Logins">
       <Typography variant="h5" component="h2" gutterBottom>
         Accounts
       </Typography>

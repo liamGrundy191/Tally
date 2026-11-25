@@ -319,3 +319,9 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **The production setup, reused.** The same images that would run on a server run on the laptop, with the database and storage beside them. Three double-click files install, open and update it; the person never types a command after the first download.
 - **Small, and checked end to end.** The developer built it alone and ran the whole thing from nothing on a Windows computer: install, login, upload, review, both downloads, restart. One reviewer agent, used only where an outside eye was worth it, found two failures the tests had missed: the shortcut could not start Docker when it was closed, and the site went silent if storage restarted by itself. Both were fixed and tested.
 - **Plain choices for a home user.** Logged in for 30 days instead of 12 hours; the paper tickets are the backup; any failure says "Nothing is lost" and stays on screen.
+
+### 35. A screen a non-technical person can follow (T5.1)
+
+- **Designed around the month, not the features.** The first screen used to be two buttons and a list; the month page held everything at once. Now Home is the month as four numbered steps (print, upload, check, download and close), each saying what is left and offering one main button, with a tick when it is done.
+- **Hide, don't delete.** Admin tools, the workplace page and rare actions moved out of sight (an account menu, a "More" menu, folded sections) rather than being removed, so the hosted, multi-user version still has them.
+- **Words from the user's side.** "Review", "Batch" and "Reprocess" became "Check", "Cheaper" and "Read again". The tests were updated with the wording, and the keyboard-only browser test still checks three tickets end to end.
