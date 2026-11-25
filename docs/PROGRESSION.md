@@ -312,3 +312,10 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Secrets never pass through chat or GitHub.** Liam types the keys and passwords into small scripts on the server with hidden input, and creates the first admin himself in the provider's web console; GitHub holds only the deploy key, behind a protected environment.
 - **The review found the traps an emergency would hit.** A failed database upgrade could later have started the new version anyway, a rollback could have failed half-way, a password with a `$` would have been silently changed, and anyone able to create a release tag could have taken over the server. All were fixed, and the setup scripts were made safe to run twice.
 - **What only the real server can prove is listed.** Certificates, real visitor addresses, the managed database's encrypted connection and storage's upload rules are checked on the first deploy, in a written go-live list.
+
+### 34. Tally at home (T4.4)
+
+- **The plan changed to fit the real use.** The first real user is Liam's father, on one laptop at home. Hosting (a server, a web address, a monthly bill) was shelved, but not deleted: one app, with the hosted setup kept and tagged, rather than two branches that would drift apart.
+- **The production setup, reused.** The same images that would run on a server run on the laptop, with the database and storage beside them. Three double-click files install, open and update it; the person never types a command after the first download.
+- **Small, and checked end to end.** The developer built it alone and ran the whole thing from nothing on a Windows computer: install, login, upload, review, both downloads, restart. One reviewer agent, used only where an outside eye was worth it, found two failures the tests had missed: the shortcut could not start Docker when it was closed, and the site went silent if storage restarted by itself. Both were fixed and tested.
+- **Plain choices for a home user.** Logged in for 30 days instead of 12 hours; the paper tickets are the backup; any failure says "Nothing is lost" and stays on screen.

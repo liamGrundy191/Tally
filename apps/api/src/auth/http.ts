@@ -33,8 +33,19 @@ export const SESSION_COOKIE = 'tally_session';
 export const CSRF_COOKIE = 'tally_csrf';
 export const CSRF_HEADER = 'x-csrf-token';
 
-/** Section 11: idle expiry 12 hours. */
-export const SESSION_IDLE_MS = 12 * 60 * 60 * 1000;
+/**
+ * Section 11: idle expiry 12 hours. The home laptop (D62) sets SESSION_IDLE_DAYS=30, so its one
+ * user logs in about once a month; never past the session cookie's own 30 days.
+ */
+export function sessionIdleMs(days: string | undefined): number {
+  if (!days) return 12 * 60 * 60 * 1000;
+  const n = Number(days);
+  if (!Number.isInteger(n) || n < 1 || n > 30) {
+    throw new Error('SESSION_IDLE_DAYS must be a whole number of days from 1 to 30.');
+  }
+  return n * 24 * 60 * 60 * 1000;
+}
+export const SESSION_IDLE_MS = sessionIdleMs(process.env.SESSION_IDLE_DAYS);
 
 const base = { secure: true, sameSite: 'lax', path: '/' } as const;
 /**

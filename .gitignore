@@ -22,3 +22,6 @@ apps/api/src/generated/
 # Output of the browser test (pnpm e2e)
 test-results/
 playwright-report/
+
+# The home laptop's settings: passwords and the reading key (T4.4)
+home/tally.env

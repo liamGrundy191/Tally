@@ -1,0 +1,78 @@
+# Tally on one Windows laptop at home (T4.4, D61, D62): the production images and compose.prod.yml,
+# with Postgres and MinIO on the laptop instead of the managed database and AWS. Run by
+# home/tally.ps1 (the "Install / Open / Update Tally" files), never by hand:
+#   docker compose -p tally-home -f docker/compose.prod.yml -f docker/compose.home.yml --env-file home/tally.env ...
+# home/tally.env is written by Install Tally on the laptop (passwords and the reading key) and is
+# never committed. Everything listens on 127.0.0.1 only: nothing outside the laptop can reach it.
+# The API, worker and Caddy share MinIO's network, so http://localhost:19100 is the same storage
+# for the API inside and for the browser outside, and signed links work for both (as in
+# compose.local.yml).
+
+services:
+  api:
+    network_mode: service:minio
+    env_file: !override [../home/tally.env]
+    ports: !reset []
+    # No database CA certificate: the database is on the laptop.
+    volumes: !reset []
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    network_mode: service:minio
+    env_file: !override [../home/tally.env]
+    ports: !reset []
+    volumes: !reset []
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    network_mode: !override service:minio
+    environment:
+      S3_ORIGIN: http://localhost:19100
+
+  postgres:
+    image: postgres:16.16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tally
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is not set in home/tally.env}
+      POSTGRES_DB: tally
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tally -d tally']
+      interval: 5s
+      retries: 10
+    logging:
+      driver: local
+
+  minio:
+    image: chainguard/minio@sha256:e9cf6b99c226e9539ed0f14b6f00e37b07da153c7ba1f4f8709c807574b471ec
+    restart: unless-stopped
+    command: ['server', '/data', '--address', ':19100']
+    environment:
+      MINIO_ROOT_USER: tally
+      MINIO_ROOT_PASSWORD: ${STORAGE_PASSWORD:?STORAGE_PASSWORD is not set in home/tally.env}
+    ports:
+      - '127.0.0.1:19100:19100' # storage (the browser fetches scans from it with signed links)
+      - '127.0.0.1:8080:8080' # the site (Caddy, plain HTTP: localhost needs no certificate)
+    volumes:
+      - minio:/data
+    logging:
+      driver: local
+
+  minio-setup:
+    image: chainguard/minio@sha256:e9cf6b99c226e9539ed0f14b6f00e37b07da153c7ba1f4f8709c807574b471ec
+    entrypoint: ['sh', '-c', 'until mc ready l; do sleep 1; done; mc mb --ignore-existing l/tally']
+    environment:
+      MC_HOST_l: 'http://tally:${STORAGE_PASSWORD}@minio:19100'
+    depends_on:
+      - minio
+    restart: 'no'
+
+volumes:
+  postgres:
+  minio:

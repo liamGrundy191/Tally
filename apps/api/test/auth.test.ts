@@ -4,6 +4,7 @@
 import 'reflect-metadata';
 import { Controller, Get, type INestApplication } from '@nestjs/common';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { sessionIdleMs } from '../src/auth/http.ts';
 import { createAdmin } from '../src/users/create-admin.ts';
 import { Browser } from './helpers/browser.ts';
 import { testApp } from './helpers/test-app.ts';
@@ -171,6 +172,12 @@ describe.skipIf(!databaseUrl)('logging in (T1.2)', () => {
   });
 
   describe('sessions', () => {
+    it('lasts 12 hours without use, or SESSION_IDLE_DAYS on the home laptop', () => {
+      expect(sessionIdleMs(undefined)).toBe(12 * 60 * 60 * 1000);
+      expect(sessionIdleMs('30')).toBe(30 * 24 * 60 * 60 * 1000);
+      for (const bad of ['0', '31', '1.5', 'thirty']) expect(() => sessionIdleMs(bad)).toThrow();
+    });
+
     it('ends a session after 12 hours without use', async () => {
       const b = browser();
       await b.login(OWNER.email, OWNER.password);
