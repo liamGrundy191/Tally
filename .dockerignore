@@ -1,0 +1,23 @@
+# An allow-list: nothing goes into an image unless it is named here (T4.3, D60). The repository
+# root also holds .env (secrets), names.txt and workplaces.txt (real names), scan-output/ and
+# fixtures/; none of them may reach an image. CI checks the built images (docker/scan-image.sh).
+*
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!tsconfig.base.json
+!packages/shared/
+!apps/api/
+!apps/web/
+!docker/Caddyfile
+
+# Inside the allowed folders: build output, installed packages, generated code, tests, secrets.
+**/node_modules
+**/dist
+**/.env*
+**/*.log
+apps/api/src/generated
+apps/api/test
+apps/web/e2e
+apps/web/test-results
+apps/web/playwright-report

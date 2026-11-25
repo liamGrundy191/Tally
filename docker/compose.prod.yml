@@ -1,0 +1,72 @@
+# Production (PLAN section 12, T4.3, D60): the API, the worker and Caddy on one server. The database
+# is managed Postgres and the files are in AWS S3, so nothing here holds data except Caddy's
+# certificates. On the server this file is /opt/tally/compose.yml, next to /opt/tally/.env (mode
+# 600, never committed), which holds every setting and secret and also fills ${...} below.
+name: tally
+
+x-app: &app
+  image: tally-app:${TALLY_VERSION:?TALLY_VERSION is not set in .env}
+  env_file: .env
+  restart: unless-stopped
+  # The app needs no Linux capabilities and never gains any (D60).
+  cap_drop: [ALL]
+  security_opt: ['no-new-privileges:true']
+  logging:
+    driver: local # rotates by itself: 5 files of 20 MB
+  volumes:
+    # The database's CA certificate (mode 644), for TLS with verification. A missing file stops
+    # the start instead of becoming an empty folder.
+    - type: bind
+      source: ./db-ca.pem
+      target: /etc/tally/db-ca.pem
+      read_only: true
+      bind:
+        create_host_path: false
+
+services:
+  api:
+    <<: *app
+    # Only this server can reach it; visitors come in through Caddy.
+    ports: ['127.0.0.1:3000:3000']
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"
+      interval: 30s
+      timeout: 10s
+      start_period: 30s
+      retries: 3
+
+  worker:
+    <<: *app
+    environment:
+      MODE: worker
+    # A reading job in progress is picked up again by the next worker (section 10).
+    stop_grace_period: 30s
+    # A very large photo (up to 268 million pixels, D58) or a huge ZIP cannot starve the API and
+    # Caddy of the server's 4 GB: past 2 GB only the worker restarts, and its job is retried.
+    mem_limit: 2g
+
+  web:
+    image: tally-web:${TALLY_VERSION:?TALLY_VERSION is not set in .env}
+    # Host networking: Caddy sees each visitor's real IPv4 or IPv6 address (D58).
+    network_mode: host
+    environment:
+      APP_URL: ${APP_URL:?APP_URL is not set in .env}
+      S3_ORIGIN: https://${S3_BUCKET:?S3_BUCKET is not set in .env}.s3.${S3_REGION:?S3_REGION is not set in .env}.amazonaws.com
+    volumes:
+      # The HTTPS certificates: losing them runs into Let's Encrypt's rate limits.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    logging:
+      driver: local
+
+volumes:
+  caddy_data:
+  caddy_config:

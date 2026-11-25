@@ -1,0 +1,41 @@
+# The web server in production (T4.3, D58, D60): HTTPS by itself, the web app's files, and /api
+# passed to the API on this server. APP_URL and S3_ORIGIN come from compose.prod.yml.
+# trusted_proxies is deliberately not set: Caddy replaces any X-Forwarded-For a visitor sends,
+# so the API's per-address login limit sees the real address (D58).
+{
+	# No admin endpoint: the configuration only changes with a new release.
+	admin off
+}
+
+{$APP_URL} {
+	encode zstd gzip
+	header {
+		# No includeSubDomains: the site may be a subdomain of the agency's own domain (D60).
+		Strict-Transport-Security "max-age=31536000"
+		# style-src 'unsafe-inline': MUI's styles are added at run time (D58).
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' {$S3_ORIGIN}; connect-src 'self' {$S3_ORIGIN}; base-uri 'none'; form-action 'self'; frame-ancestors 'none'; object-src 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy same-origin
+		-Server
+	}
+	handle /api/* {
+		header Cache-Control no-store
+		reverse_proxy 127.0.0.1:3000
+	}
+	# Built files have a content hash in their name: cached for a year, and a missing one is a
+	# 404, never the app.
+	handle /assets/* {
+		root * /srv
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+	# Any other address is a page of the app; index.html must always be fresh.
+	handle {
+		root * /srv
+		header ?Cache-Control no-cache
+		try_files {path} /index.html
+		file_server
+	}
+}

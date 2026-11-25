@@ -50,6 +50,12 @@ pnpm seed:admin                                   # create first admin (asks for
 pnpm lint && pnpm typecheck && pnpm test          # before every PR
 pnpm e2e                                          # browser test: seeds its own database tally_e2e, reviews 3 tickets (first: pnpm --filter @tally/web exec playwright install chromium)
 pnpm format                                       # fix formatting (Prettier)
+docker build -f docker/app.Dockerfile -t tally-app:local .   # production image: API and worker
+docker build -f docker/web.Dockerfile -t tally-web:local .   # production image: Caddy and the web app
+docker compose -p tally-local -f docker/compose.prod.yml -f docker/compose.local.yml --env-file docker/local.env up -d
+                                                  # rehearse production locally (https://tally.localhost:8443; `down -v` removes it)
+sh docker/check-local.sh                          # check the rehearsal through Caddy (health, redirect, headers)
+git tag v1.2.3 && git push origin v1.2.3          # deploy a release (deploy.yml); roll back: Actions > Deploy > Run workflow from an earlier tag
 pnpm ticket:pdf                                   # printable ticket
 pnpm crops <scan>                                 # straighten a scan and save field crops (free)
 pnpm extract <scan>                               # read a scan's tickets with the real model (costs cents)

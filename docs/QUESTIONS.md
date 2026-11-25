@@ -197,3 +197,33 @@ Options: A) A free Sentry account in Liam's name; the alert emails go to him and
 Recommendation: A, with the reports stored in Sentry's EU region (stricter privacy rules).
 
 Answer (Liam): A (2026-11-24).
+
+## Q18 · T4.3 · Where the app runs, and the monthly cost · answered
+
+Context: Section 12 asks for one small server and a managed Postgres database with 7-day backups. These cost money every month; reading tickets is separate (about 15 cents a ticket). Worker first names are personal data; Israel and the EU recognise each other's privacy rules. Prices checked on 2026-11-24, before tax.
+
+Options: A) DigitalOcean in Frankfurt (EU): a 4 GB server ($24) and a managed database ($15.15), about $40 a month, one company for both. B) Amazon in Tel Aviv: about $56 a month, the data stays in Israel, but Amazon's control panel is harder to use. C) A Hetzner server plus a DigitalOcean database, both in Germany: about $23 a month, two companies to manage.
+
+Recommendation: A, the simplest to manage. B only if the agency wants the data in Israel.
+
+Answer (Liam): A (2026-11-24). The file storage (AWS S3) goes in Frankfurt too (eu-central-1).
+
+## Q19 · T4.3 · The website address · answered
+
+Context: The site needs an address for HTTPS and for invite links (APP_URL).
+
+Options: A) A sub-address of the agency's existing website, such as `tally.<agency>.co.il`: free; whoever manages their site adds two records. B) Buy a new name: a `.co.il` costs about ₪60–100 a year, a `.com` about $11–15 a year.
+
+Recommendation: A.
+
+Answer (Liam): A (2026-11-24). The exact name is not known yet; whoever manages the agency's DNS adds the A and AAAA records.
+
+## Q20 · T4.3 · Whose name the accounts are in, and who pays · answered
+
+Context: The hosting, Amazon, the reading key and Sentry each need an account.
+
+Options: A) In Liam's name, paid with the agency's card. The reading key sits in the agency's own Anthropic account with a monthly spending limit, and every login is saved in a free password manager in Liam's name. B) Everything in the agency owner's name.
+
+Recommendation: A.
+
+Answer (Liam): A (2026-11-24).

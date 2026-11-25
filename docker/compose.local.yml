@@ -1,0 +1,74 @@
+# Rehearsing production on this computer (T4.3, D60): the production images and compose.prod.yml,
+# with a throwaway Postgres and MinIO instead of the managed database and AWS. Its own project,
+# database and bucket: it never touches the development stack (tally-dev) or its data.
+#   docker build -f docker/app.Dockerfile -t tally-app:local .
+#   docker build -f docker/web.Dockerfile -t tally-web:local .
+#   docker compose -p tally-local -f docker/compose.prod.yml -f docker/compose.local.yml --env-file docker/local.env up -d
+#   then https://tally.localhost:8443 (Caddy's own local certificate: the browser warns once).
+#   Remove it all: the same command with `down -v`.
+# The API, worker and Caddy share MinIO's network, so http://localhost:19000 is the same storage
+# for the API inside and for the browser outside, and signed links work for both.
+
+# The !reset/!override tags are written on each service, not merged in from a shared block:
+# older Docker Compose versions (GitHub's runners) drop tags that arrive through `<<:`.
+services:
+  api:
+    network_mode: service:minio
+    env_file: !override [local.env]
+    ports: !reset []
+    # The fake reader's prepared answers (EXTRACTOR=fake); never part of an image.
+    volumes: !override ['../fixtures:/app/fixtures:ro']
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    network_mode: service:minio
+    env_file: !override [local.env]
+    ports: !reset []
+    volumes: !override ['../fixtures:/app/fixtures:ro']
+
+  web:
+    network_mode: !override service:minio
+    environment:
+      S3_ORIGIN: http://localhost:19000
+
+  postgres:
+    image: postgres:16.16-alpine
+    environment:
+      POSTGRES_USER: tally
+      POSTGRES_PASSWORD: tally-local-only
+      POSTGRES_DB: tally_local
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U tally -d tally_local']
+      interval: 5s
+      retries: 10
+
+  minio:
+    image: chainguard/minio@sha256:e9cf6b99c226e9539ed0f14b6f00e37b07da153c7ba1f4f8709c807574b471ec
+    command: ['server', '/data', '--address', ':19000']
+    environment:
+      MINIO_ROOT_USER: tally
+      MINIO_ROOT_PASSWORD: tally-local-only
+    ports:
+      - '127.0.0.1:19000:19000' # storage
+      - '127.0.0.1:8443:8443' # the site (Caddy, HTTPS)
+      - '127.0.0.1:8080:80' # Caddy's redirect to HTTPS
+    volumes:
+      - minio:/data
+
+  minio-setup:
+    image: chainguard/minio@sha256:e9cf6b99c226e9539ed0f14b6f00e37b07da153c7ba1f4f8709c807574b471ec
+    entrypoint:
+      ['sh', '-c', 'until mc ready l; do sleep 1; done; mc mb --ignore-existing l/tally-local']
+    environment:
+      MC_HOST_l: 'http://tally:tally-local-only@minio:19000'
+    depends_on:
+      - minio
+    restart: 'no'
+
+volumes:
+  postgres:
+  minio:
