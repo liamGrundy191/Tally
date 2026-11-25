@@ -247,20 +247,23 @@ model ListEntry {
 /// One answer from the reader for one pass, kept whole, so a restarted job reuses it instead of
 /// paying for it again (D43). Insert-only; deleted with its ticket.
 model Reading {
-  id            String         @id @default(uuid()) @db.Uuid
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  ticketId      String         @db.Uuid
-  ticket        Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  pass          ExtractionPass
+  id               String         @id @default(uuid()) @db.Uuid
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  ticketId         String         @db.Uuid
+  ticket           Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  pass             ExtractionPass
   /// Which lists the reader was given: the second look at names (D28) has a longer names list.
-  listsKey      String
+  listsKey         String
   /// The validated answer: every field's value, legibility and suggestion (D24), and more.
-  answer        Json
-  model         String
-  promptVersion String
-  inputTokens   Int
-  outputTokens  Int
+  answer           Json
+  model            String
+  promptVersion    String
+  inputTokens      Int
+  outputTokens     Int
+  /// The shared start of the request read from, or written to, the cache (D65).
+  cacheReadTokens  Int            @default(0)
+  cacheWriteTokens Int            @default(0)
 
   @@unique([ticketId, pass, listsKey])
 }

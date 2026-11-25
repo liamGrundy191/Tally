@@ -12,7 +12,7 @@ import {
   withRetriedName,
 } from '../rules/ticket.ts';
 import type { TicketTemplate } from '../templates/v1.ts';
-import type { ExtractionInput, ExtractionPass, TicketExtractor } from './extractor.ts';
+import type { ExtractionInput, ExtractionPass, TicketExtractor, Usage } from './extractor.ts';
 
 export interface BatchItem {
   /** The prepared ticket; lists are taken from the batch options. */
@@ -41,7 +41,7 @@ export interface BatchOptions {
   /** Tickets read at the same time (plan: worker concurrency 4; batch mode: all of them). */
   concurrency?: number;
   /** Called after every model call, for cost tracking. */
-  onRead?: (pass: ExtractionPass, usage: { inputTokens: number; outputTokens: number }) => void;
+  onRead?: (pass: ExtractionPass, usage: Usage) => void;
   /** Checked before every ticket and every second look; false stops spending. */
   canSpend?: () => boolean;
   onTicketDone?: (done: number, total: number) => void;

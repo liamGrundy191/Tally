@@ -151,6 +151,8 @@ export class Reader {
               promptVersion: r.promptVersion,
               inputTokens: r.usage.inputTokens,
               outputTokens: r.usage.outputTokens,
+              cacheReadTokens: r.usage.cacheReadTokens ?? 0,
+              cacheWriteTokens: r.usage.cacheWriteTokens ?? 0,
             },
           ],
           skipDuplicates: true,

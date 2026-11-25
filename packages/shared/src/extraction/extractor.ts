@@ -11,7 +11,8 @@ import {
 import type { TemplateField, TicketTemplate } from '../templates/v1.ts';
 
 /** Bump when a prompt file changes, and add a new prompts/vN folder; never edit an old version. */
-export const PROMPT_VERSION = 'v3';
+// v4 (D65): the v3 texts unchanged; the field list and lists now come before the images.
+export const PROMPT_VERSION = 'v4';
 
 /** A and B are the two independent readings; C is the tie-break read for unclear fields (D27). */
 export type ExtractionPass = 'A' | 'B' | 'C';
@@ -50,7 +51,17 @@ export interface ExtractionSuccess {
   /** The model that actually answered, for the FieldExtraction record. */
   model: string;
   promptVersion: string;
-  usage: { inputTokens: number; outputTokens: number };
+  usage: Usage;
+}
+
+/** Tokens billed for one reading. Input excludes the cached start, which is counted apart (D65). */
+export interface Usage {
+  inputTokens: number;
+  outputTokens: number;
+  /** The shared start read from the cache (5% of the input price on Opus 5.5). */
+  cacheReadTokens?: number;
+  /** The shared start written to the cache (twice the input price for an hour). */
+  cacheWriteTokens?: number;
 }
 
 export interface TicketExtractor {
@@ -111,6 +122,7 @@ export function buildRequest(
   pass: ExtractionPass,
   model: string,
   effort: Effort = DEFAULT_EFFORT,
+  cache?: CacheTtl,
 ) {
   const list = (entries: readonly string[] = [], what: string, key: string) =>
     entries.length > 0
@@ -129,9 +141,17 @@ export function buildRequest(
   const useCrops =
     pass === 'B' && input.crops !== undefined && template.fields.every((f) => input.crops![f.key]);
 
+  // The field list and lists come first: they are the same for every ticket of an upload, so they
+  // can be cached (D65). Only the ticket's own images come after them.
+  const lists: Anthropic.TextBlockParam = {
+    type: 'text',
+    text: fieldList,
+    ...(cache && { cache_control: cacheControl(cache) }),
+  };
   // Pass B gets the whole ticket for context, then each field zoomed in (D29).
   const content: Anthropic.ContentBlockParam[] = useCrops
     ? [
+        lists,
         { type: 'text', text: 'The whole ticket:' },
         imageBlock(input.image),
         ...template.fields.flatMap((f): Anthropic.ContentBlockParam[] => [
@@ -140,10 +160,15 @@ export function buildRequest(
         ]),
         {
           type: 'text',
-          text: `${fieldList}\n\nAfter the whole ticket, each image is one field cut out of it and enlarged.`,
+          text: 'After the whole ticket, each image is one field cut out of it and enlarged.',
         },
       ]
-    : [imageBlock(input.image), { type: 'text', text: fieldList }];
+    : // Text after the image, as Anthropic advises for images; it is after the cache mark (D65).
+      [
+        lists,
+        imageBlock(input.image),
+        { type: 'text', text: 'The ticket to read is the image above.' },
+      ];
 
   return {
     model,
@@ -152,6 +177,22 @@ export function buildRequest(
     messages: [{ role: 'user' as const, content }],
     output_config: { effort, format: answerFormat(listsOf(input)) },
   };
+}
+
+/** How long the shared start of the requests is kept: 5 minutes, or an hour for batches (D65). */
+export type CacheTtl = '5m' | '1h';
+const cacheControl = (ttl: CacheTtl): Anthropic.CacheControlEphemeral =>
+  ttl === '1h' ? { type: 'ephemeral', ttl: '1h' } : { type: 'ephemeral' };
+
+/** The request with its shared start marked for caching; the original is left unchanged. */
+export function withCache(req: ReturnType<typeof buildRequest>, ttl: CacheTtl) {
+  const [first, ...rest] = req.messages[0]!.content as Anthropic.ContentBlockParam[];
+  return {
+    ...req,
+    messages: [
+      { ...req.messages[0]!, content: [{ ...first!, cache_control: cacheControl(ttl) }, ...rest] },
+    ],
+  } as ReturnType<typeof buildRequest>;
 }
 
 /** Validates an answer against the schema; anything else is a failed attempt. */

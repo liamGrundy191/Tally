@@ -8,9 +8,22 @@ export const PRICE_PER_MILLION: Record<string, [input: number, output: number]> 
 /** Measured on Liam's test tickets with all three reads (PROGRESSION section 10). */
 const MEASURED = { model: 'claude-opus-5-5', usdPerTicket: 0.15 } as const;
 
-export const costUsd = (model: string, inputTokens: number, outputTokens: number) => {
+/** A cache read's share of the input price (D65): 5% on Opus and Sonnet 5.5, 10% on others. */
+const CACHE_READ: Record<string, number> = { 'claude-opus-5-5': 0.05, 'claude-sonnet-5-5': 0.05 };
+// shortcut: every cache write is priced as the 1-hour one (2x) that batches use; the 5-minute
+// write of immediate mode is 1.25x, so immediate runs are over-estimated a little.
+const CACHE_WRITE = 2;
+
+export const costUsd = (
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  cache: { read: number; write: number } = { read: 0, write: 0 },
+) => {
   const p = PRICE_PER_MILLION[model];
-  return p ? (inputTokens * p[0] + outputTokens * p[1]) / 1e6 : null;
+  if (!p) return null;
+  const input = inputTokens + cache.read * (CACHE_READ[model] ?? 0.1) + cache.write * CACHE_WRITE;
+  return (input * p[0] + outputTokens * p[1]) / 1e6;
 };
 
 /**

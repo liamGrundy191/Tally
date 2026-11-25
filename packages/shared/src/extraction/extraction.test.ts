@@ -12,6 +12,7 @@ import {
   answerFormat,
   buildRequest,
   loadPrompt,
+  withCache,
 } from './index.ts';
 
 const FIXTURES = new URL('../../../../fixtures/extractions/', import.meta.url);
@@ -96,34 +97,94 @@ describe('the two prompts', () => {
 });
 
 describe('the request sent to the model', () => {
-  it('pass A sends the whole ticket and the field list', () => {
+  it('pass A sends the field list, then the whole ticket', () => {
     const req = buildRequest(input('t1'), TEMPLATE_V1, 'A', 'claude-opus-5-5');
     expect(req.model).toBe('claude-opus-5-5');
     expect(req.system).toBe(loadPrompt('A'));
     const [first, second] = req.messages[0]!.content as Anthropic.ContentBlockParam[];
-    expect(first).toMatchObject({
-      type: 'image',
-      source: { type: 'base64', media_type: 'image/jpeg' },
-    });
-    expect(second).toMatchObject({ type: 'text' });
-    const text = (second as Anthropic.TextBlockParam).text;
+    expect(first).toMatchObject({ type: 'text' });
+    const text = (first as Anthropic.TextBlockParam).text;
     for (const f of TEMPLATE_V1.fields) {
       expect(text).toContain(f.key);
       expect(text).toContain(f.labelHe);
     }
+    expect(second).toMatchObject({
+      type: 'image',
+      source: { type: 'base64', media_type: 'image/jpeg' },
+    });
+    // Text after the image, as Anthropic advises (D65).
+    expect((req.messages[0]!.content as Anthropic.ContentBlockParam[])[2]).toEqual({
+      type: 'text',
+      text: 'The ticket to read is the image above.',
+    });
   });
 
-  it('pass B with field crops sends the whole ticket, then one labelled image per field', () => {
+  it('pass B with field crops sends the field list, the whole ticket, then one labelled image per field', () => {
     const crops = Object.fromEntries(TEMPLATE_V1.fields.map((f) => [f.key, image]));
     const req = buildRequest(input('t1', { crops }), TEMPLATE_V1, 'B', 'claude-opus-5-5');
     expect(req.system).toBe(loadPrompt('B'));
     const content = req.messages[0]!.content as Anthropic.ContentBlockParam[];
     expect(content.filter((b) => b.type === 'image')).toHaveLength(TEMPLATE_V1.fields.length + 1);
-    expect(content[1]).toMatchObject({ type: 'image' }); // the whole ticket comes first
+    expect((content[0] as Anthropic.TextBlockParam).text).toContain('Fields:');
+    expect(content[1]).toMatchObject({ type: 'text', text: 'The whole ticket:' });
+    expect(content[2]).toMatchObject({ type: 'image' }); // the whole ticket comes first
     TEMPLATE_V1.fields.forEach((f, i) => {
-      expect(content[2 + i * 2]).toMatchObject({ type: 'text' });
-      expect((content[2 + i * 2] as Anthropic.TextBlockParam).text).toContain(f.key);
-      expect(content[3 + i * 2]).toMatchObject({ type: 'image' });
+      expect(content[3 + i * 2]).toMatchObject({ type: 'text' });
+      expect((content[3 + i * 2] as Anthropic.TextBlockParam).text).toContain(f.key);
+      expect(content[4 + i * 2]).toMatchObject({ type: 'image' });
+    });
+    expect(content.at(-1)).toMatchObject({
+      type: 'text',
+      text: 'After the whole ticket, each image is one field cut out of it and enlarged.',
+    });
+  });
+
+  describe('caching (D65): the same start for every ticket, the ticket after it', () => {
+    const lists = { knownWorkplaces: ['Place A', 'מקום ב'], knownNames: ['Dana', 'יעל'] };
+    const ticket = (id: string, seed: string) => {
+      const img = { data: Buffer.from(seed), mediaType: 'image/jpeg' as const };
+      const crops = Object.fromEntries(TEMPLATE_V1.fields.map((f) => [f.key, img]));
+      return input(id, { image: img, crops, ...lists });
+    };
+    const first = (req: ReturnType<typeof buildRequest>) =>
+      (req.messages[0]!.content as Anthropic.ContentBlockParam[])[0]!;
+
+    for (const pass of ['A', 'B', 'C'] as const) {
+      it(`pass ${pass}: two tickets share everything up to the cache mark, and no image is before it`, () => {
+        const one = buildRequest(ticket('t1', 'one'), TEMPLATE_V1, pass, 'm', 'high', '1h');
+        const two = buildRequest(ticket('t2', 'two'), TEMPLATE_V1, pass, 'm', 'high', '1h');
+        expect(one.system).toBe(two.system);
+        expect(first(one)).toEqual(first(two));
+        expect(first(one)).toMatchObject({
+          type: 'text',
+          cache_control: { type: 'ephemeral', ttl: '1h' },
+        });
+        expect(JSON.stringify(one.output_config)).toBe(JSON.stringify(two.output_config));
+        // The ticket's own images all come after the cached start.
+        const rest = (one.messages[0]!.content as Anthropic.ContentBlockParam[]).slice(1);
+        expect(rest.some((b) => b.type === 'image')).toBe(true);
+        expect(rest.some((b) => 'cache_control' in b)).toBe(false);
+      });
+    }
+
+    it('marks nothing unless asked, and the 5-minute cache has no ttl', () => {
+      expect(first(buildRequest(ticket('t', 's'), TEMPLATE_V1, 'A', 'm'))).not.toHaveProperty(
+        'cache_control',
+      );
+      expect(
+        first(buildRequest(ticket('t', 's'), TEMPLATE_V1, 'A', 'm', 'high', '5m')),
+      ).toMatchObject({ cache_control: { type: 'ephemeral' } });
+      expect(
+        first(buildRequest(ticket('t', 's'), TEMPLATE_V1, 'A', 'm', 'high', '5m')),
+      ).not.toHaveProperty('cache_control.ttl');
+    });
+
+    it('withCache marks a request built without it, as if asked', () => {
+      const plain = buildRequest(ticket('t', 's'), TEMPLATE_V1, 'B', 'm');
+      expect(JSON.stringify(withCache(plain, '1h'))).toBe(
+        JSON.stringify(buildRequest(ticket('t', 's'), TEMPLATE_V1, 'B', 'm', 'high', '1h')),
+      );
+      expect(first(plain)).not.toHaveProperty('cache_control'); // the original is unchanged
     });
   });
 
@@ -274,7 +335,15 @@ describe('AnthropicExtractor (with a stand-in client, no network)', () => {
     );
     expect(out.result).toEqual(good);
     expect(out.model).toBe('claude-opus-5-5');
-    expect(out.usage).toEqual({ inputTokens: 1800, outputTokens: 400 });
+    expect(out.usage).toEqual({
+      inputTokens: 1800,
+      outputTokens: 400,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    });
+    // Immediate readings follow each other: the shared start is kept for 5 minutes (D65).
+    const sent = calls[0] as { messages: { content: Anthropic.TextBlockParam[] }[] };
+    expect(sent.messages[0]!.content[0]!.cache_control).toEqual({ type: 'ephemeral' });
     expect(calls[0]).toMatchObject({
       model: 'claude-opus-5-5',
       output_config: { effort: 'high', format: { type: 'json_schema' } },
