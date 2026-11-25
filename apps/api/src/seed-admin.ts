@@ -1,5 +1,6 @@
 // pnpm seed:admin: creates the first admin (accounts are invite-only, PLAN section 11).
 // It asks for the email and password; nothing about the account is written into the code.
+import { emailSchema, passwordSchema } from '@tally/shared';
 import { createInterface } from 'node:readline/promises';
 import { createPrisma } from './db.ts';
 import { AccountError, createAdmin } from './users/create-admin.ts';
@@ -24,7 +25,14 @@ function askHidden(question: string): Promise<string> {
           resolve(typed);
           return;
         }
-        typed = c === '\u007f' || c === '\b' ? typed.slice(0, -1) : typed + c;
+        // A star per character (Liam: you need to see how much you typed), never the character.
+        if (c === '\u007f' || c === '\b') {
+          if (typed) process.stdout.write('\b \b');
+          typed = typed.slice(0, -1);
+        } else {
+          process.stdout.write('*');
+          typed += c;
+        }
       }
     };
     stdin.on('data', onData);
@@ -38,15 +46,37 @@ if (!url) {
 }
 const questions = [
   'Admin email: ',
-  'Password (at least 12 characters, not shown): ',
+  'Password (at least 12 characters): ',
   'Type the password again: ',
 ];
 const answers: string[] = [];
 if (process.stdin.isTTY) {
+  // Typed by a person: a mistake asks that question again instead of ending with nothing created.
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  answers.push(await rl.question(questions[0]!));
+  for (;;) {
+    const email = await rl.question(questions[0]!);
+    const check = emailSchema.safeParse(email);
+    if (check.success) {
+      answers.push(email);
+      break;
+    }
+    console.log(`${check.error.issues[0]!.message} Try again.`);
+  }
   rl.close();
-  for (const q of questions.slice(1)) answers.push(await askHidden(q));
+  for (;;) {
+    const password = await askHidden(questions[1]!);
+    const check = passwordSchema.safeParse(password);
+    if (!check.success) {
+      console.log(`${check.error.issues[0]!.message} Try again.`);
+      continue;
+    }
+    if ((await askHidden(questions[2]!)) !== password) {
+      console.log('The two passwords are different. Try again.');
+      continue;
+    }
+    answers.push(password, password);
+    break;
+  }
 } else {
   // Input fed in by a script: read its lines in order (none is lost, nothing is shown).
   const lines = createInterface({ input: process.stdin })[Symbol.asyncIterator]();
