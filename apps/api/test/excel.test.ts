@@ -213,6 +213,9 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
     // Exact minutes ÷ 60, shown with two decimals; nothing is rounded.
     expect(s.getCell(3, day(2)).value).toBe(500 / 60);
     expect(s.getCell(3, day(2)).numFmt).toBe('0.00');
+    // Whole hours without decimals: 8, not 8.00 (Liam, D64).
+    expect([s.getCell(4, day(2)).numFmt, s.getCell(4, day(3)).numFmt]).toEqual(['0', '0']);
+    expect(s.getCell(4, day(5)).numFmt).toBe('0.00'); // 12.50
     expect(s.getCell(3, day(1)).value).toBeNull();
     expect(s.getCell(4, day(2)).value).toBe(480 / 60);
     expect(s.getCell(4, day(3)).value).toBe(300 / 60);

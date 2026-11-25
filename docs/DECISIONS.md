@@ -663,5 +663,6 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **Workplace sheets:** the heading row (`עובד`, 1–31, `סה"כ`) and the names column in bold Arial 12, centred, light orange; every day a box with thin black lines, even when empty; the row's total bold; the bottom total row light green, its name and the grand total bold. Columns 16 (names), 5.6 (days), 8.8 (total); rows 15.6 high.
 - **The totals sheet:** headings bold on yellow; places bold and centred; hours centred; the total row bold, size 14, on yellow. Columns 22 and 13.
 - **Fixed colours** (not the workbook's theme), so the file looks the same on any computer.
-- **Left out on purpose:** the agency file's extra totals columns (`רגיל`, `בוקר`, `*57`, `*60`: pay types or rates, never stored, rejected idea); the cells someone coloured by hand; their plain number format (hours keep two decimals, D37).
+- **Whole hours without decimals** (Liam): 8 rather than 8.00; anything else keeps two decimals, 7.50 (D37). The value is still exact minutes ÷ 60; only how it shows changes.
+- **Left out on purpose:** the agency file's extra totals columns (`רגיל`, `בוקר`, `*57`, `*60`: pay types or rates, never stored, rejected idea); the cells someone coloured by hand.
 - **Also fixed:** the backup test picked whichever Postgres container was running first; with the home Tally running on the same computer it chose the wrong one. It now picks the one serving the test database's port.
