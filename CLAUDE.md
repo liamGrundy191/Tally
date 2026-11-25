@@ -55,6 +55,7 @@ docker build -f docker/web.Dockerfile -t tally-web:local .   # production image:
 docker compose -p tally-local -f docker/compose.prod.yml -f docker/compose.local.yml --env-file docker/local.env up -d
                                                   # rehearse production locally (https://tally.localhost:8443; `down -v` removes it)
 sh docker/check-local.sh                          # check the rehearsal through Caddy (health, redirect, headers)
+home\Install Tally.bat                           # home laptop (D62): Install once, then Open Tally / Update Tally (home/README.md)
 git tag v1.2.3 && git push origin v1.2.3          # deploy a release (deploy.yml); roll back: Actions > Deploy > Run workflow from an earlier tag
 pnpm ticket:pdf                                   # printable ticket
 pnpm crops <scan>                                 # straighten a scan and save field crops (free)
