@@ -51,7 +51,9 @@ const waitsForWorkplace = (flags: { code: string }[]) =>
 const toReview = (t: TicketDetail) => QUEUE.includes(t.status) && !waitsForWorkplace(openFlags(t));
 
 interface Queue {
-  /** `?month=…&flag=…`, kept from ticket to ticket. */
+  /** `/months/<id>/check` inside a month (D63), or `/review` (tickets with no date yet). */
+  base: string;
+  /** `?month=…&flag=…` (only `?flag=…` inside a month), kept from ticket to ticket. */
   search: string;
   list: (status: TicketStatus, flag?: string | null) => string;
   skipped: string[];
@@ -81,13 +83,20 @@ export function ReviewLayout() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const [skipped, setSkipped] = useState<string[]>([]);
-  const month = params.get('month');
+  // Inside a month the month is in the address; /review keeps it in the query.
+  const { month: monthId } = useParams();
+  const month = monthId ?? params.get('month');
+  const base = monthId ? `/months/${monthId}/check` : '/review';
+  const inQuery = monthId ? null : month;
   const flag = params.get('flag');
   // Design pass (T5.1): the filter is rarely needed, so it opens on request.
   const [filtering, setFiltering] = useState(flag !== null);
   const list = (status: TicketStatus, f = flag) =>
     `/api/tickets?${new URLSearchParams({ ...(month && { month }), status, ...(f && { flag: f }) })}`;
-  const search = new URLSearchParams({ ...(month && { month }), ...(flag && { flag }) }).toString();
+  const search = new URLSearchParams({
+    ...(inQuery && { month: inQuery }),
+    ...(flag && { flag }),
+  }).toString();
   const asking = !flag || flag === 'WORKPLACE_SIMILAR';
   const counts = useQueries({
     queries: [
@@ -105,6 +114,7 @@ export function ReviewLayout() {
   const workplace = similar && similar.tickets.filter((t) => waitsForWorkplace(t.flags)).length;
   const more = similar && similar.total > similar.tickets.length ? '+' : '';
   const queue: Queue = {
+    base,
     search: search ? `?${search}` : '',
     list,
     skipped,
@@ -112,8 +122,8 @@ export function ReviewLayout() {
     forgetSkipped: () => setSkipped([]),
   };
   const filter = (f: string) => {
-    const next = new URLSearchParams({ ...(month && { month }), ...(f && { flag: f }) });
-    navigate(`/review?${next}`);
+    const next = new URLSearchParams({ ...(inQuery && { month: inQuery }), ...(f && { flag: f }) });
+    navigate(`${base}?${next}`);
   };
 
   return (
@@ -126,6 +136,11 @@ export function ReviewLayout() {
         <Typography variant="h4" component="h1">
           Check tickets
         </Typography>
+        {monthId && (
+          <Button component={Link} to={`/months/${monthId}`} variant="outlined">
+            Back to the month
+          </Button>
+        )}
         <Typography role="status" sx={{ flexGrow: 1 }}>
           {review === undefined || manual === undefined ? (
             'Counting the tickets left…'
@@ -184,7 +199,7 @@ export function ReviewNext() {
   if (next.error)
     return <ErrorMessage message={next.error.message} retry={() => void next.refetch()} />;
   if (next.isPending) return <Typography>Finding the next ticket…</Typography>;
-  if (next.data) return <Navigate to={`/review/${next.data}${queue.search}`} replace />;
+  if (next.data) return <Navigate to={`${queue.base}/${next.data}${queue.search}`} replace />;
   return (
     <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
       <Typography variant="h5" component="h2">
@@ -198,8 +213,11 @@ export function ReviewNext() {
           </Button>
         </>
       )}
-      <Button component={Link} to="/">
-        Back to this month
+      <Button
+        component={Link}
+        to={queue.base === '/review' ? '/' : queue.base.replace(/\/check$/, '')}
+      >
+        {queue.base === '/review' ? 'Back to Home' : 'Back to the month'}
       </Button>
     </Stack>
   );
@@ -372,7 +390,7 @@ export function ReviewTicket() {
   const next = () => {
     void client.invalidateQueries({ queryKey: ['tickets'] });
     void client.invalidateQueries({ queryKey: ['months'] });
-    navigate(`/review${queue.search}`);
+    navigate(`${queue.base}${queue.search}`);
   };
   const fail = (e: Error) => {
     const status = e instanceof ApiError ? e.status : 0;

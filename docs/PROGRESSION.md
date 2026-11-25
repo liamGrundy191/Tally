@@ -322,6 +322,7 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 
 ### 35. A screen a non-technical person can follow (T5.1)
 
-- **Designed around the month, not the features.** The first screen used to be two buttons and a list; the month page held everything at once. Now Home is the month as four numbered steps (print, upload, check, download and close), each saying what is left and offering one main button, with a tick when it is done.
-- **Hide, don't delete.** Admin tools, the workplace page and rare actions moved out of sight (an account menu, a "More" menu, folded sections) rather than being removed, so the hosted, multi-user version still has them.
-- **Words from the user's side.** "Review", "Batch" and "Reprocess" became "Check", "Cheaper" and "Read again". The tests were updated with the wording, and the keyboard-only browser test still checks three tickets end to end.
+- **Two rounds, the second led by the owner.** A first pass turned Home into four numbered steps; Liam found it still odd and gave a precise layout: Home with this month and last month plus an upload panel, one page per purpose, checking and closing inside the month, spelling lists on their own page, navy instead of bright blue. The second round built exactly that.
+- **A design tool with a process.** The "impeccable" design skill recorded who the user is (a father new to computers, using a mouse), rolled three visual directions, and Liam picked "the official form": numbered sections, ruled fields and one rubber stamp per month. Its rules removed habits such as small labels above headings and text symbols used as icons.
+- **Hide, don't delete.** Admin tools and rare actions moved into an account menu, a "More" menu and their own pages, so the hosted, multi-user version keeps them.
+- **Checked like the rest.** Unit tests and the keyboard-only browser test were rewritten for the new routes and pass; an independent reviewer looked at desktop and phone screenshots.

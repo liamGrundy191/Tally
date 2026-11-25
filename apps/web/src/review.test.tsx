@@ -471,6 +471,25 @@ describe('the rest of the screen', () => {
 });
 
 describe('the queue', () => {
+  it('checks a month’s tickets under the month, and goes back to it when none are left', async () => {
+    const page = (ids: string[]) => ({
+      status: 200,
+      body: { total: ids.length, tickets: ids.map((id) => ({ id, flags: [] })) },
+    });
+    replies['GET /api/tickets?month=m1&status=needs_review'] = page(['b']);
+    replies['GET /api/tickets?month=m1&status=needs_review&page=1'] = page(['b']);
+    replies['GET /api/tickets?month=m1&status=needs_manual_entry'] = page([]);
+    replies['GET /api/tickets?month=m1&status=needs_manual_entry&page=1'] = page([]);
+    replies['GET /api/tickets?month=m1&status=needs_review&flag=WORKPLACE_SIMILAR'] = page([]);
+    replies['GET /api/tickets/b'] = { status: 200, body: ticket({ id: 'b' }) };
+    await open('/months/m1/check');
+    expect(url()).toBe('/months/m1/check/b');
+    expect(text()).toContain('1 ticket left in this month');
+    await choose('More', 'Skip for now');
+    expect(url()).toBe('/months/m1/check');
+    expect(button('Back to the month')?.getAttribute('href')).toBe('/months/m1');
+  });
+
   it('goes to the oldest ticket, skips the skipped and those waiting for a workplace answer', async () => {
     const similar = { code: 'WORKPLACE_SIMILAR', field: 'workplace' };
     queue([{ id: 'a', flags: [similar] }, { id: 'b' }], [{ id: 'c' }]);

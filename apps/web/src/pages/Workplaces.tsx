@@ -147,7 +147,7 @@ function MonthPlaces({ id }: { id: string }) {
               <Typography key={g.id}>
                 <bdi>{g.name}</bdi>: {plural(g.tickets, 'ticket')}, written as{' '}
                 {spelled(g.spellings)}.{' '}
-                {g.ticketId && <Link to={`/review/${g.ticketId}?month=${m.id}`}>See a ticket</Link>}
+                {g.ticketId && <Link to={`/months/${m.id}/check/${g.ticketId}`}>See a ticket</Link>}
               </Typography>
             ))}
             {/* Three equal answers; none is chosen or focused for the person. */}
@@ -193,7 +193,7 @@ function MonthPlaces({ id }: { id: string }) {
       </Stack>
       <Typography sx={{ mt: 3 }}>
         {plural(tickets, 'ticket')} in {plural(places.length, 'workplace')}.{' '}
-        <Link to={`/months/${m.id}#lists`}>The spelling lists</Link> are on the month page.
+        <Link to="/lists">The spelling lists</Link> have their own page.
       </Typography>
       {places.length > 0 && (
         <Table size="small">

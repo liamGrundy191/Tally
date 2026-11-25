@@ -13,12 +13,21 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { api, type ApiError, type ListEntry } from '../api.ts';
 import { ConfirmDialog } from '../review/Review.tsx';
-import { ErrorMessage } from './simple.tsx';
+import { ErrorMessage, Page } from './simple.tsx';
 
 const TITLES: Record<ListKind, string> = { workplace: 'Workplace list', name: 'Names list' };
 const entries = (n: number) => `${n} ${n === 1 ? 'entry' : 'entries'}`;
 
-/** `bare`: inside the month's folded "Spelling lists", which already names it. */
+/** The Spelling lists page (D63): the lists, and nothing else. */
+export function ListsPage() {
+  return (
+    <Page title="Spelling lists">
+      <Lists bare />
+    </Page>
+  );
+}
+
+/** `bare`: under a page heading that already names it. */
 export function Lists({ bare = false }: { bare?: boolean }) {
   const here = useRef<HTMLDivElement>(null);
   const { hash } = useLocation();

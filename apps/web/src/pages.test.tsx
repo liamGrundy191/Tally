@@ -59,12 +59,8 @@ beforeEach(() => {
 });
 
 describe('Home', () => {
-  it('shows the newest open month as steps, the other open months, and tickets waiting for a date', async () => {
-    replies['GET /api/months'] = { status: 200, body: [OCTOBER, NOVEMBER, SEPTEMBER] };
-    replies['GET /api/months/m-nov'] = {
-      status: 200,
-      body: { ...NOVEMBER, workplaces: [], questions: [] },
-    };
+  it('shows the current and previous month, tickets with no date, and the upload panel', async () => {
+    replies['GET /api/months'] = { status: 200, body: [SEPTEMBER, NOVEMBER, OCTOBER] };
     replies['GET /api/tickets?month=none&status=needs_review'] = {
       status: 200,
       body: { total: 3, tickets: [] },
@@ -74,24 +70,16 @@ describe('Home', () => {
       body: { total: 1, tickets: [] },
     };
     await open('/');
-    expect(text()).toContain('November 2026');
-    for (const step of [
-      'Print tickets',
-      'Upload scans',
-      'Check tickets',
-      'Download and close the month',
-    ])
-      expect([...container.querySelectorAll('h2')].map((h) => h.textContent)).toContain(step);
-    expect(text()).toContain('640 tickets so far.');
-    expect(text()).toContain('12 tickets to check.');
-    expect(text()).toContain('Also open: October 2026');
+    const cards = [...container.querySelectorAll('h2')].map((h) => h.textContent);
+    expect(cards).toEqual(['November 2026', 'October 2026', 'Upload scans']);
+    expect(text()).toContain('Current month');
+    expect(text()).toContain('12 tickets to check before the Excel is complete.');
     expect(text()).not.toContain('September');
-    expect(button('October 2026')?.getAttribute('href')).toBe('/months/m-oct');
-    expect(button('4 tickets wait for a date.')?.getAttribute('href')).toBe('/review?month=none');
-    expect(button('Check next')?.getAttribute('href')).toBe('/review');
-    expect(button('Print blank tickets')?.getAttribute('href')).toBe('/api/templates/v1/pdf');
-    await click('Upload scans');
-    expect(url()).toBe('/upload');
+    expect(button('Open November 2026')?.getAttribute('href')).toBe('/months/m-nov');
+    expect(text()).toContain('4 tickets have no readable date yet');
+    expect(button('Add the dates')?.getAttribute('href')).toBe('/review?month=none');
+    expect(text()).toContain('Each ticket goes to the month written on it.');
+    expect(button('Print tickets')?.getAttribute('href')).toBe('/api/templates/v1/pdf');
   });
 
   it('says so when the tickets waiting for a date cannot be counted', async () => {
@@ -102,13 +90,11 @@ describe('Home', () => {
     expect(button('Try again')).toBeDefined();
   });
 
-  it('shows the first two steps and the spelling lists when there is no month yet', async () => {
+  it('says how to start when there is no month yet', async () => {
     replies['GET /api/months'] = { status: 200, body: [] };
     await open('/');
-    expect(text()).toContain('No tickets yet.');
-    expect(text()).toContain('Spelling lists');
-    expect(button('Upload scans')?.getAttribute('href')).toBe('/upload');
-    expect(text()).not.toContain('Check tickets');
+    expect(text()).toContain('No months yet. Upload the first scans on the right');
+    expect(text()).toContain('Choose files');
   });
 });
 
@@ -150,7 +136,6 @@ describe('the month page', () => {
     };
     await open('/months/m-nov');
     expect(text()).toContain('November 2026');
-    expect(text()).toContain('5 tickets so far');
     expect(text()).toContain(
       '2 tickets to check. Until checked, they are left out of the downloads.',
     );
@@ -292,7 +277,7 @@ describe('the month page', () => {
   it('searches the tickets by name, workplace or date, and opens one for review', async () => {
     replies['GET /api/months/m-nov'] = { status: 200, body: SMALL };
     await open('/months/m-nov');
-    expect(button('Check next')?.getAttribute('href')).toBe('/review?month=m-nov');
+    expect(button('Check next')?.getAttribute('href')).toBe('/months/m-nov/check');
     const search = async (value: string) => {
       const input = container.querySelector('input')!;
       await act(async () => {
@@ -314,7 +299,7 @@ describe('the month page', () => {
     await search('');
     expect(container.querySelector('[aria-label="Remove Yael, 10/11/26"]')).not.toBeNull();
     await click('Open');
-    expect(url()).toBe('/review/t1?month=m-nov');
+    expect(url()).toBe('/months/m-nov/check/t1');
   });
 
   it('removes a ticket after asking, naming the version shown', async () => {
@@ -697,7 +682,7 @@ describe('the upload page', () => {
     expect(url()).toBe('/upload');
     expect(calls.some((c) => c.path === '/api/auth/logout')).toBe(false);
 
-    await click('This month');
+    await click('Home');
     await act(async () => anywhere('Leave')!.click());
     await settle();
     expect(url()).toBe('/');
@@ -709,7 +694,7 @@ describe('the upload page', () => {
     replies['GET /api/months'] = { status: 200, body: [] };
     await open('/upload');
     await choose(pdf('a.pdf'));
-    await click('This month');
+    await click('Home');
     expect(document.body.textContent).toContain('Files are still uploading.');
     await FakeXhr.all[0]!.respond(200);
     expect(url()).toBe('/');

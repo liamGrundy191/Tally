@@ -57,7 +57,8 @@ const active = (i: Item) => ['waiting', 'uploading', 'confirming'].includes(i.st
 const dollars = (pages: number, speed: ReadSpeed) =>
   `$${((pages * CENTS_PER_TICKET[speed]) / 100).toFixed(2)}`;
 
-export function Upload() {
+/** The upload page, or the upload panel on Home (`embedded`, D63). */
+export function Upload({ embedded = false }: { embedded?: boolean }) {
   const client = useQueryClient();
   const [speed, setSpeed] = useState<ReadSpeed>('batch');
   const [, render] = useReducer((n: number) => n + 1, 0);
@@ -199,9 +200,18 @@ export function Upload() {
   const pages = done.reduce((n, i) => n + i.pages!, 0);
   const cents = done.reduce((n, i) => n + i.pages! * CENTS_PER_TICKET[i.speed], 0);
 
-  return (
-    <Page title="Upload scans">
-      <Typography component="h2" variant="h6">
+  // On Home the panel brings its own heading (D63).
+  const body = (
+    <>
+      {embedded && (
+        <Typography variant="h5" component="h2">
+          Upload scans
+        </Typography>
+      )}
+      <Typography color="text.secondary" sx={{ mb: 2 }}>
+        Each ticket goes to the month written on it.
+      </Typography>
+      <Typography component="h3" sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
         How fast should Tally read them?
       </Typography>
       <RadioGroup value={speed} onChange={(e) => setSpeed(e.target.value as ReadSpeed)}>
@@ -245,10 +255,12 @@ export function Upload() {
           />
         </Button>
       </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-        If the page was closed during an upload, add the same files again: the ones that already
-        arrived are recognised and not read twice.
-      </Typography>
+      {(busy || items.current.some((i) => i.state === 'failed')) && (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          If the page was closed during an upload, add the same files again: the ones that already
+          arrived are recognised and not read twice.
+        </Typography>
+      )}
 
       {done.length > 0 && (
         <Alert
@@ -294,8 +306,9 @@ export function Upload() {
           <Button onClick={() => blocker.proceed?.()}>Leave</Button>
         </DialogActions>
       </Dialog>
-    </Page>
+    </>
   );
+  return embedded ? body : <Page title="Upload scans">{body}</Page>;
 }
 
 function describe(i: Item) {

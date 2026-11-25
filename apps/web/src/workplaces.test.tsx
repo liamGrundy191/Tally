@@ -98,7 +98,7 @@ describe('the Workplaces page', () => {
       expect(button(label)!.className).toContain('MuiButton-outlined');
       expect(document.activeElement).not.toBe(button(label));
     }
-    expect(button('See a ticket')?.getAttribute('href')).toBe('/review/t1?month=m-nov');
+    expect(button('See a ticket')?.getAttribute('href')).toBe('/months/m-nov/check/t1');
     // The workplaces of the month, with their spellings and counts.
     expect(text()).toContain('3 tickets in 2 workplaces');
   });
@@ -184,9 +184,9 @@ describe('the Workplaces page', () => {
     expect(fetched('/api/months/m-nov')).toBeGreaterThan(before);
   });
 
-  it('links to the month page for the lists while a month is open', async () => {
+  it('links to the spelling lists page while a month is open', async () => {
     await open('/workplaces');
-    expect(button('The spelling lists')?.getAttribute('href')).toBe('/months/m-nov#lists');
+    expect(button('The spelling lists')?.getAttribute('href')).toBe('/lists');
     expect(container.querySelector('#lists')).toBeNull();
   });
 
@@ -237,11 +237,15 @@ const area = (label: string) =>
 const replaceButtons = () =>
   [...container.querySelectorAll('button')].filter((b) => b.textContent === 'Replace the list');
 
-describe('the lists on the month page', () => {
-  it('links the workplace questions and shows each list as editable text', async () => {
+describe('the Spelling lists page', () => {
+  it('the month page links its workplace questions', async () => {
     await open('/months/m-nov');
     expect(text()).toContain('1 workplace question to answer');
     expect(button('Answer workplace questions')?.getAttribute('href')).toBe('/workplaces');
+  });
+
+  it('shows each list as editable text', async () => {
+    await open('/lists');
     expect(text()).toContain('Spelling lists');
     expect(area('Workplace list').value).toBe('דולב = Dolev');
     expect(area('Names list').value).toBe('Dana = דנה\nKwame');
@@ -251,7 +255,7 @@ describe('the lists on the month page', () => {
   });
 
   it('shows the problem with a pasted list and sends nothing', async () => {
-    await open('/months/m-nov');
+    await open('/lists');
     await edit('Names list', 'x'.repeat(201));
     expect(text()).toContain('Line 1 is longer than 200 characters.');
     expect(replaceButtons()[1]!.disabled).toBe(true);
@@ -266,7 +270,7 @@ describe('the lists on the month page', () => {
         { name: 'Yael', spellings: [] },
       ],
     };
-    await open('/months/m-nov');
+    await open('/lists');
     await edit('Names list', 'Dana = דנה\nYael\n# a comment');
     expect(text()).toContain('2 entries (was 2): 1 new, 1 no longer on the list.');
     await act(async () => replaceButtons()[1]!.click());
@@ -289,7 +293,7 @@ describe('the lists on the month page', () => {
   });
 
   it('counts the other spellings a replace drops from an entry that stays', async () => {
-    await open('/months/m-nov');
+    await open('/lists');
     await edit('Workplace list', 'דולב');
     expect(text()).toContain(
       '1 entry (was 1): 0 new, 0 no longer on the list, 1 other spelling removed.',
@@ -306,7 +310,7 @@ describe('the lists on the month page', () => {
       status: 400,
       body: { message: 'The list is too long.' },
     };
-    await open('/months/m-nov');
+    await open('/lists');
     await edit('Workplace list', 'דולב');
     await act(async () => replaceButtons()[0]!.click());
     await settle();
@@ -318,7 +322,7 @@ describe('the lists on the month page', () => {
 
   it('allows an empty list, and says so', async () => {
     replies['PUT /api/lists/workplace'] = { status: 200, body: [] };
-    await open('/months/m-nov');
+    await open('/lists');
     await edit('Workplace list', '');
     expect(text()).toContain('The list will be empty (was 1).');
     await act(async () => replaceButtons()[0]!.click());

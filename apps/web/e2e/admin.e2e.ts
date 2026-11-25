@@ -33,7 +33,7 @@ test('an admin invites a reviewer, who sets a password and logs in', async ({ pa
   await page.getByLabel('New password').fill('reviewer password 1');
   await page.getByLabel('Type it again').fill('reviewer password 1');
   await page.getByRole('button', { name: 'Set password' }).click();
-  await expect(page.getByRole('link', { name: 'This month' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Home' })).toBeVisible();
   await page.getByRole('button', { name: email }).click();
   await expect(page.getByRole('menuitem', { name: 'Log out' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'Logins' })).toHaveCount(0);

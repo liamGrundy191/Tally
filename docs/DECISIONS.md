@@ -642,13 +642,16 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **No backups on the laptop:** the paper tickets are the backup (D61).
 - **Checked on this computer:** Install from nothing (build, five migrations, start, health), login and a reload with 30-day cookies, an upload read by the fake reader, the review screen's images from storage, the Excel and the ZIP, no Content Security Policy errors; Open when running, after a stop with the ticket still there, after storage restarted alone, and with Docker reported as not running. Not checkable here: the hidden key prompt, the login questions typed by a person, and a real reboot (Liam's checks on the laptop).
 
-## D63 · T5.1 · The design pass: the month as four steps (Liam)
+## D63 · T5.1 · The design pass: one page per purpose, the official-form look (Liam)
 
-- **Who it is for:** Liam's father, alone, on the home laptop (D61). English screens in plainer words (Liam: English, not Hebrew; one person does everything).
-- **Home is the month at hand.** The newest open month as four steps, each with what is left and one main button: 1 Print tickets, 2 Upload scans, 3 Check tickets (with workplace questions and tickets waiting for a date), 4 Download and close the month. A finished step shows a tick. Other open months are links above. With no month yet, Home shows the first two steps. The month page is the same screen.
-- **Folded away:** "All tickets this month" (search, the tickets by workplace, Remove) and "Spelling lists" (the lists that help reading), so the steps fit on one screen. `/months/<id>#lists` opens the lists.
-- **Hidden, not removed:** the top bar has only This month and Print tickets; the Workplaces page opens from step 3 when there are questions; the admin page is "Logins" in the account menu (under the email), with Log out. Invites and roles are unchanged.
-- **Plainer words:** Review → Check; Confirm and next → Correct, next; Batch / Now → Cheaper / Faster; "Name for the Excel (English letters)" → "Name in English (for the Excel)"; Needs review → To check. Skip, Read again and Remove ticket are under **More** on the check screen; the "Only tickets with" filter opens on request.
-- **The look:** one calm green-teal colour, normal-case buttons, larger text, soft cards on a light grey page, the same width on every page except the check screen (which needs the room, D49). MUI's theme only: no new library.
-- **Close month stays clickable** while tickets are left to check: its dialog says why it cannot close yet, and the server refuses (Q14).
-- **Not changed:** what Tally does, its checks, the Excel and the PDFs.
+- **Who it is for:** Liam's father, alone on the home laptop (D61), not used to computers, with a mouse. English screens in plain words. Recorded in the design tool's product file (impeccable, kept local, not in the repository).
+- **One page, one purpose (Liam's layout):**
+  - **Home:** the current and previous month as cards (what to do next, the counts, Open), a notice with "Add the dates" when tickets have no readable date, and an upload panel on the right. No month choice on upload: each ticket goes to the month written on it (Liam: option c).
+  - **The month page:** numbered sections in the order of the work: 1 Check the tickets (and workplace questions), 2 Download the files, 3 Close the month; then all its tickets with search. Other open months are linked here, not on Home.
+  - **Checking** lives under the month: `/months/<id>/check/<ticket>`. `/review` remains for tickets with no date yet.
+  - **Spelling lists:** their own page, `/lists`.
+  - **The bar:** Tally, Home, Spelling lists; on the right **Print tickets** (downloads the blank-ticket PDF at once) and the account menu (Logins, Log out). Invites and roles are unchanged, under Logins.
+- **The look, "the official form":** chosen by Liam from three directions on the design tool's decision page. Navy (#1b2a4a) bar and actions on white, hairline-ruled panels over a pale blue-grey page; each month's counts in a ruled row where the number to act on is the largest; one rubber stamp per month (Open, Checked, Closing, Closed). Red only for removing and errors. MUI's theme only, no new library. Buttons at least 42px high for a mouse user.
+- **Plainer words:** Check (not Review), Correct, next; Cheaper / Faster; Read again; "Name in English (for the Excel)". Skip, Read again and Remove ticket are under **More** on the check screen; the flag filter opens on request.
+- **Review findings declined on purpose:** the screens keep Windows' own Segoe UI rather than a self-hosted display face (the laptop is Windows, it reads well, and no font file needs shipping); the spelling lists keep their field labels "Workplace list" and "Names list" (screen readers and the tests find the boxes by them).
+- **Not changed:** what Tally does, its checks, the Excel and the PDFs. Close month stays clickable while tickets are left to check; its dialog says why it cannot close yet, and the server refuses (Q14).
