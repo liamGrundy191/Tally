@@ -656,3 +656,12 @@ At Liam's request, three reviewers checked everything built so far: the API, the
 - **The check screen's time notes:** Start, End and Total stay side by side; their notes and "the paper really says this" boxes are full-width lines below them, each starting with the field's name and tied to its box for screen readers (they used to wrap into narrow columns).
 - **Review findings declined on purpose:** the screens keep Windows' own Segoe UI rather than a self-hosted display face (the laptop is Windows, it reads well, and no font file needs shipping); the spelling lists keep their field labels "Workplace list" and "Names list" (screen readers and the tests find the boxes by them).
 - **Not changed:** what Tally does, its checks, the Excel and the PDFs. Close month stays clickable while tickets are left to check; its dialog says why it cannot close yet, and the server refuses (Q14).
+
+## D64 · The Excel looks like the agency's own file (Liam)
+
+- **Why:** people still read the Excel. Liam gave one of the agency's monthly files; its look was read once (styles only, no names copied) and built into Tally's export. Tally still never reads or updates the agency's files.
+- **Workplace sheets:** the heading row (`עובד`, 1–31, `סה"כ`) and the names column in bold Arial 12, centred, light orange; every day a box with thin black lines, even when empty; the row's total bold; the bottom total row light green, its name and the grand total bold. Columns 16 (names), 5.6 (days), 8.8 (total); rows 15.6 high.
+- **The totals sheet:** headings bold on yellow; places bold and centred; hours centred; the total row bold, size 14, on yellow. Columns 22 and 13.
+- **Fixed colours** (not the workbook's theme), so the file looks the same on any computer.
+- **Left out on purpose:** the agency file's extra totals columns (`רגיל`, `בוקר`, `*57`, `*60`: pay types or rates, never stored, rejected idea); the cells someone coloured by hand; their plain number format (hours keep two decimals, D37).
+- **Also fixed:** the backup test picked whichever Postgres container was running first; with the home Tally running on the same computer it chose the wrong one. It now picks the one serving the test database's port.

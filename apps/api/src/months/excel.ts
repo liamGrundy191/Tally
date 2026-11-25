@@ -31,6 +31,64 @@ const REASONS: Record<string, string> = {
 const HOURS = '0.00';
 const RTL = { views: [{ rightToLeft: true }] };
 
+// The look of the agency's own file (D64), as fixed colours so it shows the same on any computer.
+const thin = { style: 'thin', color: { argb: 'FF000000' } } as const;
+const GRID: Partial<ExcelJS.Borders> = { top: thin, left: thin, bottom: thin, right: thin };
+const fill = (argb: string): ExcelJS.Fill => ({
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb },
+});
+const ORANGE = fill('FFF8CBAD');
+const GREEN = fill('FFC5E0B4');
+const YELLOW = fill('FFFFFF00');
+const font = (size: number, bold = false): Partial<ExcelJS.Font> => ({ name: 'Arial', size, bold });
+const CENTER: Partial<ExcelJS.Alignment> = { horizontal: 'center' };
+const ROW_HEIGHT = 15.6;
+
+/** A workplace sheet: orange heading row and names, a box for every day, a green total row. */
+function styleWorkplace(s: ExcelJS.Worksheet) {
+  const last = s.rowCount;
+  s.getColumn(1).width = 16;
+  for (let c = 2; c <= DAYS + 1; c++) s.getColumn(c).width = 5.6;
+  s.getColumn(TOTAL_COLUMN).width = 8.8;
+  for (let r = 1; r <= last; r++) {
+    s.getRow(r).height = ROW_HEIGHT;
+    for (let c = 1; c <= TOTAL_COLUMN; c++) {
+      const cell = s.getCell(r, c);
+      cell.border = GRID;
+      if (r === 1 || (c === 1 && r < last)) {
+        cell.font = font(12, true);
+        cell.fill = ORANGE;
+        cell.alignment = CENTER;
+      } else if (r === last) {
+        cell.font = font(12, c === 1 || c === TOTAL_COLUMN);
+        cell.fill = GREEN;
+        if (c === 1) cell.alignment = CENTER;
+      } else {
+        cell.font = font(11, c === TOTAL_COLUMN);
+      }
+    }
+  }
+}
+
+/** The totals sheet: yellow headings, bold centred places, a large yellow total. */
+function styleTotals(s: ExcelJS.Worksheet) {
+  const last = s.rowCount;
+  s.getColumn(1).width = 22;
+  s.getColumn(2).width = 13;
+  for (let r = 1; r <= last; r++) {
+    s.getRow(r).height = ROW_HEIGHT;
+    for (let c = 1; c <= 2; c++) {
+      const cell = s.getCell(r, c);
+      cell.border = GRID;
+      cell.alignment = CENTER;
+      if (r === 1 || r === last) cell.fill = YELLOW;
+      cell.font = r === last ? font(14, true) : font(12, r === 1 || c === 1);
+    }
+  }
+}
+
 /** Text Excel could take as a formula gets a leading apostrophe (6.2); tab and CR too (OWASP). */
 export const safe = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s);
 
@@ -183,6 +241,7 @@ export class ExcelExporter {
         last.getCell(d + 1).numFmt = HOURS;
         placeTotal += d <= DAYS ? minutes : 0;
       }
+      styleWorkplace(s);
       all += placeTotal;
       const t = totals.addRow([safe(p.name)]);
       t.getCell(2).value = {
@@ -194,6 +253,7 @@ export class ExcelExporter {
     const sum = totals.addRow([TOTAL]);
     sum.getCell(2).value = { formula: `SUM(B2:B${sum.number - 1})`, result: all / 60 };
     sum.getCell(2).numFmt = HOURS;
+    styleTotals(totals);
 
     // Each confirmed name once, with its Hebrew spellings: pasted, it is the names list (5.4).
     // Rows of one name at two places are one person here, compared as rows are (5.2).

@@ -326,3 +326,9 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **A design tool with a process.** The "impeccable" design skill recorded who the user is (a father new to computers, using a mouse), rolled three visual directions, and Liam picked "the official form": numbered sections, ruled fields and one rubber stamp per month. Its rules removed habits such as small labels above headings and text symbols used as icons.
 - **Hide, don't delete.** Admin tools and rare actions moved into an account menu, a "More" menu and their own pages, so the hosted, multi-user version keeps them.
 - **Checked like the rest.** Unit tests and the keyboard-only browser test were rewritten for the new routes and pass; an independent reviewer looked at desktop and phone screenshots.
+
+### 36. An Excel that looks like the one people already read
+
+- **Match the habit, not just the numbers.** The grid and wording already matched the agency's monthly file; the colours, bold text and box sizes did not. The developer read only the styles of one real file and copied them as fixed colours, so the file looks the same in any Excel.
+- **Not everything is copied.** Columns for pay types and rates stay out (Tally never stores rates), and hand-made highlights are not a rule a program can follow.
+- **Checked by a test,** which reads the file back and checks fonts, fills, borders and sizes.
