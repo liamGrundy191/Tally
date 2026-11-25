@@ -536,7 +536,8 @@ Phase 3 gate: Excel totals for the Phase 0 set match `truth.csv` exactly. This i
 **T4.1** Security pass against section 11.
 **T4.2** Logging, Sentry, `/health`, backup and restore test, recovery guide in the README.
 **T4.3** `compose.prod.yml`, Caddy, Dockerfiles, deploy workflow.
-**T4.4 Pilot** One real month in parallel with the manual count.
+**T4.4 Home setup** Run Tally on one Windows laptop (D61): Docker Desktop, a "Start Tally" shortcut that starts the production images and opens the browser, the reading key typed in once. The hosted setup (T4.3) stays in the code for later.
+**T4.5 Pilot** One real month in parallel with the manual count, on that laptop.
 
 Phase 4 gate: the pilot output matches the manual count, or every difference is explained, and human time is clearly lower than today. Measure both.
 
@@ -547,4 +548,5 @@ Phase 4 gate: the pilot output matches the manual count, or every difference is 
 - Pay and rate columns: rules unknown; not in version 1.
 - Whether the worker should also sign the ticket.
 - Exact Excel styling: confirm with the associates after T3.1.
+- Design and clarity pass (Liam): the screens are hard to follow for a non-technical user; hide or simplify what a home user does not need.
 - The totals sheet's pay-rate columns (regular, morning, `*55`, `*60`) in the agency's file: not in version 1.
