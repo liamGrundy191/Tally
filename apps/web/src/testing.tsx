@@ -109,3 +109,15 @@ export async function click(label: string) {
   await act(async () => button(label)!.click());
   await settle();
 }
+
+/** An item of the open menu, which MUI puts outside the page's container. */
+export const menuItem = (label: string) =>
+  [...document.querySelectorAll('[role="menuitem"]')].find((m) => m.textContent === label) as
+    HTMLElement | undefined;
+
+/** Opens a menu by its button and picks one of its items. */
+export async function choose(menu: string, item: string) {
+  await click(menu);
+  await act(async () => menuItem(item)!.click());
+  await settle();
+}

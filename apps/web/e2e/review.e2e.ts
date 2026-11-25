@@ -41,8 +41,11 @@ test('reviews the three fixture tickets and answers a workplace question, keyboa
   await page.keyboard.press('Tab');
   await page.keyboard.type(USER.password);
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: 'Home' })).toBeVisible();
-  await tabTo(page, 'Review next');
+  // Home: the months; a month's own tickets are checked from inside the month (D63).
+  await expect(page.getByRole('link', { name: `Open ${MONTH}` })).toBeVisible();
+  await tabTo(page, `Open ${MONTH}`);
+  await page.keyboard.press('Enter');
+  await tabTo(page, 'Check next');
   await page.keyboard.press('Enter');
 
   // 1. Disputed: the end time unclear (the guess is filled in), the total read two ways.
@@ -63,13 +66,21 @@ test('reviews the three fixture tickets and answers a workplace question, keyboa
   // 2. Crossed out: removed, after a question whose focus starts on Cancel.
   await expect(page.getByText('This ticket looks crossed out. Remove it?')).toBeVisible();
   await expect(page.locator('input[type="checkbox"]')).toBeFocused();
-  await tabTo(page, 'Remove');
+  await tabTo(page, 'More');
+  await page.keyboard.press('Enter');
+  await page.getByRole('menuitem', { name: 'Remove ticket' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Enter');
 
-  // 3. Not read at all: typed in, the same worker and day as the first, the place spelt apart.
+  // 3. Not read at all, so in no month yet: from Home's "Add the date". Typed in, the same worker
+  // and day as the first, the place spelt apart.
+  await expect(page.getByText('Nothing left to check.')).toBeVisible();
+  await tabTo(page, 'Home');
+  await page.keyboard.press('Enter');
+  await tabTo(page, 'Add the date');
+  await page.keyboard.press('Enter');
   await expect(page.getByText('Could not read this ticket. Please type it in.')).toBeVisible();
   await expect(page.locator('#f-firstName')).toBeFocused();
   for (const value of ['זיו', 'שופר סל', YESTERDAY, '08:00', '16:00', '08:00']) {
@@ -79,15 +90,19 @@ test('reviews the three fixture tickets and answers a workplace question, keyboa
   await expect(page.locator('#f-workerName')).toBeFocused();
   await page.keyboard.type('Ziv');
   await page.keyboard.press('Enter');
-  // A place like the first ticket's: both wait for a person to say whether it is the same place.
-  await expect(page.getByText('Nothing left to review.')).toBeVisible();
-  await expect(
-    page.getByText('2 tickets left; 2 of them wait for a workplace answer (Workplaces page).'),
-  ).toBeVisible();
+  await expect(page.getByText('Nothing left to check.')).toBeVisible();
   console.log(`Three tickets reviewed in ${Date.now() - started} ms after the first loaded.`);
 
+  // A place like the first ticket's: both wait for a person to say whether it is the same place.
+  await tabTo(page, 'Back to Home');
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('link', { name: `Open ${MONTH}` })).toBeVisible();
+  await tabTo(page, `Open ${MONTH}`);
+  await page.keyboard.press('Enter');
+  await expect(page.getByText('1 workplace question to answer')).toBeVisible();
+
   // 4. The Workplaces page: "same place", after "Are you sure?" with Cancel focused.
-  await tabTo(page, 'Workplaces page');
+  await tabTo(page, 'Answer workplace questions');
   await page.keyboard.press('Enter');
   await expect(page.getByText(/^Is .+ the same place as .+\?$/)).toBeVisible();
   await tabTo(page, 'Same place, keep the name שופרסל');
@@ -102,21 +117,20 @@ test('reviews the three fixture tickets and answers a workplace question, keyboa
   // 5. One place now: the two tickets of one worker and day ask whether they are one shift.
   await tabTo(page, MONTH);
   await page.keyboard.press('Enter');
-  await tabTo(page, 'Review next');
+  await tabTo(page, 'Check next');
   await page.keyboard.press('Enter');
   await expect(page.getByText('Is it the same shift?')).toBeVisible();
   await tabTo(page, 'Keep both');
   await page.keyboard.press('Enter');
-  await expect(page.getByText('Nothing left to review.')).toBeVisible();
+  await expect(page.getByText('Nothing left to check.')).toBeVisible();
 
   // The month: two tickets ready in one workplace, one removed; the list has the other spelling.
-  await tabTo(page, 'Go to Home');
+  await tabTo(page, 'Back to the month');
   await page.keyboard.press('Enter');
-  await tabTo(page, MONTH);
-  await page.keyboard.press('Enter');
-  await expect(page.getByText('2 tickets: 2 ready.')).toBeVisible();
-  await expect(page.getByText('1 ticket removed.')).toBeVisible();
+  await expect(page.getByText(/2 tickets ready for the Excel; 1 removed/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'שופרסל', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'שופר סל', exact: true })).toHaveCount(0);
+  await tabTo(page, 'Spelling lists');
+  await page.keyboard.press('Enter');
   await expect(page.getByLabel('Workplace list')).toHaveValue('שופרסל = שופר סל');
 });

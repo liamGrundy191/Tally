@@ -13,12 +13,22 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router';
 import { api, type ApiError, type ListEntry } from '../api.ts';
 import { ConfirmDialog } from '../review/Review.tsx';
-import { ErrorMessage } from './simple.tsx';
+import { ErrorMessage, Page } from './simple.tsx';
 
 const TITLES: Record<ListKind, string> = { workplace: 'Workplace list', name: 'Names list' };
 const entries = (n: number) => `${n} ${n === 1 ? 'entry' : 'entries'}`;
 
-export function Lists() {
+/** The Spelling lists page (D63): the lists, and nothing else. */
+export function ListsPage() {
+  return (
+    <Page title="Spelling lists">
+      <Lists bare />
+    </Page>
+  );
+}
+
+/** `bare`: under a page heading that already names it. */
+export function Lists({ bare = false }: { bare?: boolean }) {
   const here = useRef<HTMLDivElement>(null);
   const { hash } = useLocation();
   // The Workplaces page links here (#lists); the router does not scroll to it by itself.
@@ -26,16 +36,18 @@ export function Lists() {
     if (hash === '#lists') here.current?.scrollIntoView();
   }, [hash]);
   return (
-    <Box id="lists" ref={here} sx={{ mt: 4 }}>
-      <Typography variant="h5" component="h2" gutterBottom>
-        Lists that help reading
-      </Typography>
+    <Box id="lists" ref={here} sx={{ mt: bare ? 0 : 4 }}>
+      {!bare && (
+        <Typography variant="h5" component="h2" gutterBottom>
+          Spelling lists
+        </Typography>
+      )}
       <Typography sx={{ mb: 2 }}>
-        Every month uses these same two lists. They help read the tickets and suggest spellings;
-        they never add a worker or a workplace to the Excel. Write one entry per line. Give an
-        entry's other spellings after an equals sign: the Hebrew spelling, then =, then the English
-        (<code dir="ltr">דולב = Dolev</code>). Or paste two columns from Excel. Lines starting with
-        # are skipped. Up to {MAX_LIST_ENTRIES} entries of {MAX_LIST_LINE} characters.
+        The names and workplaces you expect, so Tally reads them better and suggests spellings. They
+        never add a worker or a workplace to the Excel. Write one entry per line. Give an entry's
+        other spellings after an equals sign: the Hebrew spelling, then =, then the English (
+        <code dir="ltr">דולב = Dolev</code>). Or paste two columns from Excel. Lines starting with #
+        are skipped. Up to {MAX_LIST_ENTRIES} entries of {MAX_LIST_LINE} characters.
       </Typography>
       {LIST_KINDS.map((kind) => (
         <ListEditor key={kind} kind={kind} />

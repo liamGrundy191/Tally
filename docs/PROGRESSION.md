@@ -319,3 +319,10 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **The production setup, reused.** The same images that would run on a server run on the laptop, with the database and storage beside them. Three double-click files install, open and update it; the person never types a command after the first download.
 - **Small, and checked end to end.** The developer built it alone and ran the whole thing from nothing on a Windows computer: install, login, upload, review, both downloads, restart. One reviewer agent, used only where an outside eye was worth it, found two failures the tests had missed: the shortcut could not start Docker when it was closed, and the site went silent if storage restarted by itself. Both were fixed and tested.
 - **Plain choices for a home user.** Logged in for 30 days instead of 12 hours; the paper tickets are the backup; any failure says "Nothing is lost" and stays on screen.
+
+### 35. A screen a non-technical person can follow (T5.1)
+
+- **Two rounds, the second led by the owner.** A first pass turned Home into four numbered steps; Liam found it still odd and gave a precise layout: Home with this month and last month plus an upload panel, one page per purpose, checking and closing inside the month, spelling lists on their own page, navy instead of bright blue. The second round built exactly that.
+- **A design tool with a process.** The "impeccable" design skill recorded who the user is (a father new to computers, using a mouse), rolled three visual directions, and Liam picked "the official form": numbered sections, ruled fields and one rubber stamp per month. Its rules removed habits such as small labels above headings and text symbols used as icons.
+- **Hide, don't delete.** Admin tools and rare actions moved into an account menu, a "More" menu and their own pages, so the hosted, multi-user version keeps them.
+- **Checked like the rest.** Unit tests and the keyboard-only browser test were rewritten for the new routes and pass; an independent reviewer looked at desktop and phone screenshots.

@@ -548,5 +548,5 @@ Phase 4 gate: the pilot output matches the manual count, or every difference is 
 - Pay and rate columns: rules unknown; not in version 1.
 - Whether the worker should also sign the ticket.
 - Exact Excel styling: confirm with the associates after T3.1.
-- Design and clarity pass (Liam): the screens are hard to follow for a non-technical user; hide or simplify what a home user does not need.
+- Design and clarity pass (Liam): done in T5.1 (D63); more rounds as the father uses it.
 - The totals sheet's pay-rate columns (regular, morning, `*55`, `*60`) in the agency's file: not in version 1.

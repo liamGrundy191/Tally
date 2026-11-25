@@ -31,7 +31,7 @@ export function NotFound() {
   return (
     <Page title="That page does not exist.">
       <Button component={Link} to="/">
-        Go to Home
+        Back to this month
       </Button>
     </Page>
   );

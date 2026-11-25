@@ -24,15 +24,15 @@ import {
 } from '@tally/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { type DragEvent, useEffect, useReducer, useRef, useState } from 'react';
-import { useBlocker } from 'react-router';
+import { Link, useBlocker } from 'react-router';
 import { api, ApiError } from '../api.ts';
 import { Page } from './simple.tsx';
 
 /** Estimated price per ticket, in cents (Q4): batch measured in Phase 0 (D38), now not yet. */
 const CENTS_PER_TICKET: Record<ReadSpeed, number> = { batch: 15, now: 30 };
 const SPEEDS: [ReadSpeed, string][] = [
-  ['batch', 'Batch: usually read within an hour, at most a day; about 15 cents a ticket.'],
-  ['now', 'Now: read straight away; about 30 cents a ticket, not yet measured.'],
+  ['batch', 'Cheaper: usually ready within an hour (at most a day); about 15 cents a ticket.'],
+  ['now', 'Faster: ready in minutes; about 30 cents a ticket.'],
 ];
 const AT_ONCE = 3;
 /** An upload with no progress for this long has stalled: it is stopped and can be retried. */
@@ -57,7 +57,8 @@ const active = (i: Item) => ['waiting', 'uploading', 'confirming'].includes(i.st
 const dollars = (pages: number, speed: ReadSpeed) =>
   `$${((pages * CENTS_PER_TICKET[speed]) / 100).toFixed(2)}`;
 
-export function Upload() {
+/** The upload page, or the upload panel on Home (`embedded`, D63). */
+export function Upload({ embedded = false }: { embedded?: boolean }) {
   const client = useQueryClient();
   const [speed, setSpeed] = useState<ReadSpeed>('batch');
   const [, render] = useReducer((n: number) => n + 1, 0);
@@ -199,10 +200,19 @@ export function Upload() {
   const pages = done.reduce((n, i) => n + i.pages!, 0);
   const cents = done.reduce((n, i) => n + i.pages! * CENTS_PER_TICKET[i.speed], 0);
 
-  return (
-    <Page title="Upload">
-      <Typography component="h2" variant="h6">
-        Speed
+  // On Home the panel brings its own heading (D63).
+  const body = (
+    <>
+      {embedded && (
+        <Typography variant="h5" component="h2">
+          Upload scans
+        </Typography>
+      )}
+      <Typography color="text.secondary" sx={{ mb: 2 }}>
+        Each ticket goes to the month written on it.
+      </Typography>
+      <Typography component="h3" sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
+        How fast should Tally read them?
       </Typography>
       <RadioGroup value={speed} onChange={(e) => setSpeed(e.target.value as ReadSpeed)}>
         {SPEEDS.map(([value, label]) => (
@@ -245,14 +255,27 @@ export function Upload() {
           />
         </Button>
       </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-        If the page was closed during an upload, add the same files again: the ones that already
-        arrived are recognised and not read twice.
-      </Typography>
+      {(busy || items.current.some((i) => i.state === 'failed')) && (
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          If the page was closed during an upload, add the same files again: the ones that already
+          arrived are recognised and not read twice.
+        </Typography>
+      )}
 
       {done.length > 0 && (
-        <Alert severity="success" sx={{ mt: 2 }}>
-          {pages === 1 ? '1 ticket' : `${pages} tickets`}, about ${(cents / 100).toFixed(2)}
+        <Alert
+          severity="success"
+          sx={{ mt: 2 }}
+          action={
+            !busy && (
+              <Button color="inherit" component={Link} to="/">
+                Back to this month
+              </Button>
+            )
+          }
+        >
+          {pages === 1 ? '1 ticket' : `${pages} tickets`}, about ${(cents / 100).toFixed(2)}.
+          {!busy && ' Tally is reading them: you can leave this page.'}
         </Alert>
       )}
       <List>
@@ -283,8 +306,9 @@ export function Upload() {
           <Button onClick={() => blocker.proceed?.()}>Leave</Button>
         </DialogActions>
       </Dialog>
-    </Page>
+    </>
   );
+  return embedded ? body : <Page title="Upload scans">{body}</Page>;
 }
 
 function describe(i: Item) {

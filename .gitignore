@@ -25,3 +25,8 @@ playwright-report/
 
 # The home laptop's settings: passwords and the reading key (T4.4)
 home/tally.env
+
+# Design tooling (impeccable): local only
+PRODUCT.md
+DESIGN.md
+.impeccable/

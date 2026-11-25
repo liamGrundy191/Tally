@@ -6,6 +6,8 @@ import {
   ADMIN,
   button,
   calls,
+  choose,
+  menuItem,
   click,
   client,
   close,
@@ -117,15 +119,17 @@ describe('safeNext', () => {
 });
 
 describe('logged in', () => {
-  it('shows Admin to an admin only', async () => {
+  it('shows Logins (the admin page) in the account menu, to an admin only', async () => {
     replies['GET /api/auth/me'] = { status: 200, body: ADMIN };
     await open('/');
-    expect(button('Admin')).toBeDefined();
+    await click(ADMIN.email);
+    expect(menuItem('Logins')?.getAttribute('href')).toBe('/admin');
     close();
 
     replies['GET /api/auth/me'] = { status: 200, body: REVIEWER };
     await open('/admin');
-    expect(button('Admin')).toBeUndefined();
+    await click(REVIEWER.email);
+    expect(menuItem('Logins')).toBeUndefined();
     expect(text()).toContain('Only an admin can open this page.');
   });
 
@@ -135,7 +139,7 @@ describe('logged in', () => {
     replies['POST /api/auth/logout'] = { status: 204 };
     await open('/');
     replies['GET /api/auth/me'] = { status: 401 };
-    await click('Log out');
+    await choose(REVIEWER.email, 'Log out');
     const logout = calls.find((c) => c.path === '/api/auth/logout')!;
     expect(logout.headers.get('x-csrf-token')).toBe('abc');
     expect(calls.find((c) => c.method === 'GET')!.headers.get('x-csrf-token')).toBeNull();
