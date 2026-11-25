@@ -13,6 +13,7 @@ import {
   MenuItem,
   Stack,
   TextField,
+  Typography,
 } from '@mui/material';
 import {
   ACCEPTABLE_FLAGS,
@@ -266,7 +267,10 @@ export function TicketForm(props: {
     flagged.includes(c)
       ? { '& .MuiOutlinedInput-notchedOutline': { borderColor: 'warning.main', borderWidth: 2 } }
       : undefined;
-  const box = (c: FieldKey) => (
+  // The three times sit side by side; their notes go full width below them (`below`), so a long
+  // reason never wraps into a narrow column. Each note stays tied to its box for screen readers.
+  const hasNote = (c: FieldKey) => helper(c) !== undefined || acceptable(at(c)).length > 0;
+  const box = (c: FieldKey, below = false) => (
     <Box key={c}>
       <Controller
         name={c}
@@ -284,16 +288,31 @@ export function TicketForm(props: {
             }}
             onBlur={field.onBlur}
             onFocus={() => props.onFocusField(c)}
-            helperText={helper(c)}
+            helperText={below ? undefined : helper(c)}
             fullWidth
             sx={warn(c)}
-            slotProps={{ htmlInput: { dir: 'auto', autoComplete: 'off' } }}
+            slotProps={{
+              htmlInput: {
+                dir: 'auto',
+                autoComplete: 'off',
+                ...(below && hasNote(c) && { 'aria-describedby': `n-${c}` }),
+              },
+            }}
           />
         )}
       />
-      {acceptable(at(c)).map(acceptBox)}
+      {!below && acceptable(at(c)).map(acceptBox)}
     </Box>
   );
+  const note = (c: FieldKey) =>
+    hasNote(c) && (
+      <Box key={c} id={`n-${c}`}>
+        <Typography variant="body2" color="text.secondary">
+          <strong>{LABELS[c]}:</strong> {helper(c)}
+        </Typography>
+        {acceptable(at(c)).map(acceptBox)}
+      </Box>
+    );
 
   return (
     <form
@@ -310,8 +329,7 @@ export function TicketForm(props: {
             {acceptable([f]).map(acceptBox)}
           </Alert>
         ))}
-        {FIELD_KEYS.slice(0, 3).map(box)}
-        {/* Three equal columns: a long reason wraps in its own column, never squeezing another box. */}
+        {FIELD_KEYS.slice(0, 3).map((c) => box(c))}
         <Box
           sx={{
             display: 'grid',
@@ -319,8 +337,9 @@ export function TicketForm(props: {
             gap: 2,
           }}
         >
-          {FIELD_KEYS.slice(3).map(box)}
+          {FIELD_KEYS.slice(3).map((c) => box(c, true))}
         </Box>
+        {FIELD_KEYS.slice(3).map(note)}
         <Controller
           name="workerName"
           control={form.control}
