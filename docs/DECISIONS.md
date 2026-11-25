@@ -618,3 +618,10 @@ At Liam's request, three reviewers checked everything built so far: the API, the
   - Not checkable locally: Let's Encrypt, real visitor addresses, the managed database's TLS, Prisma's migrate TLS address, the bucket's CORS, and GitHub Actions itself.
 - **Restore drill:** in the first week after going live, before any pilot data (D59): restore the newest backup into a new database cluster, point a copy of the app at it, compare the counts, delete the copy; undelete one test file in S3. Record the date here.
 - **Left for later:** watching the worker beyond its restart policy (D59); the IPv6 /64 gap in the login limit (D58).
+
+## D61 · Phase 4 · Tally runs at home first; hosting is kept for later (Liam)
+
+- **The first real use is one Windows laptop at Liam's home, used by his father.** No one else uses it for now. So the go-live (D60's runbook) is not done: no server, managed database, S3 bucket, Sentry, web address or monthly cost.
+- **One app, not two branches.** A second branch would need every fix copied by hand and would drift. The hosted parts (T4.1–T4.3) stay in the code unused; the tag `hosted-ready` marks the version they were finished at (it does not start a deploy: only `v*` tags do). If other people want Tally later, D60's runbook still applies, with every fix made since.
+- **No features are removed now.** Removing tested code carries its own risk. What a home user does not need (invites, roles, the admin screens) is hidden or simplified in the design pass, which Liam asked for (still to come).
+- **Next:** a home setup task (T4.4): Docker Desktop on the laptop, a "Start Tally" shortcut that starts the production images on the laptop and opens the browser, the reading key typed in once. Then the pilot (T4.5) runs on that laptop.
