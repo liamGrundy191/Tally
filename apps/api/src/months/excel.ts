@@ -28,8 +28,67 @@ const REASONS: Record<string, string> = {
   replaced: 'הוחלף בכרטיס חדש',
   duplicate: 'נסרק פעמיים',
 };
-const HOURS = '0.00';
+/** Whole hours show as 8, others with two decimals as 7.50 (Liam, D64; D37). */
+const hours = (minutes: number) => (minutes % 60 === 0 ? '0' : '0.00');
 const RTL = { views: [{ rightToLeft: true }] };
+
+// The look of the agency's own file (D64), as fixed colours so it shows the same on any computer.
+const thin = { style: 'thin', color: { argb: 'FF000000' } } as const;
+const GRID: Partial<ExcelJS.Borders> = { top: thin, left: thin, bottom: thin, right: thin };
+const fill = (argb: string): ExcelJS.Fill => ({
+  type: 'pattern',
+  pattern: 'solid',
+  fgColor: { argb },
+});
+const ORANGE = fill('FFF8CBAD');
+const GREEN = fill('FFC5E0B4');
+const YELLOW = fill('FFFFFF00');
+const font = (size: number, bold = false): Partial<ExcelJS.Font> => ({ name: 'Arial', size, bold });
+const CENTER: Partial<ExcelJS.Alignment> = { horizontal: 'center' };
+const ROW_HEIGHT = 15.6;
+
+/** A workplace sheet: orange heading row and names, a box for every day, a green total row. */
+function styleWorkplace(s: ExcelJS.Worksheet) {
+  const last = s.rowCount;
+  s.getColumn(1).width = 16;
+  for (let c = 2; c <= DAYS + 1; c++) s.getColumn(c).width = 5.6;
+  s.getColumn(TOTAL_COLUMN).width = 8.8;
+  for (let r = 1; r <= last; r++) {
+    s.getRow(r).height = ROW_HEIGHT;
+    for (let c = 1; c <= TOTAL_COLUMN; c++) {
+      const cell = s.getCell(r, c);
+      cell.border = GRID;
+      if (r === 1 || (c === 1 && r < last)) {
+        cell.font = font(12, true);
+        cell.fill = ORANGE;
+        cell.alignment = CENTER;
+      } else if (r === last) {
+        cell.font = font(12, c === 1 || c === TOTAL_COLUMN);
+        cell.fill = GREEN;
+        if (c === 1) cell.alignment = CENTER;
+      } else {
+        cell.font = font(11, c === TOTAL_COLUMN);
+      }
+    }
+  }
+}
+
+/** The totals sheet: yellow headings, bold centred places, a large yellow total. */
+function styleTotals(s: ExcelJS.Worksheet) {
+  const last = s.rowCount;
+  s.getColumn(1).width = 22;
+  s.getColumn(2).width = 13;
+  for (let r = 1; r <= last; r++) {
+    s.getRow(r).height = ROW_HEIGHT;
+    for (let c = 1; c <= 2; c++) {
+      const cell = s.getCell(r, c);
+      cell.border = GRID;
+      cell.alignment = CENTER;
+      if (r === 1 || r === last) cell.fill = YELLOW;
+      cell.font = r === last ? font(14, true) : font(12, r === 1 || c === 1);
+    }
+  }
+}
 
 /** Text Excel could take as a formula gets a leading apostrophe (6.2); tab and CR too (OWASP). */
 export const safe = (s: string) => (/^[=+\-@\t\r]/.test(s) ? `'${s}` : s);
@@ -165,13 +224,13 @@ export class ExcelExporter {
         for (let d = 1; d <= DAYS; d++) {
           if (minutes[d] === 0) continue;
           row.getCell(d + 1).value = minutes[d]! / 60;
-          row.getCell(d + 1).numFmt = HOURS;
+          row.getCell(d + 1).numFmt = hours(minutes[d]!);
           byDay[d]! += minutes[d]!;
           rowTotal += minutes[d]!;
         }
         const n = row.number;
         row.getCell(TOTAL_COLUMN).value = { formula: `SUM(B${n}:AF${n})`, result: rowTotal / 60 };
-        row.getCell(TOTAL_COLUMN).numFmt = HOURS;
+        row.getCell(TOTAL_COLUMN).numFmt = hours(rowTotal);
       }
       const last = s.addRow([TOTAL]);
       const end = last.number - 1;
@@ -180,20 +239,22 @@ export class ExcelExporter {
         const minutes = d <= DAYS ? byDay[d]! : placeTotal;
         const c = s.getColumn(d + 1).letter;
         last.getCell(d + 1).value = { formula: `SUM(${c}3:${c}${end})`, result: minutes / 60 };
-        last.getCell(d + 1).numFmt = HOURS;
+        last.getCell(d + 1).numFmt = hours(minutes);
         placeTotal += d <= DAYS ? minutes : 0;
       }
+      styleWorkplace(s);
       all += placeTotal;
       const t = totals.addRow([safe(p.name)]);
       t.getCell(2).value = {
         formula: `${quoted(names[i]!)}!AG${last.number}`,
         result: placeTotal / 60,
       };
-      t.getCell(2).numFmt = HOURS;
+      t.getCell(2).numFmt = hours(placeTotal);
     });
     const sum = totals.addRow([TOTAL]);
     sum.getCell(2).value = { formula: `SUM(B2:B${sum.number - 1})`, result: all / 60 };
-    sum.getCell(2).numFmt = HOURS;
+    sum.getCell(2).numFmt = hours(all);
+    styleTotals(totals);
 
     // Each confirmed name once, with its Hebrew spellings: pasted, it is the names list (5.4).
     // Rows of one name at two places are one person here, compared as rows are (5.2).
@@ -225,7 +286,7 @@ export class ExcelExporter {
         t.excludedBy ? safe(t.excludedBy.email) : null,
       ]);
       row.getCell(3).numFmt = 'dd/mm/yy';
-      row.getCell(4).numFmt = HOURS;
+      row.getCell(4).numFmt = hours(t.totalMinutes ?? 0);
     }
 
     const file = Buffer.from(await book.xlsx.writeBuffer());

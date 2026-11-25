@@ -207,11 +207,15 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
     expect(s.getCell('A1').value).toBe('עובד');
     for (let d = 1; d <= 31; d++) expect(s.getCell(1, day(d)).value).toBe(d);
     expect(s.getCell('AG1').value).toBe('סה"כ');
-    expect(s.getRow(2).cellCount).toBe(0);
+    // Empty, but boxed like the rest.
+    expect((s.getRow(2).values as unknown[]).filter((v) => v != null)).toEqual([]);
     expect([3, 4].map((r) => s.getCell(r, 1).value)).toEqual(['Dana', 'Kwame']);
     // Exact minutes ÷ 60, shown with two decimals; nothing is rounded.
     expect(s.getCell(3, day(2)).value).toBe(500 / 60);
     expect(s.getCell(3, day(2)).numFmt).toBe('0.00');
+    // Whole hours without decimals: 8, not 8.00 (Liam, D64).
+    expect([s.getCell(4, day(2)).numFmt, s.getCell(4, day(3)).numFmt]).toEqual(['0', '0']);
+    expect(s.getCell(4, day(5)).numFmt).toBe('0.00'); // 12.50
     expect(s.getCell(3, day(1)).value).toBeNull();
     expect(s.getCell(4, day(2)).value).toBe(480 / 60);
     expect(s.getCell(4, day(3)).value).toBe(300 / 60);
@@ -222,6 +226,54 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
     expect(s.getCell(5, day(2)).value).toEqual({ formula: 'SUM(C3:C4)', result: 980 / 60 });
     expect(s.getCell('AG5').value).toEqual({ formula: 'SUM(AG3:AG4)', result: 2030 / 60 });
     expect(s.rowCount).toBe(5);
+  });
+
+  it('looks like the agency’s own file: Arial, bold headings, orange and green, a grid (D64)', () => {
+    const s = sheet('חוות גולן');
+    const thin = { style: 'thin', color: { argb: 'FF000000' } };
+    const grid = { top: thin, left: thin, bottom: thin, right: thin };
+    const fill = (argb: string) => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+    const heading = { name: 'Arial', size: 12, bold: true };
+    // The heading row and the names column: bold, centred, light orange.
+    for (const a of ['A1', 'B1', 'AG1', 'A3', 'A4']) {
+      expect(s.getCell(a).font).toMatchObject(heading);
+      expect(s.getCell(a).fill).toEqual(fill('FFF8CBAD'));
+      expect(s.getCell(a).alignment).toMatchObject({ horizontal: 'center' });
+      expect(s.getCell(a).border).toEqual(grid);
+    }
+    // Every day has a box, even an empty one; the row's total is bold.
+    for (const a of ['B3', 'C3', 'AF4', 'B2', 'AG2']) expect(s.getCell(a).border).toEqual(grid);
+    expect(s.getCell('B3').font).toMatchObject({ name: 'Arial', size: 11 });
+    expect(s.getCell('B3').font.bold).toBeFalsy();
+    expect(s.getCell('AG3').font).toMatchObject({ name: 'Arial', size: 11, bold: true });
+    // The total row: light green, its name and the grand total bold.
+    for (const a of ['A5', 'C5', 'AG5']) expect(s.getCell(a).fill).toEqual(fill('FFC5E0B4'));
+    expect(s.getCell('A5').font).toMatchObject(heading);
+    expect(s.getCell('AG5').font).toMatchObject(heading);
+    expect(s.getCell('C5').font.bold).toBeFalsy();
+    expect([s.getColumn(1).width, s.getColumn(2).width, s.getColumn(33).width]).toEqual([
+      16, 5.6, 8.8,
+    ]);
+    expect(s.getRow(3).height).toBe(15.6);
+
+    const t = sheet('סה"כ שעות');
+    const last = t.rowCount;
+    for (const a of ['A1', 'B1']) {
+      expect(t.getCell(a).font).toMatchObject(heading);
+      expect(t.getCell(a).fill).toEqual(fill('FFFFFF00'));
+    }
+    expect(t.getCell('A2').font).toMatchObject(heading);
+    expect(t.getCell('B2').font).toMatchObject({ name: 'Arial', size: 12 });
+    expect(t.getCell('B2').font.bold).toBeFalsy();
+    for (const a of ['A2', 'B2']) {
+      expect(t.getCell(a).alignment).toMatchObject({ horizontal: 'center' });
+      expect(t.getCell(a).border).toEqual(grid);
+    }
+    for (const c of [1, 2]) {
+      expect(t.getCell(last, c).font).toMatchObject({ name: 'Arial', size: 14, bold: true });
+      expect(t.getCell(last, c).fill).toEqual(fill('FFFFFF00'));
+    }
+    expect([t.getColumn(1).width, t.getColumn(2).width]).toEqual([22, 13]);
   });
 
   it('adds up each workplace on the totals sheet, pointing at that sheet’s last row', () => {

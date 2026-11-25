@@ -18,7 +18,10 @@ const IMAGE = 'postgres:16.16-alpine'; // docker/compose.dev.yml and .github/wor
 
 async function postgresContainer() {
   try {
-    const { stdout } = await run('docker', ['ps', '-q', '--filter', `ancestor=${IMAGE}`]);
+    // The one serving the test database's port: another Postgres (the home Tally) may be running.
+    const port = new URL(databaseUrl!).port || '5432';
+    const filters = ['--filter', `ancestor=${IMAGE}`, '--filter', `publish=${port}`];
+    const { stdout } = await run('docker', ['ps', '-q', ...filters]);
     return stdout.trim().split('\n')[0] || undefined;
   } catch {
     return undefined; // no Docker
