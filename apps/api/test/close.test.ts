@@ -233,6 +233,17 @@ describe.skipIf(!databaseUrl || !storageConfigured)('closing a month (T3.3)', ()
         '1 ticket dated in this month is waiting for a date or a check.',
       );
       await prisma.ticket.delete({ where: { id: outside.id } });
+      // No date at all: it may be October's (D69).
+      const undated = await ticket(u, null, null, 'Gil', {
+        status: 'needs_review',
+        shiftDate: null,
+      });
+      res = await close(oct.monthId, 'October 2026');
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(
+        '1 ticket has no date yet. Fix its date or remove it before closing the month.',
+      );
+      await prisma.ticket.delete({ where: { id: undated.id } });
       // A ticket was removed after the download: the files must be made again first (D66).
       res = await close(oct.monthId, 'October 2026');
       expect(res.status).toBe(409);
@@ -323,7 +334,11 @@ describe.skipIf(!databaseUrl || !storageConfigured)('closing a month (T3.3)', ()
     const d1 = await ticket(u2, dec.monthId, dec.groupId, 'Dana', {
       shiftDate: new Date(Date.UTC(2026, 11, 3)),
     });
-    const wait = await ticket(u2, null, null, 'Moshe', { status: 'needs_review', shiftDate: null });
+    // Waiting outside any month with a December date: closing November leaves it alone.
+    const wait = await ticket(u2, null, null, 'Moshe', {
+      status: 'needs_review',
+      shiftDate: new Date(Date.UTC(2026, 11, 5)),
+    });
     // A page stored by the splitter just before a crash: no ticket row points at it.
     const orphan = `pages/${u1}/99.jpg`;
     await files.storage.put(orphan, scans[0]!, 'image/jpeg');
