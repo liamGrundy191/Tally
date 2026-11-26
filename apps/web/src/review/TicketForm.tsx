@@ -46,6 +46,7 @@ export type SaveBody = {
   values: Record<FieldKey, string | null>;
   workerName: string | null;
   accept: FlagCode[];
+  rate57: boolean;
 };
 
 /** Doubts about a reading: a reader's guess is filled in only while one is open (D24). */
@@ -109,6 +110,8 @@ export function TicketForm(props: {
   autoFocus: boolean;
   /** Changed by the page to put the focus back on the first flagged box. */
   refocus?: number;
+  /** Is this English name at this place on the 57 list (D66)? */
+  on57: (name: string, place: string) => boolean;
   /** Settles when the save is answered, either way. */
   onSave: (body: SaveBody) => Promise<unknown>;
   onFocusField: (key: FieldKey) => void;
@@ -125,6 +128,8 @@ export function TicketForm(props: {
   const saving = useRef(false);
   // Design pass (T5.1): the rarer actions wait under "More".
   const [more, setMore] = useState<HTMLElement | null>(null);
+  /** The person's own click on the 57 box; null until they click it (D66). */
+  const [rate57Choice, setRate57Choice] = useState<boolean | null>(null);
   const pick = (action: () => void) => () => {
     setMore(null);
     action();
@@ -143,6 +148,16 @@ export function TicketForm(props: {
 
   const values = form.watch();
   const stored = storedText(ticket);
+
+  // The 57 box (D66): what a person saved wins. The list ticks it until someone saves the ticket,
+  // or when the name or place is changed here; the person's click wins over both.
+  const onList = props.on57(values.workerName.trim(), values.workplace.trim());
+  const moved = form.getFieldState('workerName').isDirty || form.getFieldState('workplace').isDirty;
+  // null: no person has saved it yet, so the list may tick it (D66).
+  const firstCheck = ticket.rate57 === null;
+  const auto = moved || firstCheck ? onList : ticket.rate57!;
+  const rate57 = rate57Choice ?? auto;
+  const fromList = rate57Choice === null && rate57 && onList && (moved || firstCheck);
   /** A box the confirmation is about was changed: the save checks it again instead. */
   const changed = (f: TicketFlag) =>
     (CONCERNS[f.code] ?? []).some((k) => (values[k] ?? '').trim() !== stored[k]);
@@ -160,6 +175,7 @@ export function TicketForm(props: {
   // Only a new ticket or a new version starts the form again; answering a question does not.
   useEffect(() => {
     form.reset(prefill(ticket));
+    setRate57Choice(null);
     visited.current.clear();
     if (props.autoFocus) focusFirst();
   }, [ticket.id, ticket.version]);
@@ -190,6 +206,7 @@ export function TicketForm(props: {
         // An empty name is "not confirmed yet", never an empty name.
         workerName: workerName || null,
         accept: [...new Set(accept.map((f) => f.code))],
+        rate57,
       })
       .finally(() => (saving.current = false));
   });
@@ -369,6 +386,24 @@ export function TicketForm(props: {
             />
           )}
         />
+        <Box>
+          <FormControlLabel
+            label="57 rate"
+            control={
+              <Checkbox
+                id="f-rate57"
+                checked={rate57}
+                onChange={(e) => setRate57Choice(e.target.checked)}
+                slotProps={{ input: { 'aria-describedby': fromList ? 'n-rate57' : undefined } }}
+              />
+            }
+          />
+          {fromList && (
+            <Typography id="n-rate57" variant="body2" color="text.secondary">
+              On the 57 list: untick it if this is someone else.
+            </Typography>
+          )}
+        </Box>
         <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
           <Button ref={confirmRef} type="submit" variant="contained" disabled={props.busy}>
             Correct, next

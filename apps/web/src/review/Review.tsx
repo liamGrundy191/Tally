@@ -15,7 +15,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { FLAG_CODES, type FieldKey, formatMinutes } from '@tally/shared';
+import { FLAG_CODES, type FieldKey, formatMinutes, onRate57List } from '@tally/shared';
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import {
@@ -36,6 +36,7 @@ import {
   type TicketFlag,
   type TicketPage,
   type TicketStatus,
+  type ListEntry,
 } from '../api.ts';
 import { ErrorMessage } from '../pages/simple.tsx';
 import { FLAG_LABELS, dayOf, reason } from './flags.tsx';
@@ -376,6 +377,15 @@ export function ReviewTicket() {
     queryKey: ['lists', 'name'],
     queryFn: () => api('/api/lists/name'),
   });
+  // The 57 list ticks the 57 box (D66); the workplace list finds a place by any of its spellings.
+  const rate57 = useQuery<ListEntry[], ApiError>({
+    queryKey: ['lists', 'rate57'],
+    queryFn: () => api('/api/lists/rate57'),
+  });
+  const places = useQuery<ListEntry[], ApiError>({
+    queryKey: ['lists', 'workplace'],
+    queryFn: () => api('/api/lists/workplace'),
+  });
   const [focused, setFocused] = useState<FieldKey | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [dialog, setDialog] = useState<'remove' | 'reprocess' | null>(null);
@@ -540,7 +550,9 @@ export function ReviewTicket() {
         <TicketForm
           ticket={t}
           names={offered}
-          busy={busy}
+          on57={(name, place) => onRate57List(rate57.data ?? [], places.data ?? [], name, place)}
+          // Not saved before the 57 list is known: the box would be left unticked (D66).
+          busy={busy || rate57.isLoading || places.isLoading}
           autoFocus={duplicates.length === 0}
           refocus={refocus}
           onSave={(body) => {

@@ -22,6 +22,7 @@ describe.skipIf(!databaseUrl)('the database', () => {
       'ListEntry',
       'LoginFailure',
       'Month',
+      'MorningHours',
       'Reading',
       'Session',
       'Ticket',

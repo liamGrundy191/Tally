@@ -1,5 +1,12 @@
 // Months (section 6.1): one per calendar month, created when its first ticket arrives.
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { hasHebrew, hoursToMinutes, normaliseName, onRate57List } from '@tally/shared';
+import { audit } from '../audit.ts';
 import {
   type DownloadKind,
   type Month,
@@ -7,7 +14,7 @@ import {
   PrismaClient,
   TicketStatus,
 } from '../generated/prisma/client.ts';
-import { finalGroups, lockMonth } from './organiser.ts';
+import { finalGroups, listPlace, lockMonth } from './organiser.ts';
 
 /**
  * Step 6c: the month a settled ticket date belongs to, created if this is its first ticket. Safe
@@ -45,7 +52,7 @@ export class MonthsService {
    * Closing needs one download of each file (6.1). Recorded after the file is built, under the
    * month's lock, so a download that races with Close is refused rather than left behind.
    */
-  async recordDownload(userId: string, monthId: string, kind: DownloadKind) {
+  async recordDownload(userId: string, monthId: string, kind: DownloadKind, madeAt = new Date()) {
     await this.prisma.$transaction(
       async (tx) => {
         await lockMonth(tx, monthId);
@@ -53,7 +60,7 @@ export class MonthsService {
         if (month?.status !== 'open') {
           throw new ConflictException('This month is being closed or is closed.');
         }
-        await tx.download.create({ data: { monthId, kind, userId } });
+        await tx.download.create({ data: { monthId, kind, userId, createdAt: madeAt } });
       },
       { timeout: 120_000, maxWait: 60_000 },
     );
@@ -67,7 +74,119 @@ export class MonthsService {
       ...(await this.withCounts([month]))[0]!,
       workplaces,
       questions: await this.questions(id, workplaces),
+      morning: await this.morning(id),
+      notes: await this.notes(workplaces),
     };
+  }
+
+  /** The month's morning hours (D66), each under the place it ended in after merges. */
+  async morning(monthId: string, db: PrismaClient | Prisma.TransactionClient = this.prisma) {
+    const groups = await db.workplaceGroup.findMany({ where: { monthId } });
+    const top = finalGroups(groups);
+    const nameOf = new Map(groups.map((g) => [g.id, g.displayName]));
+    const entries = await db.morningHours.findMany({
+      where: { monthId },
+      orderBy: { createdAt: 'asc' },
+    });
+    return entries.map((e) => {
+      const groupId = top(e.workplaceGroupId);
+      return { id: e.id, groupId, place: nameOf.get(groupId)!, minutes: e.minutes };
+    });
+  }
+
+  /** Adds a place's morning hours, typed as "37.5" (D66), to the group its tickets join. */
+  async addMorning(userId: string, monthId: string, place: string, hours: string) {
+    const minutes = hoursToMinutes(hours);
+    if (minutes === null) {
+      throw new BadRequestException(
+        'Type the hours as a number such as 37.5 or 4.25 (whole minutes, more than 0).',
+      );
+    }
+    await this.prisma.$transaction(async (tx) => {
+      await lockMonth(tx, monthId);
+      await this.openMonth(tx, monthId);
+      // As a ticket's workplace: a list spelling is stored under its list name, then grouped.
+      const name = (await listPlace(tx, place))!;
+      const normalisedName = normaliseName(name);
+      if (normalisedName === '') throw new BadRequestException('Choose the workplace.');
+      let group =
+        (await tx.workplaceGroup.findFirst({ where: { monthId, normalisedName } })) ??
+        (await tx.workplaceGroup.create({ data: { monthId, normalisedName, displayName: name } }));
+      while (group.mergedIntoId) {
+        group = await tx.workplaceGroup.findUniqueOrThrow({ where: { id: group.mergedIntoId } });
+      }
+      const entry = await tx.morningHours.create({
+        data: { monthId, workplaceGroupId: group.id, minutes },
+      });
+      await audit(tx, {
+        userId,
+        action: 'add-morning-hours',
+        entity: 'MorningHours',
+        entityId: entry.id,
+        monthId,
+        after: { place: group.displayName, minutes },
+      });
+    });
+  }
+
+  async removeMorning(userId: string, monthId: string, entryId: string) {
+    await this.prisma.$transaction(async (tx) => {
+      await lockMonth(tx, monthId);
+      await this.openMonth(tx, monthId);
+      const entry = await tx.morningHours.findFirst({ where: { id: entryId, monthId } });
+      if (!entry) throw new NotFoundException('There are no such morning hours.');
+      await tx.morningHours.delete({ where: { id: entry.id } });
+      // A removal leaves no row behind: the month remembers it, so Close asks for a new download.
+      await tx.month.update({ where: { id: monthId }, data: { lastActivityAt: new Date() } });
+      await audit(tx, {
+        userId,
+        action: 'remove-morning-hours',
+        entity: 'MorningHours',
+        entityId: entry.id,
+        monthId,
+        before: { minutes: entry.minutes },
+      });
+    });
+  }
+
+  private async openMonth(tx: Prisma.TransactionClient, monthId: string) {
+    const month = await tx.month.findUnique({ where: { id: monthId } });
+    if (!month) throw new NotFoundException('There is no such month.');
+    if (month.status !== 'open')
+      throw new ConflictException('This month is being closed or is closed.');
+  }
+
+  /**
+   * Notes for the month page, shown as information (D66): a ready ticket on the 57 list that is
+   * not ticked, and one English name that stands for two Hebrew spellings in one place.
+   */
+  private async notes(workplaces: Awaited<ReturnType<typeof this.rows>>) {
+    const lists = await this.prisma.listEntry.findMany({
+      where: { kind: { in: ['rate57', 'workplace'] } },
+    });
+    const rate57 = lists.filter((l) => l.kind === 'rate57');
+    const places = lists.filter((l) => l.kind === 'workplace');
+    const unticked: { ticketId: string; name: string; place: string }[] = [];
+    const sameName: { name: string; place: string }[] = [];
+    for (const w of workplaces) {
+      for (const r of w.rows) {
+        for (const t of r.tickets) {
+          if (
+            t.status === 'verified' &&
+            t.rate57 !== true &&
+            onRate57List(rate57, places, r.name, t.workplaceRaw ?? w.name)
+          )
+            unticked.push({ ticketId: t.id, name: r.name, place: w.name });
+        }
+        const spellings = new Set(
+          r.tickets.flatMap((t) =>
+            t.firstName && hasHebrew(t.firstName) ? [normaliseName(t.firstName)] : [],
+          ),
+        );
+        if (spellings.size > 1) sameName.push({ name: r.name, place: w.name });
+      }
+    }
+    return { rate57Unticked: unticked, sameName };
   }
 
   /**
@@ -136,6 +255,7 @@ export class MonthsService {
             status: true,
             workplaceRaw: true,
             firstName: true,
+            rate57: true,
           },
         },
       },

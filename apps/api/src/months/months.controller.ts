@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Header,
   HttpCode,
@@ -11,10 +12,11 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { Readable } from 'node:stream';
-import { closeMonthSchema } from '@tally/shared';
+import { addMorningSchema, closeMonthSchema } from '@tally/shared';
 import { z } from 'zod';
 import { Access, CurrentUser } from '../auth/access.ts';
 import type { SessionUser } from '../auth/http.ts';
+import { validate } from '../validate.ts';
 import { ExcelExporter } from './excel.ts';
 import { WorkplacePdfExporter } from './pdfs.ts';
 import { MonthsService } from './months.service.ts';
@@ -49,8 +51,10 @@ export class MonthsController {
   @Get(':id/excel')
   @Header('Cache-Control', 'private, no-store')
   async download(@CurrentUser() user: SessionUser, @Param('id') id: string) {
+    // Counted from before the file is read: a save meanwhile is not in it (D66).
+    const madeAt = new Date();
     const { file, filename } = await this.excel.export(monthId(id));
-    await this.months.recordDownload(user.id, id, 'excel');
+    await this.months.recordDownload(user.id, id, 'excel', madeAt);
     return new StreamableFile(file, {
       type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       disposition: `attachment; filename="${filename}"`,
@@ -80,13 +84,39 @@ export class MonthsController {
         disposition: `attachment; filename="workplace.pdf"; filename*=UTF-8''${encoded}`,
       });
     }
+    const madeAt = new Date();
     const file = await this.pdfs.all(monthId(id));
     // Only all the PDFs count towards closing (6.1), not one workplace's.
-    await this.months.recordDownload(user.id, id, 'pdfs');
+    await this.months.recordDownload(user.id, id, 'pdfs', madeAt);
     return new StreamableFile(Readable.from(file.zip), {
       type: 'application/zip',
       disposition: `attachment; filename="${file.filename}"`,
     });
+  }
+
+  /** Morning hours for a place (D66): only the totals sheet's בוקר column. */
+  @Post(':id/morning')
+  @HttpCode(204)
+  async addMorning(
+    @CurrentUser() user: SessionUser,
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const { place, hours } = validate(addMorningSchema, body);
+    await this.months.addMorning(user.id, monthId(id), place, hours);
+  }
+
+  @Delete(':id/morning/:entry')
+  @HttpCode(204)
+  async removeMorning(
+    @CurrentUser() user: SessionUser,
+    @Param('id') id: string,
+    @Param('entry') entry: string,
+  ) {
+    if (!z.uuid().safeParse(entry).success) {
+      throw new NotFoundException('There are no such morning hours.');
+    }
+    await this.months.removeMorning(user.id, monthId(id), entry);
   }
 
   /** Close month (6.1): the month's name typed, both files downloaded, every ticket settled. */

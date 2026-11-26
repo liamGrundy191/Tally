@@ -15,7 +15,11 @@ import { api, type ApiError, type ListEntry } from '../api.ts';
 import { ConfirmDialog } from '../review/Review.tsx';
 import { ErrorMessage, Page } from './simple.tsx';
 
-const TITLES: Record<ListKind, string> = { workplace: 'Workplace list', name: 'Names list' };
+const TITLES: Record<ListKind, string> = {
+  workplace: 'Workplace list',
+  name: 'Names list',
+  rate57: '57 rate list',
+};
 const entries = (n: number) => `${n} ${n === 1 ? 'entry' : 'entries'}`;
 
 /** The Spelling lists page (D63): the lists, and nothing else. */
@@ -105,6 +109,14 @@ function ListEditor({ kind }: { kind: ListKind }) {
       <Typography variant="h6" component="h3">
         {TITLES[kind]}
       </Typography>
+      {kind === 'rate57' && (
+        <Typography color="text.secondary">
+          The workers paid at the 57 rate. One line per worker: the name in English, as in the
+          Excel, then each place they work at (<code dir="ltr">Avi Cohen = משק ברזלי</code>). It
+          only ticks the 57 box on the check screen for you; you decide on each ticket. Changing it
+          never changes tickets already checked.
+        </Typography>
+      )}
       <Typography>{entries(saved.length)}.</Typography>
       <TextField
         label={TITLES[kind]}
@@ -135,7 +147,7 @@ function ListEditor({ kind }: { kind: ListKind }) {
         open={asking}
         title={`Replace the ${TITLES[kind].toLowerCase()}?`}
         text={
-          `${change} Tickets already read are not read again.` +
+          `${change} ${kind === 'rate57' ? 'Tickets already checked keep their 57 box as it is.' : 'Tickets already read are not read again.'}` +
           (kind === 'name' && removed > 0
             ? ' Names added from confirmed tickets that are not in your text will be removed.'
             : '')

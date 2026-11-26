@@ -54,6 +54,8 @@ const MONTH = {
     },
   ],
   questions: [QUESTION],
+  morning: [],
+  notes: { rate57Unticked: [], sameName: [] },
 };
 
 beforeEach(() => {

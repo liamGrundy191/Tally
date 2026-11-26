@@ -30,27 +30,12 @@ import {
   TicketStatus,
 } from '../generated/prisma/client.ts';
 import { monthOf } from '../months/months.service.ts';
-import { Organiser, lockMonth } from '../months/organiser.ts';
+import { Organiser, listPlace, lockMonth } from '../months/organiser.ts';
 import { READ_UPLOAD } from '../queue.ts';
 import { ReadingConfig } from '../reading/config.ts';
 import { Storage } from '../storage.ts';
 
 type Tx = Prisma.TransactionClient;
-
-/**
- * A workplace typed as a list spelling ("Beit Hadar") is stored under its list name, as a read
- * one is (D36, D53), so it joins that place. A spelling two places share stays as typed.
- */
-async function listPlace(tx: Tx, written: string | null) {
-  if (written === null) return null;
-  const key = normaliseName(written);
-  const places = new Set(
-    (await tx.listEntry.findMany({ where: { kind: 'workplace' } }))
-      .filter((e) => [e.name, ...e.spellings].some((s) => normaliseName(s) === key))
-      .map((e) => e.name),
-  );
-  return places.size === 1 ? [...places][0]! : written;
-}
 
 /** Doubts about the reading. A save settles them: the value was either corrected or confirmed. */
 const READING_FLAGS = [
@@ -97,6 +82,7 @@ const TICKET = {
   endMinutes: true,
   totalMinutes: true,
   totalFromMath: true,
+  rate57: true,
   excludedReason: true,
   replacedById: true,
   createdAt: true,
@@ -353,6 +339,10 @@ export class TicketsService {
       }
       // Answers about the old month name its places and tickets: they would outlive its purge (6.4).
       if (monthChanged) {
+        // The ticket leaves no row behind in its old month: Close there asks for new files (D66).
+        if (t.monthId) {
+          await tx.month.update({ where: { id: t.monthId }, data: { lastActivityAt: new Date() } });
+        }
         await tx.flag.deleteMany({
           where: {
             ticketId: id,
@@ -389,6 +379,7 @@ export class TicketsService {
         endMinutes: fields.endMinutes,
         totalMinutes: fields.totalMinutes,
         totalFromMath: t.totalFromMath && !changed.includes('totalWorked'),
+        rate57: body.rate57,
         ...((monthChanged || changed.includes('workplace')) && { workplaceGroupId: null }),
         status,
         verifiedHow: stillOpen
@@ -496,6 +487,10 @@ export class TicketsService {
         where: { resolvedAt: null, OR: [{ ticketId: id }, { relatedTicketId: id }] },
       });
       await tx.flag.deleteMany({ where: keptBothAbout(id) });
+      // It leaves its month: Close there asks for new files (D66).
+      if (t.monthId) {
+        await tx.month.update({ where: { id: t.monthId }, data: { lastActivityAt: new Date() } });
+      }
       await this.write(tx, id, version, {
         status: 'processing',
         monthId: null,

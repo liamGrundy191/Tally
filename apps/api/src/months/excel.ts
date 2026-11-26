@@ -18,7 +18,8 @@ const TOTALS = 'סה"כ שעות';
 const NAMES = 'שמות';
 const REMOVED = 'לא נכללו';
 const TOTAL = 'סה"כ';
-const TOTALS_HEADINGS = ['מקום עבודה', 'שעות'];
+// The agency's columns (D66): ticket hours, morning hours typed by a person, and the *57 rate.
+const TOTALS_HEADINGS = ['מקום עבודה', 'רגיל', 'בוקר', '*57'];
 const WORKER = 'עובד';
 const DAYS = 31; // columns B to AF; AG is the row's total
 const TOTAL_COLUMN = DAYS + 2;
@@ -47,8 +48,11 @@ const font = (size: number, bold = false): Partial<ExcelJS.Font> => ({ name: 'Ar
 const CENTER: Partial<ExcelJS.Alignment> = { horizontal: 'center' };
 const ROW_HEIGHT = 15.6;
 
-/** A workplace sheet: orange heading row and names, a box for every day, a green total row. */
-function styleWorkplace(s: ExcelJS.Worksheet) {
+/**
+ * A workplace sheet: orange heading row and names, a box for every day, a green total row, and
+ * below it the *57 rows the total leaves out (D66).
+ */
+function styleWorkplace(s: ExcelJS.Worksheet, totalRow: number) {
   const last = s.rowCount;
   s.getColumn(1).width = 16;
   for (let c = 2; c <= DAYS + 1; c++) s.getColumn(c).width = 5.6;
@@ -58,11 +62,11 @@ function styleWorkplace(s: ExcelJS.Worksheet) {
     for (let c = 1; c <= TOTAL_COLUMN; c++) {
       const cell = s.getCell(r, c);
       cell.border = GRID;
-      if (r === 1 || (c === 1 && r < last)) {
+      if (r === 1 || (c === 1 && r !== totalRow)) {
         cell.font = font(12, true);
         cell.fill = ORANGE;
         cell.alignment = CENTER;
-      } else if (r === last) {
+      } else if (r === totalRow) {
         cell.font = font(12, c === 1 || c === TOTAL_COLUMN);
         cell.fill = GREEN;
         if (c === 1) cell.alignment = CENTER;
@@ -77,10 +81,10 @@ function styleWorkplace(s: ExcelJS.Worksheet) {
 function styleTotals(s: ExcelJS.Worksheet) {
   const last = s.rowCount;
   s.getColumn(1).width = 22;
-  s.getColumn(2).width = 13;
+  for (let c = 2; c <= TOTALS_HEADINGS.length; c++) s.getColumn(c).width = 13;
   for (let r = 1; r <= last; r++) {
     s.getRow(r).height = ROW_HEIGHT;
-    for (let c = 1; c <= 2; c++) {
+    for (let c = 1; c <= TOTALS_HEADINGS.length; c++) {
       const cell = s.getCell(r, c);
       cell.border = GRID;
       cell.alignment = CENTER;
@@ -193,9 +197,10 @@ export class ExcelExporter {
 
   async export(monthId: string) {
     // One consistent picture: a removal or a merge half way through cannot move a ticket twice.
-    const { month, places, excluded } = await this.prisma.$transaction(
+    const { month, places, excluded, morning } = await this.prisma.$transaction(
       async (tx) => ({
         ...(await readyPlaces(tx, this.months, monthId)),
+        morning: await this.months.morning(monthId, tx),
         excluded: await tx.ticket.findMany({
           where: { monthId, status: 'excluded' },
           orderBy: [{ shiftDate: 'asc' }, { createdAt: 'asc' }],
@@ -210,50 +215,103 @@ export class ExcelExporter {
     const totals = book.addWorksheet(TOTALS, RTL);
     totals.addRow(TOTALS_HEADINGS);
     const names = sheetNames(places.map((p) => p.name));
-    let all = 0;
+    // Morning hours by place (D66); a place with no ready ticket still gets its totals row.
+    const morningOf = new Map<string, { place: string; minutes: number }>();
+    for (const m of morning) {
+      const was = morningOf.get(m.groupId)?.minutes ?? 0;
+      morningOf.set(m.groupId, { place: m.place, minutes: was + m.minutes });
+    }
+    const sums = [0, 0, 0]; // רגיל, בוקר, *57
+
+    /** One totals row; a column with nothing is left empty, for the person to fill in. */
+    const totalsRow = (
+      place: string,
+      cells: ({ formula: string; minutes: number } | number | null)[],
+    ) => {
+      const row = totals.addRow([safe(place)]);
+      cells.forEach((cell, i) => {
+        if (cell === null) return;
+        const minutes = typeof cell === 'number' ? cell : cell.minutes;
+        const c = row.getCell(i + 2);
+        c.value =
+          typeof cell === 'number' ? minutes / 60 : { formula: cell.formula, result: minutes / 60 };
+        c.numFmt = hours(minutes);
+        sums[i]! += minutes;
+      });
+    };
+
     places.forEach((p, i) => {
       const s = book.addWorksheet(names[i]!, RTL);
+      const sheet = quoted(names[i]!);
       s.addRow([WORKER, ...Array.from({ length: DAYS }, (_, d) => d + 1), TOTAL]);
       s.addRow([]);
-      const byDay = new Array<number>(DAYS + 1).fill(0);
-      for (const r of p.rows) {
+      /** A worker's row of days and its total, as its minutes. */
+      const workerRow = (
+        label: string,
+        tickets: (typeof p.rows)[number]['tickets'],
+        byDay?: number[],
+      ) => {
         const minutes = new Array<number>(DAYS + 1).fill(0);
-        for (const t of r.tickets) minutes[t.shiftDate!.getUTCDate()]! += t.totalMinutes!;
-        const row = s.addRow([safe(r.name)]);
+        for (const t of tickets) minutes[t.shiftDate!.getUTCDate()]! += t.totalMinutes!;
+        const row = s.addRow([safe(label)]);
         let rowTotal = 0;
         for (let d = 1; d <= DAYS; d++) {
           if (minutes[d] === 0) continue;
           row.getCell(d + 1).value = minutes[d]! / 60;
           row.getCell(d + 1).numFmt = hours(minutes[d]!);
-          byDay[d]! += minutes[d]!;
+          if (byDay) byDay[d]! += minutes[d]!;
           rowTotal += minutes[d]!;
         }
         const n = row.number;
         row.getCell(TOTAL_COLUMN).value = { formula: `SUM(B${n}:AF${n})`, result: rowTotal / 60 };
         row.getCell(TOTAL_COLUMN).numFmt = hours(rowTotal);
-      }
-      const last = s.addRow([TOTAL]);
-      const end = last.number - 1;
-      let placeTotal = 0;
-      for (let d = 1; d <= DAYS + 1; d++) {
-        const minutes = d <= DAYS ? byDay[d]! : placeTotal;
-        const c = s.getColumn(d + 1).letter;
-        last.getCell(d + 1).value = { formula: `SUM(${c}3:${c}${end})`, result: minutes / 60 };
-        last.getCell(d + 1).numFmt = hours(minutes);
-        placeTotal += d <= DAYS ? minutes : 0;
-      }
-      styleWorkplace(s);
-      all += placeTotal;
-      const t = totals.addRow([safe(p.name)]);
-      t.getCell(2).value = {
-        formula: `${quoted(names[i]!)}!AG${last.number}`,
-        result: placeTotal / 60,
+        return rowTotal;
       };
-      t.getCell(2).numFmt = hours(placeTotal);
+      // A worker's ticked tickets (D66) make a row of their own, "<name> *57", below the total.
+      const split = (rate57: boolean) =>
+        p.rows
+          .map((r) => ({
+            name: r.name,
+            tickets: r.tickets.filter((t) => (t.rate57 === true) === rate57),
+          }))
+          .filter((r) => r.tickets.length > 0);
+
+      const byDay = new Array<number>(DAYS + 1).fill(0);
+      let regular = 0;
+      for (const r of split(false)) regular += workerRow(r.name, r.tickets, byDay);
+      const total = s.addRow([TOTAL]);
+      const end = total.number - 1;
+      for (let d = 1; d <= DAYS + 1; d++) {
+        const minutes = d <= DAYS ? byDay[d]! : regular;
+        const c = s.getColumn(d + 1).letter;
+        // With no regular worker the range would be empty (and SUM(B3:B2) would count the header).
+        total.getCell(d + 1).value =
+          end >= 3 ? { formula: `SUM(${c}3:${c}${end})`, result: minutes / 60 } : 0;
+        total.getCell(d + 1).numFmt = hours(minutes);
+      }
+      let rate57 = 0;
+      for (const r of split(true)) rate57 += workerRow(`${r.name} *57`, r.tickets);
+      styleWorkplace(s, total.number);
+
+      const am = morningOf.get(p.groupId)?.minutes ?? 0;
+      morningOf.delete(p.groupId);
+      totalsRow(p.name, [
+        { formula: `${sheet}!AG${total.number}`, minutes: regular },
+        am > 0 ? am : null,
+        rate57 > 0
+          ? { formula: `SUM(${sheet}!AG${total.number + 1}:AG${s.rowCount})`, minutes: rate57 }
+          : null,
+      ]);
     });
+    for (const { place, minutes } of morningOf.values()) totalsRow(place, [null, minutes, null]);
+
     const sum = totals.addRow([TOTAL]);
-    sum.getCell(2).value = { formula: `SUM(B2:B${sum.number - 1})`, result: all / 60 };
-    sum.getCell(2).numFmt = hours(all);
+    const lastPlace = sum.number - 1;
+    ['B', 'C', 'D'].forEach((c, i) => {
+      const cell = sum.getCell(i + 2);
+      cell.value = { formula: `SUM(${c}2:${c}${lastPlace})`, result: sums[i]! / 60 };
+      cell.numFmt = hours(sums[i]!);
+    });
     styleTotals(totals);
 
     // Each confirmed name once, with its Hebrew spellings: pasted, it is the names list (5.4).

@@ -12,6 +12,7 @@ import {
   FormControlLabel,
   List,
   ListItem,
+  MenuItem,
   Paper,
   Table,
   TableBody,
@@ -30,13 +31,16 @@ import {
   todayIn,
   warnFrom,
 } from '@tally/shared';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import {
   api,
+  ApiError,
   download,
   type Counts,
+  type ListEntry,
+  type MonthDetail,
   type MonthSummary,
   type MonthTicket,
   type TicketStatus,
@@ -439,6 +443,98 @@ function TicketRows(props: {
 const matches = (search: string, ...texts: string[]) =>
   texts.some((x) => x.toLowerCase().includes(search.trim().toLowerCase()));
 
+/** Hours from the separate morning source, typed per place (D66): only the Excel's בוקר column. */
+function MorningHours({ m }: { m: MonthDetail }) {
+  const client = useQueryClient();
+  const list = useQuery<ListEntry[], ApiError>({
+    queryKey: ['lists', 'workplace'],
+    queryFn: () => api('/api/lists/workplace'),
+  });
+  const [place, setPlace] = useState('');
+  const [hours, setHours] = useState('');
+  const refresh = () => void client.invalidateQueries({ queryKey: ['months'] });
+  const add = useMutation({
+    mutationFn: () => api(`/api/months/${m.id}/morning`, 'POST', { place, hours }),
+    onSuccess: () => {
+      setHours('');
+      refresh();
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (entry: string) => api(`/api/months/${m.id}/morning/${entry}`, 'DELETE'),
+    onSettled: refresh,
+  });
+  // The workplace list's places and the month's own, each once.
+  const choices = [
+    ...new Set([...(list.data ?? []).map((e) => e.name), ...m.workplaces.map((w) => w.name)]),
+  ].sort((a, b) => a.localeCompare(b));
+  const asHours = (minutes: number) =>
+    `${minutes / 60} hours (${Math.floor(minutes / 60)} h ${minutes % 60} min)`;
+  return (
+    <Section n={2} title="Add morning hours">
+      <Typography>
+        Hours from the morning list, which has no tickets. They go in the Excel's בוקר column, next
+        to their workplace, and are deleted when the month is closed.
+      </Typography>
+      {m.morning.length > 0 && (
+        <List dense>
+          {m.morning.map((e) => (
+            <ListItem
+              key={e.id}
+              secondaryAction={
+                <Button
+                  color="error"
+                  disabled={remove.isPending}
+                  onClick={() => remove.mutate(e.id)}
+                >
+                  Remove
+                </Button>
+              }
+            >
+              <span dir="auto">{e.place}</span>: {asHours(e.minutes)}
+            </ListItem>
+          ))}
+        </List>
+      )}
+      <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', mt: 2 }}>
+        <TextField
+          select
+          label="Workplace"
+          value={place}
+          onChange={(e) => setPlace(e.target.value)}
+          sx={{ minWidth: 240 }}
+        >
+          {choices.map((c) => (
+            <MenuItem key={c} value={c} dir="auto">
+              {c}
+            </MenuItem>
+          ))}
+        </TextField>
+        <TextField
+          label="Hours, e.g. 37.5"
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
+          slotProps={{ htmlInput: { inputMode: 'decimal', dir: 'ltr' } }}
+          sx={{ width: 180 }}
+        />
+        <Button
+          variant="contained"
+          disabled={!place || !hours.trim() || add.isPending}
+          onClick={() => add.mutate()}
+          sx={{ mt: 1 }}
+        >
+          Add
+        </Button>
+      </Box>
+      {(add.error || remove.error) && (
+        <Alert severity="error" sx={{ mt: 2 }}>
+          {(add.error ?? remove.error)!.message}
+        </Alert>
+      )}
+    </Section>
+  );
+}
+
 export function Month() {
   const { id } = useParams();
   const month = useMonth(id!);
@@ -571,6 +667,18 @@ export function Month() {
             are left out of the downloads.
           </Typography>
         )}
+        {m.notes.rate57Unticked.map((n) => (
+          <Alert key={n.ticketId} severity="info" sx={{ mt: 1 }}>
+            {n.name} at {n.place} is on the 57 list, but this ticket is not ticked 57.{' '}
+            <Link to={`/months/${m.id}/check/${n.ticketId}`}>Open the ticket</Link>
+          </Alert>
+        ))}
+        {m.notes.sameName.map((n) => (
+          <Alert key={n.place + n.name} severity="info" sx={{ mt: 1 }}>
+            At {n.place}, the name {n.name} is written in different ways on its tickets. If they are
+            two people, give them different names in English.
+          </Alert>
+        ))}
         {unsorted > 0 && (
           <Typography sx={{ mt: 1 }}>
             {unsorted === 1 ? '1 ticket is' : `${unsorted} tickets are`} not sorted into a workplace
@@ -592,7 +700,8 @@ export function Month() {
       </Section>
       {m.status === 'open' && (
         <>
-          <Section n={2} title="Download the files">
+          <MorningHours m={m} />
+          <Section n={3} title="Download the files">
             <Typography>
               {plural(m.tickets.verified, 'ticket')} ready for the Excel
               {m.tickets.excluded > 0 && `; ${m.tickets.excluded} removed`}. Tickets still to check
@@ -621,7 +730,7 @@ export function Month() {
               </Alert>
             )}
           </Section>
-          <Section n={3} title="Close the month">
+          <Section n={4} title="Close the month">
             <Typography>
               When the files are downloaded and sent, close the month. Its tickets and scans are
               deleted for good; only a summary is kept.

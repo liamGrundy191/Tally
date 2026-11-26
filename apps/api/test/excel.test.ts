@@ -278,7 +278,12 @@ describe.skipIf(!databaseUrl)('the month Excel (T3.1)', () => {
 
   it('adds up each workplace on the totals sheet, pointing at that sheet’s last row', () => {
     const t = sheet('סה"כ שעות');
-    expect([t.getCell('A1').value, t.getCell('B1').value]).toEqual(['מקום עבודה', 'שעות']);
+    expect([1, 2, 3, 4].map((c) => t.getCell(1, c).value)).toEqual([
+      'מקום עבודה',
+      'רגיל',
+      'בוקר',
+      '*57',
+    ]);
     const sheets = book.worksheets.slice(1, -2);
     sheets.forEach((w, i) => {
       const place = places()[i]!;

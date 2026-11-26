@@ -38,6 +38,21 @@ const LONG = { timeout: 120_000, maxWait: 60_000 };
 export const lockMonth = (tx: Tx, monthId: string) =>
   tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${monthId}))`;
 
+/**
+ * A workplace typed as a list spelling ("Beit Hadar") is stored under its list name, as a read
+ * one is (D36, D53), so it joins that place. A spelling two places share stays as typed.
+ */
+export async function listPlace(tx: Tx, written: string | null) {
+  if (written === null) return null;
+  const key = normaliseName(written);
+  const places = new Set(
+    (await tx.listEntry.findMany({ where: { kind: 'workplace' } }))
+      .filter((e) => [e.name, ...e.spellings].some((s) => normaliseName(s) === key))
+      .map((e) => e.name),
+  );
+  return places.size === 1 ? [...places][0]! : written;
+}
+
 /** The group a group was merged into, following merges to the end. */
 async function topGroup(tx: Tx, id: string) {
   let group = await tx.workplaceGroup.findUniqueOrThrow({ where: { id } });
