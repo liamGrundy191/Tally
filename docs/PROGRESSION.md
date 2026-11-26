@@ -345,3 +345,8 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Let a person decide, let the list help.** Two workers can share a name, so the list only pre-ticks a box on the check screen; the person's saved tick decides, and the month page points out anything that looks forgotten.
 - **Make the numbers impossible to double count.** The special-rate hours sit below the workplace total, in their own column on the totals sheet; a test checks that every ticket minute is in exactly one of the two.
 - **A critic before the code.** An independent review of the plan found the real traps: morning hours matched by name would split when places are merged (so they belong to the place itself), and closing a month could delete hours added after the last download (so closing now asks for fresh files).
+
+### 39. Getting ready to check fewer tickets
+
+- **The goal is to check only what the computer is unsure about.** Tally already can: every ticket is read twice and its hours must add up, so most misreads get marked. For now every ticket is still checked, until real months show nothing slips through.
+- **Close the gap before it opens.** Only a person ticks the special-rate box, so once unmarked tickets skip the check screen, a special-rate worker's hours would be paid at the normal rate. Tickets of workers on the special-rate list now always come to a person, so the switch can be made later with one setting.

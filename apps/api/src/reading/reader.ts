@@ -10,6 +10,7 @@ import {
   englishName,
   hasHebrew,
   normaliseName,
+  onRate57List,
 } from '@tally/shared';
 import {
   type BatchItem,
@@ -113,7 +114,10 @@ export class Reader {
       knownNames,
       concurrency: batch ? items.length : CONCURRENCY,
     });
-    for (const r of reads) await this.save(r, placeOf, englishOf);
+    const rate57 = lists.filter((l) => l.kind === 'rate57');
+    const places = lists.filter((l) => l.kind === 'workplace');
+    const on57 = (name: string, place: string) => onRate57List(rate57, places, name, place);
+    for (const r of reads) await this.save(r, placeOf, englishOf, on57);
   }
 
   /**
@@ -167,6 +171,7 @@ export class Reader {
     r: ReadTicket,
     placeOf: ReadonlyMap<string, string>,
     englishOf: ReadonlyMap<string, string>,
+    on57: (name: string, place: string) => boolean,
   ) {
     const c = r.checked;
     const flags: Flag[] = c
@@ -208,12 +213,14 @@ export class Reader {
               detail: { year: month.year, month: month.month },
             });
         }
+        const workplace = c?.fields.workplace ?? null;
+        // Only a person ticks the 57 box, so a ticket on the 57 list always waits for one (D67).
+        const asks57 = !!workerName && !!workplace && on57(workerName, workplace);
         const status = !c
           ? 'needs_manual_entry'
-          : flags.length > 0 || this.config.reviewEverything
+          : flags.length > 0 || this.config.reviewEverything || asks57
             ? 'needs_review'
             : 'verified';
-        const workplace = c?.fields.workplace ?? null;
         const saved = await tx.ticket.updateMany({
           where: { id: r.id, status: 'processing' }, // a ticket is saved once
           data: {
