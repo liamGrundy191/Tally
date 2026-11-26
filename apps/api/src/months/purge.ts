@@ -108,15 +108,16 @@ export class Purger {
             : `${outside} tickets dated in this month are waiting for a date or a check.`,
         );
       }
-      // Another ticket not typed in yet may hold shifts of this month (D68).
-      const untyped = await tx.ticket.count({
-        where: { freeForm: true, status: 'needs_manual_entry', monthId: null },
+      // With no date, it may belong to this month: closing would lose its hours (D69). That
+      // includes another ticket not typed in yet (D68).
+      const undated = await tx.ticket.count({
+        where: { monthId: null, shiftDate: null, status: { notIn: ['excluded', 'processing'] } },
       });
-      if (untyped > 0) {
+      if (undated > 0) {
         throw new ConflictException(
-          untyped === 1
-            ? '1 other ticket is not typed in yet. Type it in or remove it before closing the month.'
-            : `${untyped} other tickets are not typed in yet. Type them in or remove them before closing the month.`,
+          undated === 1
+            ? '1 ticket has no date yet. Fix its date or remove it before closing the month.'
+            : `${undated} tickets have no date yet. Fix their dates or remove them before closing the month.`,
         );
       }
       // Closing deletes everything: a change after the last download would reach no file (D66).

@@ -709,4 +709,8 @@ Some workplaces will always use their own paper tickets, not Tally's. Liam allow
 - **Hours:** 8, 7:30, or a decimal ending in .25, .5 or .75 (a comma works too). Any other decimal is refused: "7.30" is often written for 7:30 but reads as 7 h 18 min.
 - **Each shift is a ticket of its own** with the same scan: it joins the month of its date, gets the usual checks (unusual hours, a date in the future or long ago, a possible duplicate, the workplace and name lists, the 57 list's pre-tick) and reaches the Excel like any ticket. The workplace PDF shows the scan once. A scan with shifts in two months is in both months' PDFs, and keeps its image until both are closed.
 - **Saving names every shift:** the form sends each shift it can change with the version it saw, and each one removed. A shift added or changed meanwhile is a conflict, never lost. A shift that replaced a duplicate ticket cannot be removed. Removed shifts and shifts in a month being closed are shown, not changed. Remove ticket removes every shift; Read again is refused.
-- **Closing a month** waits while an other ticket is not typed in yet: its shifts may belong to this month.
+- **Closing a month** waits while an other ticket is not typed in yet: its shifts may belong to this month (made stricter by D69).
+
+## D69 · No month closes while a ticket has no date (Liam)
+
+A ticket whose date could not be read or was typed wrong waits with no date and no month. Closing a month only counted tickets dated in it, so a shift of that month with an unusable date could be deleted with the month without its hours. Now Close refuses while any ticket (not removed, not being read) has no date at all: "1 ticket has no date yet. Fix its date or remove it before closing the month." One forgotten ticket blocks every month until it is fixed or removed; Liam chose that over the risk of missing hours.
