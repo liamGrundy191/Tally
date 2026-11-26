@@ -68,7 +68,7 @@ export class WorkplacePdfExporter {
   async all(monthId: string) {
     const { month, places, names } = await this.ready(monthId);
     // shortcut: holds every workplace PDF in memory (about the month's scans); stream them one by
-    // one if the production server runs short (T4.3).
+    // one if the laptop runs short of memory.
     const files = [];
     for (const [i, p] of places.entries())
       files.push({ name: names[i]!, data: await this.pdf(monthId, p) });

@@ -6,8 +6,13 @@ describe('morning hours as typed (D66)', () => {
     expect(hoursToMinutes('37.5')).toBe(2250);
     expect(hoursToMinutes('4.25')).toBe(255);
     expect(hoursToMinutes('8')).toBe(480);
-    expect(hoursToMinutes('0.1')).toBe(6);
     expect(hoursToMinutes(' 7,75 ')).toBe(465); // a comma, as Hebrew Excel writes it
+    expect(hoursToMinutes('37:30')).toBe(2250);
+  });
+
+  it('asks rather than guess at hours that look like minutes ("7.30" for 7:30)', () => {
+    for (const unsure of ['7.30', '7.15', '7.45', '7,10', '7.3', '0.1'])
+      expect(hoursToMinutes(unsure)).toBeNull();
   });
 
   it('refuses what is not a whole number of minutes above zero, rather than round it', () => {

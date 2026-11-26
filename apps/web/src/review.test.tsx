@@ -466,7 +466,7 @@ describe('the rest of the screen', () => {
   it('asks before reading a ticket again, then goes on', async () => {
     await review(DISPUTED);
     replies['POST /api/tickets/t1/reprocess'] = { status: 204 };
-    await choose('More', 'Read again');
+    await choose('More', 'Read the scan again (costs money)');
     expect(document.body.textContent).toContain('Reading it costs money.');
     queue([]);
     await act(async () => dialogButton('Read again')!.click());

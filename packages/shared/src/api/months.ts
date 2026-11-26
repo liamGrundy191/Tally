@@ -11,14 +11,17 @@ export const addMorningSchema = z.object({
 });
 
 /**
- * Hours written as a decimal ("37.5", "4.25") as exact minutes, or null when they are not a whole
- * number of minutes above zero (37.33): durations are whole minutes and are never rounded.
+ * Hours as typed ("37.5", "4.25", "37:30") as exact minutes, or null. A decimal must end in .5,
+ * .25, .50 or .75: "7.30" or "7.3" is often written for 7:30 but would read as 7 h 18 min, so it
+ * is asked, never guessed. Durations are whole minutes and are never rounded.
  */
 export function hoursToMinutes(text: string): number | null {
-  const m = /^(\d{1,3})(?:[.,](\d{1,2}))?$/.exec(text.trim());
-  if (!m) return null;
-  const hundredths = Number((m[2] ?? '').padEnd(2, '0')); // ".5" is 50 hundredths
-  if ((hundredths * 60) % 100 !== 0) return null;
-  const minutes = Number(m[1]) * 60 + (hundredths * 60) / 100;
-  return minutes > 0 ? minutes : null;
+  const t = text.trim();
+  const clock = /^(\d{1,3}):([0-5]\d)$/.exec(t);
+  const minutes = clock
+    ? Number(clock[1]) * 60 + Number(clock[2])
+    : /^\d{1,3}(?:[.,](?:5|50|25|75))?$/.test(t)
+      ? Math.round(Number(t.replace(',', '.')) * 60) // exact: quarters of an hour only
+      : null;
+  return minutes !== null && minutes > 0 ? minutes : null;
 }

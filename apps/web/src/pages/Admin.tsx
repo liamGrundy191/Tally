@@ -17,12 +17,12 @@ import {
   TextField,
   Typography,
 } from '@mui/material';
-import { AGENCY_TIME_ZONE, emailSchema, type Role } from '@tally/shared';
+import { emailSchema, type Role } from '@tally/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useEffect, useState } from 'react';
 import { api, type Account, type ApiError, useMe } from '../api.ts';
 import { ConfirmDialog } from '../review/Review.tsx';
-import { Page } from './simple.tsx';
+import { Page, dateInIsrael } from './simple.tsx';
 
 type Change = { user: Account; body: { role?: Role; disabled?: boolean } };
 
@@ -43,14 +43,6 @@ function question({ user, body }: Change) {
     confirm: 'Make reviewer',
   };
 }
-
-const until = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    timeZone: AGENCY_TIME_ZONE,
-  });
 
 export function Admin() {
   const me = useMe().data;
@@ -247,8 +239,8 @@ export function Admin() {
         <Alert severity="success" sx={{ mt: 2 }}>
           <Typography sx={{ mb: 1 }}>
             Send this link to {invite.variables.email}. It works once, until{' '}
-            {until(invite.data.expiresAt)}. It will not be shown again. Any earlier link for this
-            email no longer works.
+            {dateInIsrael(invite.data.expiresAt)}. It will not be shown again. Any earlier link for
+            this email no longer works.
           </Typography>
           <Typography sx={{ mb: 1 }}>
             <strong>

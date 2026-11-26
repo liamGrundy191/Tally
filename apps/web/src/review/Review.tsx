@@ -220,6 +220,9 @@ export function ReviewNext() {
       <Typography variant="h5" component="h2">
         Nothing left to check.
       </Typography>
+      {queue.base !== '/review' && queue.skipped.length === 0 && (
+        <Typography>Next: download the Excel and the workplace PDFs on the month page.</Typography>
+      )}
       {queue.skipped.length > 0 && (
         <>
           <Typography>You skipped {plural(queue.skipped.length, 'ticket')}.</Typography>

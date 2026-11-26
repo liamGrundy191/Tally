@@ -294,6 +294,13 @@ describe.skipIf(!databaseUrl || !storageConfigured)('the 57 rate and morning hou
       rate57: false,
     });
     expect(moved.status).toBe(200);
+    // Its December date is in the future here, so it waits with a date in doubt, which alone
+    // blocks closing (D69); removed here, so only the files are in question below.
+    const doubt = await owner.send('POST', `/api/months/${monthId}/close`, {
+      name: 'November 2026',
+    });
+    expect(doubt.body.message).toContain('a date still to check');
+    await prisma.ticket.update({ where: { id: leaving.id }, data: { status: 'excluded' } });
     await new Promise((r) => setTimeout(r, 20));
     await owner.download(`/api/months/${monthId}/excel`);
     expect((await close()).status).toBe(409);

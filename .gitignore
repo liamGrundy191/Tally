@@ -25,6 +25,8 @@ playwright-report/
 
 # The home laptop's settings: passwords and the reading key (T4.4)
 home/tally.env
+# The copy of the data taken during Update Tally (real names and hours)
+home/backup-before-update.dump*
 
 # Design tooling (impeccable): local only
 PRODUCT.md

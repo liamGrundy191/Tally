@@ -3,6 +3,7 @@
 // queues the file to be split.
 import { Injectable } from '@nestjs/common';
 import {
+  AGENCY_TIME_ZONE,
   MAX_PDF_PAGES,
   MAX_UPLOAD_BYTES,
   NOT_ARRIVED,
@@ -32,7 +33,7 @@ const day = (d: Date) =>
     day: 'numeric',
     month: 'short',
     year: 'numeric',
-    timeZone: 'Asia/Jerusalem',
+    timeZone: AGENCY_TIME_ZONE,
   });
 
 const queued = (key: string, u: Upload): UploadResult => ({

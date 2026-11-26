@@ -11,6 +11,7 @@ import {
 import { hasHebrew } from '@tally/shared';
 import ExcelJS from 'exceljs';
 import { type Prisma, PrismaClient } from '../generated/prisma/client.ts';
+import { rowKey } from './organiser.ts';
 import { MonthsService } from './months.service.ts';
 
 // The columns, in one place (6.2).
@@ -318,7 +319,7 @@ export class ExcelExporter {
     // Rows of one name at two places are one person here, compared as rows are (5.2).
     const people = new Map<string, { name: string; spellings: Set<string> }>();
     for (const r of places.flatMap((p) => p.rows)) {
-      const key = r.name.toLowerCase().replace(/\s+/g, ' ').trim();
+      const key = rowKey(r.name);
       const person = people.get(key) ?? { name: r.name, spellings: new Set<string>() };
       for (const t of r.tickets) {
         if (t.firstName && hasHebrew(t.firstName)) person.spellings.add(t.firstName);

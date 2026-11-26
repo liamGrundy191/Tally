@@ -51,8 +51,9 @@ import {
   useProgress,
   useWaitingCount,
 } from '../api.ts';
+import { dayOf } from '../review/flags.tsx';
 import { ConfirmDialog, REMOVE } from '../review/Review.tsx';
-import { ErrorMessage, Page } from './simple.tsx';
+import { ErrorMessage, Page, dateInIsrael } from './simple.tsx';
 import { Upload } from './Upload.tsx';
 
 const STATUS: Record<TicketStatus, string> = {
@@ -68,36 +69,18 @@ export { monthName };
 /** Removed tickets are left out of the month's count. */
 const total = (c: Counts) => c.processing + c.verified + c.needs_review + c.needs_manual_entry;
 const needReview = (c: Counts) => c.needs_review + c.needs_manual_entry;
-// Shift dates are stored as midnight UTC: show that day, wherever the browser is.
-const day = (iso: string | null) =>
-  iso
-    ? new Date(iso).toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: '2-digit',
-        timeZone: 'UTC',
-      })
-    : '—';
 
 // The month's two files, as the server names them (6.2, 6.3).
 const mm = (m: MonthSummary) => `${m.year}-${String(m.month).padStart(2, '0')}`;
 const saveExcel = (m: MonthSummary) => download(`/api/months/${m.id}/excel`, `hours-${mm(m)}.xlsx`);
 const saveZip = (m: MonthSummary) => download(`/api/months/${m.id}/pdfs`, `tickets-${mm(m)}.zip`);
-/** When a month was closed, as a date in Israel. */
-const closedOn = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-GB', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    timeZone: AGENCY_TIME_ZONE,
-  });
 
 /** From day 50, an open month is about to be deleted automatically (6.1). */
 function DeleteWarning({ m }: { m: MonthSummary }) {
   if (m.status !== 'open' || todayIn(AGENCY_TIME_ZONE) < warnFrom(m)) return null;
   return (
     <Alert severity="warning" sx={{ my: 1 }}>
-      {monthName(m)} will be deleted automatically on {day(`${autoDeleteOn(m)}T00:00:00Z`)}.
+      {monthName(m)} will be deleted automatically on {dayOf(`${autoDeleteOn(m)}T00:00:00Z`)}.
       Download its files and close it before then.
     </Alert>
   );
@@ -229,7 +212,8 @@ function Fields({ items }: { items: { label: string; value: ReactNode; act?: boo
 
 /** One plain sentence: what this month needs next. */
 function nextStep(m: MonthSummary) {
-  if (m.status === 'closed') return `Closed on ${closedOn(m.closedAt!)}. Only its summary is kept.`;
+  if (m.status === 'closed')
+    return `Closed on ${dateInIsrael(m.closedAt!)}. Only its summary is kept.`;
   if (m.status === 'closing') return 'Being closed: its tickets and scans are being deleted.';
   const toCheck = needReview(m.tickets);
   if (toCheck > 0) return `${plural(toCheck, 'ticket')} to check before the Excel is complete.`;
@@ -414,7 +398,7 @@ function TicketRows(props: {
           {name}
         </TableCell>
       )}
-      <TableCell>{day(t.shiftDate)}</TableCell>
+      <TableCell>{dayOf(t.shiftDate)}</TableCell>
       <TableCell>{t.totalMinutes === null ? '—' : formatMinutes(t.totalMinutes)}</TableCell>
       <TableCell>{STATUS[t.status]}</TableCell>
       <TableCell>
@@ -422,7 +406,7 @@ function TicketRows(props: {
           size="small"
           component={Link}
           to={`/months/${props.monthId}/check/${t.id}`}
-          aria-label={`Open ${name}, ${day(t.shiftDate)}`}
+          aria-label={`Open ${name}, ${dayOf(t.shiftDate)}`}
         >
           Open
         </Button>
@@ -430,7 +414,7 @@ function TicketRows(props: {
           size="small"
           color="error"
           onClick={() => props.onRemove(t)}
-          aria-label={`Remove ${name}, ${day(t.shiftDate)}`}
+          aria-label={`Remove ${name}, ${dayOf(t.shiftDate)}`}
         >
           Remove
         </Button>
@@ -460,9 +444,13 @@ function MorningHours({ m }: { m: MonthDetail }) {
       refresh();
     },
   });
+  const [removing, setRemoving] = useState<MonthDetail['morning'][number] | null>(null);
   const remove = useMutation({
     mutationFn: (entry: string) => api(`/api/months/${m.id}/morning/${entry}`, 'DELETE'),
-    onSettled: refresh,
+    onSettled: () => {
+      setRemoving(null);
+      refresh();
+    },
   });
   // The workplace list's places and the month's own, each once.
   const choices = [
@@ -482,11 +470,7 @@ function MorningHours({ m }: { m: MonthDetail }) {
             <ListItem
               key={e.id}
               secondaryAction={
-                <Button
-                  color="error"
-                  disabled={remove.isPending}
-                  onClick={() => remove.mutate(e.id)}
-                >
+                <Button color="error" disabled={remove.isPending} onClick={() => setRemoving(e)}>
                   Remove
                 </Button>
               }
@@ -496,6 +480,22 @@ function MorningHours({ m }: { m: MonthDetail }) {
           ))}
         </List>
       )}
+      <ConfirmDialog
+        open={removing !== null}
+        title="Remove these morning hours?"
+        text={
+          removing && (
+            <>
+              <span dir="auto">{removing.place}</span>: {asHours(removing.minutes)}. They leave the
+              Excel's בוקר column.
+            </>
+          )
+        }
+        confirm="Remove"
+        busy={remove.isPending}
+        onConfirm={() => remove.mutate(removing!.id)}
+        onClose={() => setRemoving(null)}
+      />
       <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', mt: 2 }}>
         <TextField
           select
@@ -589,7 +589,7 @@ export function Month() {
     return (
       <Page title={monthName(m)}>
         <Typography>
-          Closed on {closedOn(m.closedAt!)}. Its tickets and scans were deleted; the summary is
+          Closed on {dateInIsrael(m.closedAt!)}. Its tickets and scans were deleted; the summary is
           kept: {plural(m.summaryTicketCount ?? 0, 'ready ticket')},{' '}
           {formatMinutes(m.summaryTotalMinutes ?? 0)} hours.
         </Typography>
@@ -614,7 +614,7 @@ export function Month() {
   const places = m.workplaces
     .map((w) => {
       const keep = (name: string) => (t: MonthTicket) =>
-        !search || matches(search, name, w.name, day(t.shiftDate));
+        !search || matches(search, name, w.name, dayOf(t.shiftDate));
       return {
         ...w,
         ready: w.rows.some((r) => r.tickets.some((t) => t.status === 'verified')),
@@ -853,7 +853,21 @@ export function Month() {
             fullWidth
             autoFocus
           />
-          {close.error && <Alert severity="error">{close.error.message}</Alert>}
+          {close.error && (
+            <Alert
+              severity="error"
+              action={
+                // Tickets with no date wait outside every month, on the check screen (D69).
+                /no date yet/.test(close.error.message) && (
+                  <Button color="inherit" component={Link} to="/review">
+                    Show them
+                  </Button>
+                )
+              }
+            >
+              {close.error.message}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setClosing(false)}>Cancel</Button>

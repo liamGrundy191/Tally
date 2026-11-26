@@ -34,7 +34,7 @@ import {
   TicketStatus,
 } from '../generated/prisma/client.ts';
 import { monthOf } from '../months/months.service.ts';
-import { Organiser, listPlace, lockMonth } from '../months/organiser.ts';
+import { LONG, Organiser, listPlace, lockList, lockMonth } from '../months/organiser.ts';
 import { READ_UPLOAD } from '../queue.ts';
 import { ReadingConfig } from '../reading/config.ts';
 import { Storage } from '../storage.ts';
@@ -67,11 +67,11 @@ const keptBothAbout = (id: string): Prisma.FlagWhereInput => ({
 });
 
 const STALE = 'Someone else changed this ticket. Reload it.';
+const REPLACED_ONE =
+  'This replaced a duplicate ticket, so removing it would leave that shift out. Correct it instead.';
 const OTHER_TICKET = 'This is another ticket, not a Tally ticket: type it in with its own form.';
 /** Boxes another ticket's form does not have (D68). */
 const NOT_ON_OTHER_TICKETS: string[] = ['firstName', 'startTime', 'endTime'];
-/** Saving every shift of a scan can take longer than Prisma's 5 seconds. */
-const LONG = { timeout: 120_000, maxWait: 60_000 };
 /** One save or removal of a scan's shifts at a time (D68); taken before any month's lock. */
 const lockScan = (tx: Tx, t: { uploadId: string; pageIndex: number }) =>
   tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`scan:${t.uploadId}:${t.pageIndex}`}))`;
@@ -347,9 +347,7 @@ export class TicketsService {
         const t = open.find((o) => o.id === r.id)!;
         // The ticket it replaced is removed because of it: those hours would be lost.
         if ((await tx.ticket.count({ where: { replacedById: t.id } })) > 0) {
-          throw new BadRequestException(
-            'A shift that replaced a duplicate ticket cannot be removed. Change it instead.',
-          );
+          throw new BadRequestException(REPLACED_ONE);
         }
         // Its questions go with it, on both sides; the organiser asks the others again.
         await tx.flag.deleteMany({
@@ -594,7 +592,7 @@ export class TicketsService {
 
     // Every confirmed name joins the names list, with its Hebrew spelling (5.4).
     if (workerName) {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('names'))`;
+      await lockList(tx, 'names');
       // "Mary Ann" is the list's "Mary-Ann": compared as the reader compares names (5.1).
       const entry =
         (await tx.listEntry.findMany({ where: { kind: 'name' } })).find(
@@ -688,6 +686,10 @@ export class TicketsService {
     t: { id: string; status: TicketStatus; monthId: string | null },
     version: number,
   ) {
+    // The ticket it replaced is out because of it: removing both would lose the shift.
+    if ((await tx.ticket.count({ where: { replacedById: t.id } })) > 0) {
+      throw new BadRequestException(REPLACED_ONE);
+    }
     await this.write(tx, t.id, version, {
       status: 'excluded',
       excludedReason: 'removed',
@@ -740,12 +742,14 @@ export class TicketsService {
         monthId: null,
         workplaceGroupId: null,
         verifiedHow: null,
+        // The new reading is checked afresh: the 57 list ticks it again, a person decides (D66).
+        rate57: null,
         readRound: { increment: 1 },
       });
       // shortcut: an older reading job of this upload that pg-boss retries at this moment could
       // read the ticket too (one reading paid twice, saved once); rare, so not built around. A
       // job that used up its retries leaves tickets processing, which blocks reading any ticket of
-      // that upload again until it is fixed by hand (Phase 4 hardening).
+      // that upload again until it is fixed by hand.
       await this.boss.send(
         READ_UPLOAD,
         { uploadId: t.uploadId, speed: 'now' },
