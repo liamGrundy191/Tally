@@ -41,6 +41,7 @@ import {
 import { ErrorMessage } from '../pages/simple.tsx';
 import { FLAG_LABELS, dayOf, reason } from './flags.tsx';
 import { ImageViewer } from './ImageViewer.tsx';
+import { type FreeFormBody, FreeFormForm } from './FreeFormForm.tsx';
 import { type SaveBody, TicketForm, controlOf, openFlags } from './TicketForm.tsx';
 
 const QUEUE: TicketStatus[] = ['needs_review', 'needs_manual_entry'];
@@ -49,7 +50,20 @@ const PAGE_SIZE = 50;
 /** A ticket whose only question is about its workplace: answered on the Workplaces page (T2.4). */
 const waitsForWorkplace = (flags: { code: string }[]) =>
   flags.length > 0 && flags.every((f) => f.code === 'WORKPLACE_SIMILAR');
-const toReview = (t: TicketDetail) => QUEUE.includes(t.status) && !waitsForWorkplace(openFlags(t));
+/** Another ticket (D68) waits while any of its shifts does. */
+const toReview = (t: TicketDetail): boolean =>
+  t.freeForm
+    ? t.shifts.some((s) => !s.readOnly && QUEUE.includes(s.status) && !waitsForWorkplace(s.flags))
+    : QUEUE.includes(t.status) && !waitsForWorkplace(openFlags(t));
+/** A shift of another ticket, shaped as the duplicate panel shows a ticket. */
+const asDetail = (t: TicketDetail, s: TicketDetail['shifts'][number]): TicketDetail => ({
+  ...s,
+  imageUrl: t.imageUrl,
+  related: t.related,
+  suggestions: {},
+  shifts: [],
+  flags: s.flags.map((f) => ({ ...f, resolvedAt: null })),
+});
 
 interface Queue {
   /** `/months/<id>/check` inside a month (D63), or `/review` (tickets with no date yet). */
@@ -429,9 +443,23 @@ export function ReviewTicket() {
     },
     onError: fail,
   });
+  const saveOther = useMutation({
+    mutationFn: (body: FreeFormBody) =>
+      api<TicketDetail>(`/api/tickets/${encodeURIComponent(t!.id)}/free-form`, 'PUT', body),
+    onSuccess: (saved) => {
+      if (!toReview(saved)) return next();
+      // A shift has a warning to confirm or a question to answer: the person stays (D68).
+      client.setQueryData(['ticket', saved.id], saved);
+      // The shift in the address may have been removed: the page follows one that is left.
+      if (saved.id !== id) navigate(`${queue.base}/${saved.id}${queue.search}`, { replace: true });
+      void client.invalidateQueries({ queryKey: ['tickets'] });
+      setNotice({ text: 'Saved. Some shifts still need a look: see below.' });
+    },
+    onError: fail,
+  });
   const act = useMutation({
     mutationFn: (what: 'exclude' | 'reprocess') =>
-      api(`${path}/${what}`, 'POST', { version: t!.version }),
+      api(`/api/tickets/${encodeURIComponent(t!.id)}/${what}`, 'POST', { version: t!.version }),
     onSuccess: next,
     onError: (e) => {
       setDialog(null);
@@ -452,19 +480,34 @@ export function ReviewTicket() {
       void ticket.refetch();
     },
   });
-  const busy = save.isPending || act.isPending || answer.isPending;
+  const busy = save.isPending || saveOther.isPending || act.isPending || answer.isPending;
 
-  const duplicates = t ? openFlags(t).filter((f) => f.code === 'POSSIBLE_DUPLICATE') : [];
+  const isDuplicate = (f: { code: string }) => f.code === 'POSSIBLE_DUPLICATE';
+  // Another ticket's shifts each have their own duplicate questions (D68).
+  const duplicates = !t
+    ? []
+    : t.freeForm
+      ? t.shifts
+          .filter((s) => !s.readOnly)
+          .flatMap((s) =>
+            s.flags
+              .filter(isDuplicate)
+              .map((f) => ({ flag: { ...f, resolvedAt: null }, of: asDetail(t, s) })),
+          )
+      : openFlags(t)
+          .filter(isDuplicate)
+          .map((f) => ({ flag: f, of: t }));
   // A new duplicate question is answered first: its panel takes the focus.
   useEffect(() => {
-    if (duplicates[0]) document.getElementById(`dup-${duplicates[0].id}`)?.focus();
-  }, [t?.id, t?.version, duplicates[0]?.id]);
+    if (duplicates[0]) document.getElementById(`dup-${duplicates[0].flag.id}`)?.focus();
+  }, [t?.id, t?.version, duplicates[0]?.flag.id]);
 
   if (ticket.error)
     return <ErrorMessage message={ticket.error.message} retry={() => void ticket.refetch()} />;
   if (!t) return <Typography>Loading the ticket…</Typography>;
   const skip = () => {
-    queue.skip(t.id);
+    // Another ticket is skipped whole: the queue would otherwise open it again by another shift.
+    for (const s of [t, ...t.shifts]) queue.skip(s.id);
     next();
   };
   if (t.status === 'processing' || t.status === 'excluded')
@@ -538,32 +581,47 @@ export function ReviewTicket() {
             {notice.text}
           </Alert>
         )}
-        {duplicates.map((f) => (
+        {duplicates.map(({ flag: f, of }) => (
           <Duplicate
             key={f.id}
             flag={f}
-            ticket={t}
+            ticket={of}
             busy={busy}
             onAnswer={(decision) => answer.mutate({ flag: f.id, decision })}
           />
         ))}
-        <TicketForm
-          ticket={t}
-          names={offered}
-          on57={(name, place) => onRate57List(rate57.data ?? [], places.data ?? [], name, place)}
-          // Not saved before the 57 list is known: the box would be left unticked (D66).
-          busy={busy || rate57.isLoading || places.isLoading}
-          autoFocus={duplicates.length === 0}
-          refocus={refocus}
-          onSave={(body) => {
-            setNotice(null);
-            return save.mutateAsync(body).catch(() => undefined); // shown by onError
-          }}
-          onFocusField={setFocused}
-          onSkip={skip}
-          onReprocess={() => setDialog('reprocess')}
-          onRemove={() => setDialog('remove')}
-        />
+        {t.freeForm ? (
+          <FreeFormForm
+            ticket={t}
+            names={offered}
+            on57={(name, place) => onRate57List(rate57.data ?? [], places.data ?? [], name, place)}
+            busy={busy || rate57.isLoading || places.isLoading}
+            onSave={(body) => {
+              setNotice(null);
+              return saveOther.mutateAsync(body).catch(() => undefined); // shown by onError
+            }}
+            onSkip={skip}
+            onRemove={() => setDialog('remove')}
+          />
+        ) : (
+          <TicketForm
+            ticket={t}
+            names={offered}
+            on57={(name, place) => onRate57List(rate57.data ?? [], places.data ?? [], name, place)}
+            // Not saved before the 57 list is known: the box would be left unticked (D66).
+            busy={busy || rate57.isLoading || places.isLoading}
+            autoFocus={duplicates.length === 0}
+            refocus={refocus}
+            onSave={(body) => {
+              setNotice(null);
+              return save.mutateAsync(body).catch(() => undefined); // shown by onError
+            }}
+            onFocusField={setFocused}
+            onSkip={skip}
+            onReprocess={() => setDialog('reprocess')}
+            onRemove={() => setDialog('remove')}
+          />
+        )}
       </Stack>
       <ConfirmDialog
         open={dialog !== null}

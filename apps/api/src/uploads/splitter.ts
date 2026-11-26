@@ -74,7 +74,15 @@ export class Splitter {
                 : await imageToJpeg(await readFile(path));
             const s3KeyPage = `pages/${uploadId}/${pageIndex}.jpg`;
             await this.storage.put(s3KeyPage, image, 'image/jpeg');
-            await this.prisma.ticket.create({ data: { uploadId, pageIndex, s3KeyPage } });
+            await this.prisma.ticket.create({
+              data: {
+                uploadId,
+                pageIndex,
+                s3KeyPage,
+                // Never read (D68): it waits for a person to type it in from the scan.
+                ...(upload.freeForm && { freeForm: true, status: 'needs_manual_entry' }),
+              },
+            });
           } catch (e) {
             this.log.warn({
               msg: 'page not split',

@@ -29,10 +29,13 @@ import { api, ApiError } from '../api.ts';
 import { Page } from './simple.tsx';
 
 /** Estimated price per ticket, in cents (Q4): batch measured in Phase 0 (D38), now not yet. */
-const CENTS_PER_TICKET: Record<ReadSpeed, number> = { batch: 15, now: 30 };
-const SPEEDS: [ReadSpeed, string][] = [
+/** How a file is taken: read at a speed, or another ticket that a person types in (D68). */
+type Speed = ReadSpeed | 'other';
+const CENTS_PER_TICKET: Record<Speed, number> = { batch: 15, now: 30, other: 0 };
+const SPEEDS: [Speed, string][] = [
   ['batch', 'Cheaper: usually ready within an hour (at most a day); about 15 cents a ticket.'],
   ['now', 'Faster: ready in minutes; about 30 cents a ticket.'],
+  ['other', "Other tickets, not Tally's: not read; you type each one in from its scan. Free."],
 ];
 const AT_ONCE = 3;
 /** An upload with no progress for this long has stalled: it is stopped and can be retried. */
@@ -43,7 +46,7 @@ type State = 'waiting' | 'uploading' | 'confirming' | 'done' | 'duplicate' | 're
 interface Item {
   id: number;
   file: File;
-  speed: ReadSpeed;
+  speed: Speed;
   state: State;
   percent: number;
   message?: string;
@@ -54,13 +57,13 @@ interface Item {
 }
 
 const active = (i: Item) => ['waiting', 'uploading', 'confirming'].includes(i.state);
-const dollars = (pages: number, speed: ReadSpeed) =>
+const dollars = (pages: number, speed: Speed) =>
   `$${((pages * CENTS_PER_TICKET[speed]) / 100).toFixed(2)}`;
 
 /** The upload page, or the upload panel on Home (`embedded`, D63). */
 export function Upload({ embedded = false }: { embedded?: boolean }) {
   const client = useQueryClient();
-  const [speed, setSpeed] = useState<ReadSpeed>('batch');
+  const [speed, setSpeed] = useState<Speed>('batch');
   const [, render] = useReducer((n: number) => n + 1, 0);
   // The items are changed in place and the page drawn again: the upload loop holds them.
   const items = useRef<Item[]>([]);
@@ -141,7 +144,7 @@ export function Upload({ embedded = false }: { embedded?: boolean }) {
       if (!alive.current) return;
       update(item, { state: 'confirming', message: undefined });
       const [result] = await api<UploadResult[]>('/api/uploads/complete', 'POST', {
-        speed: item.speed,
+        ...(item.speed === 'other' ? { freeForm: true } : { speed: item.speed }),
         files: [{ key: item.key, name: item.file.name }],
       });
       void client.invalidateQueries({ queryKey: ['progress'] });
@@ -212,9 +215,9 @@ export function Upload({ embedded = false }: { embedded?: boolean }) {
         Each ticket goes to the month written on it.
       </Typography>
       <Typography component="h3" sx={{ fontWeight: 700, fontSize: '1.05rem' }}>
-        How fast should Tally read them?
+        How should Tally handle them?
       </Typography>
-      <RadioGroup value={speed} onChange={(e) => setSpeed(e.target.value as ReadSpeed)}>
+      <RadioGroup value={speed} onChange={(e) => setSpeed(e.target.value as Speed)}>
         {SPEEDS.map(([value, label]) => (
           <FormControlLabel
             key={value}
@@ -275,7 +278,10 @@ export function Upload({ embedded = false }: { embedded?: boolean }) {
           }
         >
           {pages === 1 ? '1 ticket' : `${pages} tickets`}, about ${(cents / 100).toFixed(2)}.
-          {!busy && ' Tally is reading them: you can leave this page.'}
+          {!busy &&
+            (done.every((i) => i.speed === 'other')
+              ? ' Type them in on the check screen: you can leave this page.'
+              : ' Tally is reading them: you can leave this page.')}
         </Alert>
       )}
       <List>
@@ -320,7 +326,7 @@ function describe(i: Item) {
     case 'confirming':
       return 'Checking the file…';
     case 'done':
-      return `Uploaded: ${i.pages === 1 ? '1 page' : `${i.pages} pages`}, about ${dollars(i.pages!, i.speed)}`;
+      return `Uploaded: ${i.pages === 1 ? '1 page' : `${i.pages} pages`}, ${i.speed === 'other' ? 'to type in' : `about ${dollars(i.pages!, i.speed)}`}`;
     case 'failed':
       return `Failed. ${i.message}`;
     default:

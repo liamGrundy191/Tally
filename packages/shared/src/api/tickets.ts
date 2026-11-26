@@ -42,6 +42,65 @@ export const saveTicketSchema = z.object({
   rate57: z.boolean().default(false),
 });
 
+/**
+ * A shift's hours on another ticket (D68), as exact minutes: "8", "7:30", or a decimal ending in
+ * .25, .5 or .75 ("7.5", "7,75"). Any other decimal is refused, never guessed: "7.30" is often
+ * written for 7:30 but reads as 7 h 18 min.
+ */
+export function shiftHours(text: string): number | null {
+  const t = text.trim();
+  const clock = /^(\d{1,2}):(\d{2})$/.exec(t);
+  const minutes = clock
+    ? Number(clock[2]) < 60
+      ? Number(clock[1]) * 60 + Number(clock[2])
+      : null
+    : /^\d{1,2}(?:[.,](?:5|50|25|75))?$/.test(t)
+      ? Math.round(Number(t.replace(',', '.')) * 60) // exact: quarters of an hour only
+      : null;
+  return minutes !== null && minutes > 0 ? minutes : null;
+}
+
+export const SHIFT_HOURS_PROBLEM = 'Type the hours like 8, 7:30 or 7.5.';
+const MAX_SHIFTS = 62;
+
+/** Another ticket (D68): who and where once, then each shift on it, typed from the scan. */
+export const saveFreeFormSchema = z.object({
+  workerName: saveTicketSchema.shape.workerName.unwrap(),
+  workplace: z
+    .string()
+    .trim()
+    .min(1, 'Type the workplace.')
+    .max(200, 'The workplace can have at most 200 characters.'),
+  rate57: z.boolean().default(false),
+  shifts: z
+    .array(
+      z
+        .object({
+          /** A shift saved before, with the version the person saw; none for a new line. */
+          id: z.uuid().optional(),
+          version: version.optional(),
+          date: z.string().trim().min(1, 'Type the date.').max(20),
+          hours: z
+            .string()
+            .trim()
+            .max(10)
+            .refine((h) => shiftHours(h) !== null, SHIFT_HOURS_PROBLEM),
+          accept: z
+            .array(z.enum(ACCEPTABLE_FLAGS, { error: 'This cannot be confirmed: correct it.' }))
+            .max(10)
+            .default([]),
+        })
+        .refine((s) => (s.id === undefined) === (s.version === undefined), 'Reload the ticket.'),
+    )
+    .min(1, 'Add at least one shift.')
+    .max(MAX_SHIFTS, `A ticket can have at most ${MAX_SHIFTS} shifts.`),
+  /** Shifts saved before and removed from the form, with the version the person saw. */
+  remove: z
+    .array(z.object({ id: z.uuid(), version }))
+    .max(MAX_SHIFTS)
+    .default([]),
+});
+
 /** Exclude and reprocess name the version the person saw, like a save. */
 export const ticketVersionSchema = z.object({ version });
 

@@ -51,7 +51,7 @@ This system turns scanned tickets into those Excel sheets, in the agency's own l
 
 ### 1.3 Non-goals (do not build)
 
-Worker registry (a worker's total exists only as a row total inside one workplace's sheet) · pay, rates, overtime, tax, payslips · invoicing · digital ticket entry by workers or leaders · hours entered without a ticket · reading or updating the user's own Excel files · an Excel-like grid in the website · QR codes or serial numbers · mobile app · Hebrew UI · tracking missing or late tickets · dispute handling · any feature not in this file.
+Worker registry (a worker's total exists only as a row total inside one workplace's sheet) · pay, rates, overtime, tax, payslips · invoicing · digital ticket entry by workers or leaders (a person typing another paper ticket from its scan is allowed, D68) · hours entered without a ticket · reading or updating the user's own Excel files · an Excel-like grid in the website · QR codes or serial numbers · mobile app · Hebrew UI · tracking missing or late tickets · dispute handling · any feature not in this file.
 
 ---
 

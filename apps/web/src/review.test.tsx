@@ -42,6 +42,8 @@ const ticket = (over: Partial<TicketDetail> = {}): TicketDetail => ({
   id: 't1',
   monthId: 'm1',
   pageIndex: 0,
+  freeForm: false,
+  shiftIndex: 0,
   status: 'needs_review',
   version: 3,
   firstName: 'זיו',
@@ -60,6 +62,7 @@ const ticket = (over: Partial<TicketDetail> = {}): TicketDetail => ({
   suggestions: {},
   flags: [],
   related: [],
+  shifts: [],
   ...over,
 });
 
@@ -588,5 +591,130 @@ describe('the 57 rate box (D66)', () => {
     expect(box().checked).toBe(false);
     await type('Name in English', 'Ziv');
     expect(box().checked).toBe(true);
+  });
+});
+
+describe('another ticket, typed in (D68)', () => {
+  /** A scan just uploaded: one empty shift, waiting to be typed in. */
+  const scan = (over: Partial<TicketDetail> = {}) => {
+    const head = {
+      ...ticket({
+        freeForm: true,
+        status: 'needs_manual_entry',
+        version: 0,
+        monthId: null,
+        firstName: null,
+        workerName: null,
+        workplaceRaw: null,
+        workplaceGroupId: null,
+        shiftDate: null,
+        startMinutes: null,
+        endMinutes: null,
+        totalMinutes: null,
+      }),
+      ...over,
+    };
+    const shift = {
+      ...head,
+      flags: [],
+      readOnly: false,
+    } as unknown as TicketDetail['shifts'][number];
+    return { ...head, shifts: [shift] } as TicketDetail;
+  };
+  const set = async (id: string, value: string) => {
+    const input = container.querySelector<HTMLInputElement>(`#${id}`)!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+
+  it('saves who and where once, and each shift with its date and hours', async () => {
+    const t = scan();
+    await review(t);
+    expect(text()).toContain('Another ticket: type it in from the scan.');
+    // No first name, start or end boxes: only what the Excel needs.
+    expect(container.querySelector('#f-startTime')).toBeNull();
+    await type('Name in English', 'Kwame');
+    await type('Workplace', 'Golan Farm');
+    await set('ff-date-t1', '02/11/26');
+    await set('ff-hours-t1', '7:30');
+    await click('+ Add shift');
+    const second = [
+      ...container.querySelectorAll<HTMLInputElement>('input[id^="ff-date-new-"]'),
+    ][0]!;
+    await set(second.id, '03/11/26');
+    await set(second.id.replace('date', 'hours'), '8');
+    replies['PUT /api/tickets/t1/free-form'] = {
+      status: 200,
+      body: { ...t, shifts: t.shifts.map((s) => ({ ...s, status: 'verified' })) },
+    };
+    queue([]);
+    await click('Save, next');
+    expect(put()[0]).toMatchObject({
+      path: '/api/tickets/t1/free-form',
+      body: {
+        workerName: 'Kwame',
+        workplace: 'Golan Farm',
+        rate57: false,
+        shifts: [
+          { id: 't1', version: 0, date: '02/11/26', hours: '7:30', accept: [] },
+          { date: '03/11/26', hours: '8', accept: [] },
+        ],
+        remove: [],
+      },
+    });
+  });
+
+  it('refuses hours it would have to guess before sending anything', async () => {
+    await review(scan());
+    await type('Name in English', 'Kwame');
+    await type('Workplace', 'Golan Farm');
+    await set('ff-date-t1', '02/11/26');
+    await set('ff-hours-t1', '7.30');
+    await click('Save, next');
+    expect(text()).toContain('Type the hours like 8, 7:30 or 7.5.');
+    expect(put()).toEqual([]);
+  });
+
+  it('confirms a warning on a saved shift, and names a removed shift with its version', async () => {
+    const t = scan({ workerName: 'Kwame', workplaceRaw: 'Golan Farm', status: 'needs_review' });
+    const long = {
+      ...t.shifts[0]!,
+      shiftDate: '2026-11-02T00:00:00.000Z',
+      totalMinutes: 18 * 60,
+      version: 1,
+      flags: [
+        {
+          id: 'h1',
+          code: 'HOURS_OUT_OF_RANGE',
+          field: 'totalWorked',
+          detail: { minutes: 1080, minHours: 2, maxHours: 16 },
+          relatedTicketId: null,
+        },
+      ],
+    } as TicketDetail['shifts'][number];
+    const extra = { ...long, id: 't2', shiftIndex: 1, totalMinutes: 480, flags: [], version: 2 };
+    const both = { ...t, version: 1, shifts: [long, extra] } as TicketDetail;
+    await review(both);
+    expect(text()).toContain('The paper really says this');
+    await act(async () =>
+      container.querySelector<HTMLInputElement>('input[type="checkbox"]:not(#ff-rate57)')!.click(),
+    );
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[aria-label="Remove shift 2"]')!.click(),
+    );
+    replies['PUT /api/tickets/t1/free-form'] = {
+      status: 200,
+      body: { ...both, shifts: [{ ...long, status: 'verified', flags: [] }] },
+    };
+    queue([]);
+    await click('Save, next');
+    expect(put()[0]!.body).toMatchObject({
+      shifts: [
+        { id: 't1', version: 1, date: '02/11/26', hours: '18', accept: ['HOURS_OUT_OF_RANGE'] },
+      ],
+      remove: [{ id: 't2', version: 2 }],
+    });
   });
 });

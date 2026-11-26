@@ -153,6 +153,32 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
     }
   });
 
+  it('never reads other tickets: each page waits to be typed in (D68)', async () => {
+    const [{ key, url }] = (await owner.send('POST', '/api/uploads/sign', { count: 1 })).body;
+    await fetch(url, { method: 'PUT', body: await slipsPdf(2, 'other tickets.pdf') });
+    const paid = answered.length;
+    const done = await owner.send('POST', '/api/uploads/complete', {
+      freeForm: true,
+      files: [{ key, name: 'other tickets.pdf' }],
+    });
+    const { uploadId } = (done.body as { uploadId: string }[])[0]!;
+    const tickets = await until(async () => {
+      const found = await prisma.ticket.findMany({ where: { uploadId } });
+      return found.length === 2 && found;
+    });
+    for (const t of tickets) {
+      expect(t).toMatchObject({ status: 'needs_manual_entry', freeForm: true, monthId: null });
+    }
+    // The upload's reading job has run and found nothing to read.
+    await until(
+      async () =>
+        (await prisma.upload.findUnique({ where: { id: uploadId } }))?.s3KeyOriginal === null,
+    );
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(answered.length).toBe(paid);
+    expect(await prisma.reading.count({ where: { ticket: { uploadId } } })).toBe(0);
+  });
+
   it('without REVIEW_EVERYTHING, a ticket on the 57 list still waits for a person (D67)', async () => {
     const entry = await prisma.listEntry.create({
       data: { kind: 'rate57', name: 'Yael', spellings: ['סופר פארם'] },

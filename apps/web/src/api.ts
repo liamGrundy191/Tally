@@ -88,6 +88,9 @@ export interface Ticket {
   id: string;
   monthId: string | null;
   pageIndex: number;
+  /** Another ticket (D68): not Tally's, typed in from its scan; each shift is a ticket of its own. */
+  freeForm: boolean;
+  shiftIndex: number;
   status: TicketStatus;
   version: number;
   firstName: string | null;
@@ -119,8 +122,17 @@ export interface TicketFlag {
 export interface TicketDetail extends Ticket {
   suggestions: Partial<Record<FieldKey, string>>;
   flags: TicketFlag[];
-  /** The tickets it may duplicate. */
+  /** The tickets it may duplicate (for another ticket: any of its shifts may). */
   related: Ticket[];
+  /** Another ticket's shifts, in order; empty for a Tally ticket (D68). */
+  shifts: Shift[];
+}
+
+/** A shift of another ticket, with its open flags (D68). */
+export interface Shift extends Omit<Ticket, 'imageUrl'> {
+  flags: Omit<TicketFlag, 'resolvedAt'>[];
+  /** Removed, or in a month being closed: shown, never changed. */
+  readOnly: boolean;
 }
 
 /** GET /api/tickets: a page of 50, with each ticket's open flags. */

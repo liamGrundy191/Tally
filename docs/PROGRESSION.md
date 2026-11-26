@@ -350,3 +350,10 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 
 - **The goal is to check only what the computer is unsure about.** Tally already can: every ticket is read twice and its hours must add up, so most misreads get marked. For now every ticket is still checked, until real months show nothing slips through.
 - **Close the gap before it opens.** Only a person ticks the special-rate box, so once unmarked tickets skip the check screen, a special-rate worker's hours would be paid at the normal rate. Tickets of workers on the special-rate list now always come to a person, so the switch can be made later with one setting.
+
+### 40. Room for the paper the agency already has
+
+- **Not every workplace will switch tickets.** Instead of keeping a second way of working for them, their tickets go through Tally too: uploaded, never read, and typed in by a person from the scan. The owner allowed this one narrow form of the rejected "typed-in tickets" idea, because a paper ticket is always behind it.
+- **Reuse the ticket, not a new kind of record.** Each shift on such a ticket becomes an ordinary ticket sharing the scan, so months, duplicates, the special-rate box, the Excel and the PDFs all work unchanged.
+- **Refuse what would have to be guessed.** Hours like "7.30" are ambiguous (seven and a half, or seven hours eighteen minutes?), so only quarter hours or a clock time are taken.
+- **A critic before the code found twelve traps**, among them a removed line silently undoing a "replace" answer on a duplicate, two people editing the same ticket at once, and closing a month while untyped tickets might hold its shifts. Each became a rule and a test.

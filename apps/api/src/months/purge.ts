@@ -108,6 +108,17 @@ export class Purger {
             : `${outside} tickets dated in this month are waiting for a date or a check.`,
         );
       }
+      // Another ticket not typed in yet may hold shifts of this month (D68).
+      const untyped = await tx.ticket.count({
+        where: { freeForm: true, status: 'needs_manual_entry', monthId: null },
+      });
+      if (untyped > 0) {
+        throw new ConflictException(
+          untyped === 1
+            ? '1 other ticket is not typed in yet. Type it in or remove it before closing the month.'
+            : `${untyped} other tickets are not typed in yet. Type them in or remove them before closing the month.`,
+        );
+      }
       // Closing deletes everything: a change after the last download would reach no file (D66).
       const changed = await lastChange(tx, monthId, month.lastActivityAt);
       if (changed.pdfs > pdfs || changed.any > excel) {
@@ -200,7 +211,17 @@ export class Purger {
       },
       select: { id: true },
     });
-    await this.storage.removeMany(tickets.map((t) => t.s3KeyPage));
+    // Another ticket's shifts share its scan (D68): a shift in another month still needs it.
+    // shortcut: a shift added to that scan between this look and the delete loses its scan; its
+    // month's PDFs then refuse with "a scan is missing" rather than leave hours out. Rare.
+    const kept = await this.prisma.ticket.findMany({
+      where: { s3KeyPage: { in: tickets.map((t) => t.s3KeyPage) }, id: { notIn: ids } },
+      select: { s3KeyPage: true },
+    });
+    const needed = new Set(kept.map((t) => t.s3KeyPage));
+    await this.storage.removeMany(
+      [...new Set(tickets.map((t) => t.s3KeyPage))].filter((k) => !needed.has(k)),
+    );
     for (const u of candidates) await this.storage.removePrefix(`pages/${u.id}/`);
     await this.prisma.$transaction(async (tx) => {
       // Entries written while a ticket waited outside any month (D46) carry no month id.
