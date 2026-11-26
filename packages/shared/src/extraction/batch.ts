@@ -12,7 +12,15 @@ import {
   ExtractionError,
   type TicketExtractor,
   buildRequest,
+  withCache,
 } from './extractor.ts';
+
+/**
+ * Requests sharing their start (the same pass and lists) are cached when at least this many are in
+ * one batch (D65): a 1-hour cache write costs twice the normal price and each hit saves 95%, so it
+ * pays from the second hit on.
+ */
+export const MIN_SHARED_FOR_CACHE = 3;
 
 interface Pending {
   id: string;
@@ -45,6 +53,7 @@ export class AnthropicBatchExtractor implements TicketExtractor {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private counter = 0;
   private readonly running = new Set<string>();
+  private cancelled = false;
 
   constructor(opts: {
     model: string;
@@ -86,6 +95,7 @@ export class AnthropicBatchExtractor implements TicketExtractor {
 
   /** Cancels every batch still running, e.g. when the program is stopped, so it stops costing. */
   async cancelAll(): Promise<void> {
+    this.cancelled = true; // and no batch is sent after this
     await Promise.allSettled(
       [...this.running].map((id) => this.client.messages.batches.cancel(id)),
     );
@@ -96,6 +106,47 @@ export class AnthropicBatchExtractor implements TicketExtractor {
     this.queue = [];
     this.timer = null;
     if (group.length === 0) return;
+    // Caching in batches (D65): one request per shared start is read straight away first and
+    // writes the 1-hour cache, then the batch reads it. Hits in a batch are still best-effort.
+    // Straight away rather than as a batch of one: that would add a whole batch's wait per round.
+    const byStart = new Map<string, Pending[]>();
+    for (const p of group) {
+      const key = JSON.stringify([
+        p.params.system,
+        p.params.messages[0]!.content[0],
+        p.params.output_config,
+      ]);
+      byStart.set(key, [...(byStart.get(key) ?? []), p]);
+    }
+    const first: Pending[] = [];
+    for (const shared of byStart.values()) {
+      if (shared.length < MIN_SHARED_FOR_CACHE) continue;
+      for (const p of shared) p.params = withCache(p.params, '1h');
+      first.push(shared[0]!);
+    }
+    await Promise.all(first.map((p) => this.now(p)));
+    await this.run(group.filter((p) => !first.includes(p)));
+  }
+
+  /** One request read straight away, at the full price; its answer is used like any other. */
+  private async now(p: Pending): Promise<void> {
+    try {
+      const message = await this.client.messages.create(
+        p.params as Anthropic.MessageCreateParamsNonStreaming,
+      );
+      p.resolve(toSuccess(message, parseAnswer(message), p.input));
+    } catch (error) {
+      p.reject(error); // an API error is retried by the caller; a bad answer is a failed attempt
+    }
+  }
+
+  private async run(group: Pending[]): Promise<void> {
+    if (group.length === 0) return;
+    if (this.cancelled) {
+      for (const p of group)
+        p.reject(new ExtractionError('invalid_output', 'Reading was stopped.'));
+      return;
+    }
     const byId = new Map(group.map((p) => [p.id, p]));
     try {
       const batch = await this.client.messages.batches.create({

@@ -59,6 +59,8 @@ for (const [i, page] of (await scanPages(path)).entries()) {
 }
 
 const usage = {
+  cacheRead: 0,
+  cacheWrite: 0,
   input: 0,
   output: 0,
   calls: { A: 0, B: 0, C: 0 } as Record<ExtractionPass, number>,
@@ -82,6 +84,8 @@ try {
     onRead: (pass, u) => {
       usage.input += u.inputTokens;
       usage.output += u.outputTokens;
+      usage.cacheRead += u.cacheReadTokens ?? 0;
+      usage.cacheWrite += u.cacheWriteTokens ?? 0;
       usage.calls[pass]++;
     },
   });
@@ -135,8 +139,11 @@ for (const [i, t] of tickets.entries()) {
   report.push(...lines, `full answers: ${JSON.stringify(t.reads)}`);
 }
 
-const cost = costUsd(model, usage.input, usage.output);
-const total = `\nCalls: ${usage.calls.A} A, ${usage.calls.B} B, ${usage.calls.C} C. Tokens: ${usage.input} in, ${usage.output} out${cost === null ? '' : ` ≈ $${cost.toFixed(4)}`} for ${items.length} ticket(s).`;
+const cost = costUsd(model, usage.input, usage.output, {
+  read: usage.cacheRead,
+  write: usage.cacheWrite,
+});
+const total = `\nCalls: ${usage.calls.A} A, ${usage.calls.B} B, ${usage.calls.C} C. Tokens: ${usage.input} in, ${usage.cacheRead} from the cache, ${usage.cacheWrite} to it, ${usage.output} out${cost === null ? '' : ` ≈ $${cost.toFixed(4)}`} for ${items.length} ticket(s).`;
 console.log(total);
 writeFileSync(join(outRoot, 'readings.txt'), [...report, total].join('\n') + '\n');
 console.log(`Saved to ${outRoot}/ (readings.txt, ticket and field images).`);

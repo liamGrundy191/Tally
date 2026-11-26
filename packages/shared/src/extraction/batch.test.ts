@@ -3,6 +3,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
 import type { ExtractionResult, FieldKey, RawTicketValues } from '../rules/schemas.ts';
 import { TEMPLATE_V1 } from '../templates/v1.ts';
+import { toSuccess } from './anthropic.ts';
 import { AnthropicBatchExtractor } from './batch.ts';
 import { type ExtractionInput, type ExtractionPass, loadPrompt } from './extractor.ts';
 import { readBatch } from './pipeline.ts';
@@ -56,8 +57,23 @@ function stubClient(reply: (who: { ticket: string; pass: ExtractionPass }) => Re
   const created: { custom_id: string; params: Params }[][] = [];
   const cancelled: string[] = [];
   let polls = 0;
+  /** Requests read straight away (the cache warm-up, D65), not in a batch. */
+  const immediate: Params[] = [];
   const client = {
     messages: {
+      create: async (params: Params) => {
+        immediate.push(params);
+        const rep = reply(whoIs(params));
+        if (rep.type === 'errored' || rep.type === 'expired') throw new Error(rep.type);
+        return {
+          model: 'claude-opus-5-5',
+          stop_reason: rep.type === 'answer' ? (rep.stop ?? 'end_turn') : 'end_turn',
+          usage: { input_tokens: 1000, output_tokens: 100 },
+          content: [
+            { type: 'text', text: rep.type === 'answer' ? JSON.stringify(rep.json) : rep.text },
+          ],
+        };
+      },
       batches: {
         create: async ({ requests }: { requests: { custom_id: string; params: Params }[] }) => {
           created.push(requests);
@@ -104,7 +120,7 @@ function stubClient(reply: (who: { ticket: string; pass: ExtractionPass }) => Re
       },
     },
   } as unknown as Anthropic;
-  return { client, created, cancelled };
+  return { client, created, cancelled, immediate };
 }
 const fast = { model: 'claude-opus-5-5', pollMs: 0, gatherMs: 5 };
 
@@ -131,7 +147,118 @@ describe('batch mode', () => {
     // Results came back in reverse order, but each reaches the ticket that asked.
     expect(a.result.fields.firstName.value).toBe('t1');
     expect(b.result.fields.firstName.value).toBe('t2');
-    expect(a.usage).toEqual({ inputTokens: 1000, outputTokens: 100 });
+    expect(a.usage).toEqual({
+      inputTokens: 1000,
+      outputTokens: 100,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+    });
+  });
+
+  describe('caching (D65)', () => {
+    const cached = (r: { params: Params }) =>
+      'cache_control' in (r.params.messages[0]!.content as Anthropic.ContentBlockParam[])[0]!;
+
+    it('reads one request per shared start straight away, writing the 1-hour cache, then batches the rest', async () => {
+      const stub = stubClient(() => ({ type: 'answer', json: answer() }));
+      const x = new AnthropicBatchExtractor({ ...fast, client: stub.client });
+      const ids = ['t1', 't2', 't3', 't4'];
+      const reads = await Promise.all([
+        ...ids.map((id) => x.extract(input(id), TEMPLATE_V1, 'A')),
+        ...ids.map((id) => x.extract(input(id), TEMPLATE_V1, 'B')),
+      ]);
+      // First: one pass A and one pass B, straight away, to write the cache.
+      expect(stub.immediate.map(whoIs)).toEqual([
+        { ticket: 't1', pass: 'A' },
+        { ticket: 't1', pass: 'B' },
+      ]);
+      // Then the other six in one batch, which read it. Every request is marked, with the hour.
+      expect(stub.created).toHaveLength(1);
+      expect(stub.created[0]).toHaveLength(6);
+      for (const params of [...stub.immediate, ...stub.created[0]!.map((r) => r.params)]) {
+        const first = (params.messages[0]!.content as Anthropic.TextBlockParam[])[0]!;
+        expect(first.cache_control).toEqual({ type: 'ephemeral', ttl: '1h' });
+      }
+      // The warm-up's answers are used like the others.
+      expect(reads).toHaveLength(8);
+      expect(reads.every((r) => r.result.fields.firstName.value === 'דוד')).toBe(true);
+    });
+
+    it('still batches the rest when the warm-up fails, and the warm-up request fails alone', async () => {
+      const stub = stubClient(({ ticket }) =>
+        ticket === 't1' ? { type: 'errored' } : { type: 'answer', json: answer() },
+      );
+      const x = new AnthropicBatchExtractor({ ...fast, client: stub.client });
+      const reads = await Promise.allSettled(
+        ['t1', 't2', 't3'].map((id) => x.extract(input(id), TEMPLATE_V1, 'A')),
+      );
+      expect(reads.map((r) => r.status)).toEqual(['rejected', 'fulfilled', 'fulfilled']);
+      expect(stub.created[0]).toHaveLength(2);
+    });
+
+    it('sends no batch after reading was stopped during the warm-up', async () => {
+      let release!: () => void;
+      const stub = stubClient(() => ({ type: 'answer', json: answer() }));
+      const slow = stub.client.messages.create.bind(stub.client.messages);
+      (stub.client.messages as { create: unknown }).create = async (p: never) => {
+        await new Promise<void>((r) => (release = r));
+        return slow(p);
+      };
+      const x = new AnthropicBatchExtractor({ ...fast, client: stub.client });
+      const reads = Promise.allSettled(
+        ['t1', 't2', 't3'].map((id) => x.extract(input(id), TEMPLATE_V1, 'A')),
+      );
+      await new Promise((r) => setTimeout(r, 20));
+      await x.cancelAll();
+      release();
+      expect((await reads).map((r) => r.status)).toEqual(['fulfilled', 'rejected', 'rejected']);
+      expect(stub.created).toHaveLength(0);
+    });
+
+    it('does not cache a start fewer than 3 requests share: the write would cost more', async () => {
+      const stub = stubClient(() => ({ type: 'answer', json: answer() }));
+      const x = new AnthropicBatchExtractor({ ...fast, client: stub.client });
+      await Promise.all([
+        x.extract(input('t1'), TEMPLATE_V1, 'A'),
+        x.extract(input('t2'), TEMPLATE_V1, 'A'),
+        x.extract(input('t1'), TEMPLATE_V1, 'B'),
+      ]);
+      expect(stub.created).toHaveLength(1);
+      expect(stub.created[0]!.some(cached)).toBe(false);
+    });
+
+    it('does not share a cache between tickets read with different lists', async () => {
+      const stub = stubClient(() => ({ type: 'answer', json: answer() }));
+      const x = new AnthropicBatchExtractor({ ...fast, client: stub.client });
+      // The second look gives each ticket its own names (D28): nothing is shared.
+      await Promise.all(
+        ['t1', 't2', 't3'].map((id) =>
+          x.extract(input(id, { knownNames: [`name-${id}`] }), TEMPLATE_V1, 'A'),
+        ),
+      );
+      expect(stub.created).toHaveLength(1);
+      expect(stub.created[0]!.some(cached)).toBe(false);
+    });
+
+    it('passes on what was read from and written to the cache', () => {
+      const usage = {
+        input_tokens: 1500,
+        output_tokens: 1200,
+        cache_read_input_tokens: 18000,
+        cache_creation_input_tokens: 0,
+      } as Anthropic.Usage;
+      const r = toSuccess(
+        { model: 'claude-opus-5-5', stop_reason: 'end_turn', usage },
+        answer(),
+        input('t1'),
+      );
+      expect(r.usage).toEqual({
+        inputTokens: 1500,
+        outputTokens: 1200,
+        cacheReadTokens: 18000,
+        cacheWriteTokens: 0,
+      });
+    });
   });
 
   it('sends the same request as immediate mode, with the answer format but no code', async () => {
@@ -167,7 +294,8 @@ describe('batch mode', () => {
     const x = new AnthropicBatchExtractor({ ...fast, client: stub.client });
     const results = await Promise.allSettled(
       Object.keys(cases).map((id) =>
-        x.extract(input(id, { knownNames: ['דוד'] }), TEMPLATE_V1, 'A'),
+        // Each its own names list, so nothing is shared and all go in one batch (D65).
+        x.extract(input(id, { knownNames: ['דוד', `other-${id}`] }), TEMPLATE_V1, 'A'),
       ),
     );
     expect(stub.created).toHaveLength(1);
@@ -182,7 +310,12 @@ describe('batch mode', () => {
     expect(billed).toEqual([
       undefined,
       undefined,
-      ...Array(4).fill({ inputTokens: 1000, outputTokens: 100 }),
+      ...Array(4).fill({
+        inputTokens: 1000,
+        outputTokens: 100,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+      }),
     ]);
     expect(reasons.map((r) => r?.reason)).toEqual([
       'invalid_output',
@@ -237,7 +370,7 @@ describe('batch mode', () => {
 });
 
 describe('the reading process in batch mode', () => {
-  it('reads a whole round as one batch: passes A and B, then pass C for unclear tickets', async () => {
+  it('reads a whole round together: passes A and B (one of each first, for the cache), then pass C', async () => {
     const stub = stubClient(({ ticket, pass }) => ({
       type: 'answer',
       json: ticket === 'unclear' && pass !== 'C' ? answer(['endTime']) : answer(),
@@ -253,7 +386,9 @@ describe('the reading process in batch mode', () => {
       settings,
       concurrency: items.length,
     });
-    expect(stub.created.map((b) => b.length)).toEqual([6, 1]);
+    // One pass A and one pass B straight away for the cache, the other four batched; then pass C.
+    expect(stub.immediate).toHaveLength(2);
+    expect(stub.created.map((b) => b.length)).toEqual([4, 1]);
     expect(stub.created[1]!.map((r) => whoIs(r.params))).toEqual([
       { ticket: 'unclear', pass: 'C' },
     ]);

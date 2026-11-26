@@ -35,7 +35,8 @@ export class AnthropicExtractor implements TicketExtractor {
     let response;
     try {
       response = await this.client.messages.parse(
-        buildRequest(input, template, pass, this.model, this.effort),
+        // The shared start is cached for 5 minutes: the tickets of an upload follow each other (D65).
+        buildRequest(input, template, pass, this.model, this.effort, '5m'),
       );
     } catch (error) {
       if (error instanceof Anthropic.APIError) throw error; // rate limits, outages: caller retries
@@ -58,6 +59,8 @@ export function toSuccess(
   const usage = {
     inputTokens: response.usage.input_tokens,
     outputTokens: response.usage.output_tokens,
+    cacheReadTokens: response.usage.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: response.usage.cache_creation_input_tokens ?? 0,
   };
   if (response.stop_reason === 'refusal') {
     throw new ExtractionError('refusal', 'The model declined to read this ticket.', usage);

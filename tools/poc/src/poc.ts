@@ -249,6 +249,8 @@ async function main() {
     process.exit(1);
   }
   // Batch mode costs half (D34): every price below is halved with it.
+  // shortcut: in batch mode the cache warm-ups (one reading per pass and round, D65) are full
+  // price but halved here too; a few cents a round. Count them apart if it ever matters.
   const priceFactor = args.batch ? 0.5 : 1;
   const known = estimateUsdPerTicket(model);
   const perTicket = fake
@@ -301,8 +303,12 @@ async function main() {
   const extractor: TicketExtractor = fake
     ? new FakeExtractor(new URL('../../../fixtures/extractions/', import.meta.url))
     : (batchReader ?? new AnthropicExtractor({ model, effort }));
-  const usage = { input: 0, output: 0 };
-  const spent = () => (costUsd(model, usage.input, usage.output) ?? 0) * priceFactor;
+  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
+  const spent = () =>
+    (costUsd(model, usage.input, usage.output, {
+      read: usage.cacheRead,
+      write: usage.cacheWrite,
+    }) ?? 0) * priceFactor;
   const workplaces = loadWorkplaces('workplaces.txt');
   const { report, graded } = await runPoc(tickets, truth.rows, {
     extractor,
@@ -318,6 +324,8 @@ async function main() {
     onRead: (_pass, u) => {
       usage.input += u.inputTokens;
       usage.output += u.outputTokens;
+      usage.cacheRead += u.cacheReadTokens ?? 0;
+      usage.cacheWrite += u.cacheWriteTokens ?? 0;
     },
     canSpend: () => spent() < cap,
     onTicketDone: (done, total) => process.stdout.write(`\rRead ${done} of ${total} …`),
@@ -327,7 +335,7 @@ async function main() {
 
   const cost = fake
     ? 'Cost: $0 (fake reader).'
-    : `Cost${args.batch ? ' (batch, half price)' : ''}: about $${spent().toFixed(2)} for ${tickets.length} ticket(s) ($${(spent() / Math.max(1, tickets.length)).toFixed(3)} per ticket).`;
+    : `Cost${args.batch ? ' (batch, half price)' : ''}: about $${spent().toFixed(2)} for ${tickets.length} ticket(s) ($${(spent() / Math.max(1, tickets.length)).toFixed(3)} per ticket). Tokens: ${usage.input} input, ${usage.cacheRead} read from the cache, ${usage.cacheWrite} written to it, ${usage.output} output.`;
   const text = formatReport(report, cost);
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const out = join('scan-output', `poc-${stamp}`);

@@ -332,3 +332,9 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Match the habit, not just the numbers.** The grid and wording already matched the agency's monthly file; the colours, bold text and box sizes did not. The developer read only the styles of one real file and copied them as fixed colours, so the file looks the same in any Excel.
 - **Not everything is copied.** Columns for pay types and rates stay out (Tally never stores rates), and hand-made highlights are not a rule a program can follow.
 - **Checked by a test,** which reads the file back and checks fonts, fills, borders and sizes.
+
+### 37. The same reading at a lower price (prompt caching)
+
+- **Find where the money goes first.** Each reading sent about 20,000 tokens, but only about 1,500 were the ticket itself; the rest (instructions and spelling lists) was the same every time. Caching that shared part cuts its price to a twentieth.
+- **The owner's condition: no loss of accuracy.** Caching itself does not change the model's answers; what changed was the order of the request, so the developer proved with a before/after copy that only the order changed, had an independent reviewer look for risks, and tested on real tickets against the truth file before using it.
+- **Measure cheaply.** Instead of paying to read the old way again, the old run's saved answers were replayed through today's checks for free; only the new way was read (12 tickets, about $1.10): no wrong value accepted, the same number of boxes for a person, and about 9 cents a ticket instead of 14.5.
