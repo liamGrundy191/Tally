@@ -699,3 +699,14 @@ Liam changes two rejected ideas, "storing rates or pay" and "hours without a tic
 ## D67 · A ticket on the 57 list always waits for a person (Liam)
 
 The plan is to turn `REVIEW_EVERYTHING` off once real months show no unflagged mistakes (PLAN 4, step 7). Then a ticket with no flags is ready without the check screen, and only that screen ticks the 57 box (D66), so a 57-rate worker's hours would land in רגיל. Now a ticket whose English name and place are on the 57 list is saved as `needs_review` with no flags, like `REVIEW_EVERYTHING` does: one click, with the box pre-ticked. A name in doubt has no English name yet, so its flag already brings it to a person.
+
+## D68 · Other tickets, typed in from the scan (Liam)
+
+Some workplaces will always use their own paper tickets, not Tally's. Liam allows "digital ticket entry" in this one form: a scanned paper ticket is always behind it, and a person types it in from the scan. A critic reviewed the plan before it was built.
+
+- **Upload:** a third choice beside Cheaper and Faster, "Other tickets". Nothing is read, so it costs nothing; each page waits as "To type in".
+- **The form:** the whole scan beside it; the name in English, the workplace and the 57 box once (an other ticket is one worker at one workplace), then a line per shift: date (DD/MM/YY) and hours. No first-name box and no start or end times, so no end − start = total check.
+- **Hours:** 8, 7:30, or a decimal ending in .25, .5 or .75 (a comma works too). Any other decimal is refused: "7.30" is often written for 7:30 but reads as 7 h 18 min.
+- **Each shift is a ticket of its own** with the same scan: it joins the month of its date, gets the usual checks (unusual hours, a date in the future or long ago, a possible duplicate, the workplace and name lists, the 57 list's pre-tick) and reaches the Excel like any ticket. The workplace PDF shows the scan once. A scan with shifts in two months is in both months' PDFs, and keeps its image until both are closed.
+- **Saving names every shift:** the form sends each shift it can change with the version it saw, and each one removed. A shift added or changed meanwhile is a conflict, never lost. A shift that replaced a duplicate ticket cannot be removed. Removed shifts and shifts in a month being closed are shown, not changed. Remove ticket removes every shift; Read again is refused.
+- **Closing a month** waits while an other ticket is not typed in yet: its shifts may belong to this month.

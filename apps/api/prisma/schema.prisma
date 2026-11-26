@@ -160,6 +160,8 @@ model Upload {
   failedPages      Int[]
   /// Read straight away, or through the batch service at half the price (D26, D43).
   speed            ReadSpeed @default(batch)
+  /// Other tickets (not Tally's): never read; a person types each one from its scan (D68).
+  freeForm         Boolean   @default(false)
 
   tickets Ticket[]
 }
@@ -174,6 +176,9 @@ model Ticket {
   monthId          String?         @db.Uuid
   month            Month?          @relation(fields: [monthId], references: [id], onDelete: Cascade)
   pageIndex        Int
+  /// Other tickets (D68): one scan can hold several shifts, each its own row with the same scan.
+  shiftIndex       Int             @default(0)
+  freeForm         Boolean         @default(false)
   /// The page as scanned (JPEG), used in the workplace PDFs; normalised again for each reading.
   s3KeyPage        String
   templateVersion  String?
@@ -213,7 +218,7 @@ model Ticket {
   flags        Flag[]    @relation("flagTicket")
   relatedFlags Flag[]    @relation("relatedTicket")
 
-  @@unique([uploadId, pageIndex])
+  @@unique([uploadId, pageIndex, shiftIndex])
   @@index([monthId, status])
 }
 

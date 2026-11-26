@@ -60,9 +60,16 @@ export class UploadsService {
     );
   }
 
-  async complete(userId: string, speed: ReadSpeed, files: { key: string; name: string }[]) {
+  async complete(
+    userId: string,
+    speed: ReadSpeed,
+    files: { key: string; name: string }[],
+    freeForm = false,
+  ) {
     const results: UploadResult[] = [];
-    for (const f of files) results.push(await this.completeOne(userId, speed, f.key, f.name));
+    for (const f of files) {
+      results.push(await this.completeOne(userId, speed, f.key, f.name, freeForm));
+    }
     return results;
   }
 
@@ -71,6 +78,7 @@ export class UploadsService {
     speed: ReadSpeed,
     key: string,
     name: string,
+    freeForm: boolean,
   ): Promise<UploadResult> {
     const id = UPLOAD_KEY.exec(key)![1]!;
     const done = await this.prisma.upload.findUnique({ where: { id } });
@@ -109,6 +117,7 @@ export class UploadsService {
               mime: found.mime,
               pageCount: found.pages,
               speed,
+              freeForm,
             },
           });
           await this.boss.send(SPLIT_UPLOAD, { uploadId: id }, { db: fromPrisma(tx) });
@@ -117,7 +126,7 @@ export class UploadsService {
             action: 'upload',
             entity: 'Upload',
             entityId: id,
-            after: { mime: found.mime, pages: found.pages, speed },
+            after: { mime: found.mime, pages: found.pages, speed, freeForm },
           });
           return upload;
         });

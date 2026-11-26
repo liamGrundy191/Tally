@@ -11,7 +11,12 @@ import {
   Query,
   StreamableFile,
 } from '@nestjs/common';
-import { listTicketsSchema, saveTicketSchema, ticketVersionSchema } from '@tally/shared';
+import {
+  listTicketsSchema,
+  saveFreeFormSchema,
+  saveTicketSchema,
+  ticketVersionSchema,
+} from '@tally/shared';
 import { z } from 'zod';
 import { Access, CurrentUser } from '../auth/access.ts';
 import type { SessionUser } from '../auth/http.ts';
@@ -49,6 +54,12 @@ export class TicketsController {
   @Put(':id')
   save(@CurrentUser() user: SessionUser, @Param('id') id: string, @Body() body: unknown) {
     return this.tickets.save(user.id, ticketId(id), validate(saveTicketSchema, body));
+  }
+
+  /** Another ticket's shifts, typed from its scan (D68); 409 if they changed since it was opened. */
+  @Put(':id/free-form')
+  saveFreeForm(@CurrentUser() user: SessionUser, @Param('id') id: string, @Body() body: unknown) {
+    return this.tickets.saveFreeForm(user.id, ticketId(id), validate(saveFreeFormSchema, body));
   }
 
   @Post(':id/exclude')

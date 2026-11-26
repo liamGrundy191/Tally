@@ -21,6 +21,8 @@ export type ReadSpeed = (typeof READ_SPEEDS)[number];
 
 export const completeUploadsSchema = z.object({
   speed: z.enum(READ_SPEEDS).default('batch'),
+  /** Other tickets (D68): not read; a person types each one from its scan. */
+  freeForm: z.boolean().default(false),
   files: z
     .array(
       z.object({

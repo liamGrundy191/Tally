@@ -115,7 +115,11 @@ export class WorkplacePdfExporter {
       .sort((a, b) => a.shiftDate!.getTime() - b.shiftDate!.getTime());
     const doc = await PDFDocument.create();
     // One scan at a time, so only one is held besides the PDF being built.
+    // Another ticket's shifts share one scan (D68): it is shown once, at its first shift's date.
+    const shown = new Set<string>();
     for (const t of tickets) {
+      if (shown.has(t.s3KeyPage)) continue;
+      shown.add(t.s3KeyPage);
       const file = await this.storage.get(t.s3KeyPage);
       // Never a PDF short of a ticket without a word (6.1).
       if (!file) {
