@@ -15,11 +15,9 @@ import { PURGE_MONTH } from '../queue.ts';
 import { ReadingConfig } from '../reading/config.ts';
 import { Storage } from '../storage.ts';
 import { lockNewMonth } from './months.service.ts';
-import { lockMonth } from './organiser.ts';
+import { LONG, lockList, lockMonth } from './organiser.ts';
 
 type Tx = Prisma.TransactionClient;
-/** The organiser may hold a month's lock for up to 2 minutes. */
-const LONG = { timeout: 120_000, maxWait: 60_000 };
 const BATCH = 1000;
 
 /**
@@ -108,16 +106,24 @@ export class Purger {
             : `${outside} tickets dated in this month are waiting for a date or a check.`,
         );
       }
-      // With no date, it may belong to this month: closing would lose its hours (D69). That
-      // includes another ticket not typed in yet (D68).
-      const undated = await tx.ticket.count({
-        where: { monthId: null, shiftDate: null, status: { notIn: ['excluded', 'processing'] } },
+      // With no date, or a date still in doubt, it may belong to this month whatever date is
+      // stored (a reading can be one month off): closing would lose its hours (D69). That
+      // includes another ticket not typed in yet (D68). A date in a closed month is not in doubt.
+      const unsure = await tx.ticket.count({
+        where: {
+          monthId: null,
+          status: { notIn: ['excluded', 'processing'] },
+          OR: [
+            { shiftDate: null },
+            { flags: { some: { resolvedAt: null, field: 'date', code: { not: 'MONTH_CLOSED' } } } },
+          ],
+        },
       });
-      if (undated > 0) {
+      if (unsure > 0) {
         throw new ConflictException(
-          undated === 1
-            ? '1 ticket has no date yet. Fix its date or remove it before closing the month.'
-            : `${undated} tickets have no date yet. Fix their dates or remove them before closing the month.`,
+          unsure === 1
+            ? '1 ticket has no date yet, or a date still to check. Check it or remove it before closing the month.'
+            : `${unsure} tickets have no date yet, or a date still to check. Check them or remove them before closing the month.`,
         );
       }
       // Closing deletes everything: a change after the last download would reach no file (D66).
@@ -249,8 +255,8 @@ export class Purger {
    * new-month lock, so no month is being created meanwhile.
    */
   private async dropListsIfIdle(tx: Tx) {
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('names'))`;
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('workplaces'))`;
+    await lockList(tx, 'names');
+    await lockList(tx, 'workplaces');
     const busy =
       (await tx.month.count({ where: { status: 'open' } })) +
       (await tx.ticket.count({ where: { status: 'processing' } })) +

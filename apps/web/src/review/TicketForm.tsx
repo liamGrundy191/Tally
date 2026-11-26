@@ -417,7 +417,7 @@ export function TicketForm(props: {
           </Button>
           <Menu anchorEl={more} open={more !== null} onClose={() => setMore(null)}>
             <MenuItem onClick={pick(props.onSkip)}>Skip for now</MenuItem>
-            <MenuItem onClick={pick(props.onReprocess)}>Read again</MenuItem>
+            <MenuItem onClick={pick(props.onReprocess)}>Read the scan again (costs money)</MenuItem>
             <MenuItem onClick={pick(props.onRemove)} sx={{ color: 'error.main' }}>
               Remove ticket
             </MenuItem>

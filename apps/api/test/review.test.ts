@@ -470,6 +470,21 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reviewing tickets (T1.6)', 
     expect(await missing.text()).toContain('The corner markers were not found on this scan.');
   });
 
+  it('never removes a ticket that replaced a duplicate: both copies would be out', async () => {
+    const kept = await ticket({ status: 'verified', verifiedHow: 'confirmed' });
+    await ticket({ status: 'excluded', excludedReason: 'replaced', replacedById: kept.id });
+    const res = await send(kept.id, 'exclude');
+    expect(res.status).toBe(400);
+    expect(res.body.message).toContain('This replaced a duplicate ticket');
+    expect((await get(kept.id)).status).toBe('verified');
+  });
+
+  it('reading a ticket again clears its 57 tick, so it is decided afresh', async () => {
+    const t = await ticket({ status: 'verified', verifiedHow: 'confirmed', rate57: true });
+    expect((await send(t.id, 'reprocess')).status).toBe(204);
+    expect(await get(t.id)).toMatchObject({ status: 'processing', rate57: null });
+  });
+
   it('lists tickets by month, status and open flag, 50 to a page', async () => {
     const waiting = await ticket({ monthId: null });
     await flag(waiting.id, 'DATE_INVALID', 'date');

@@ -33,6 +33,8 @@ the easy way in.
 
 Double-click **Update Tally** in the `Tally\home` folder. It gets the newest version and restarts
 Tally. Tickets and months stay as they are.
+It saves a copy of the data first (`home\backup-before-update.dump`) and deletes it once the
+update has worked; if the update fails, the copy stays there for Liam.
 
 ## Problems
 

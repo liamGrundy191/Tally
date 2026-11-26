@@ -28,13 +28,16 @@ import { Link, useBlocker } from 'react-router';
 import { api, ApiError } from '../api.ts';
 import { Page } from './simple.tsx';
 
-/** Estimated price per ticket, in cents (Q4): batch measured in Phase 0 (D38), now not yet. */
 /** How a file is taken: read at a speed, or another ticket that a person types in (D68). */
 type Speed = ReadSpeed | 'other';
+/** Estimated price per ticket, in cents (Q4): batch measured in Phase 0 (D38). */
 const CENTS_PER_TICKET: Record<Speed, number> = { batch: 15, now: 30, other: 0 };
 const SPEEDS: [Speed, string][] = [
-  ['batch', 'Cheaper: usually ready within an hour (at most a day); about 15 cents a ticket.'],
-  ['now', 'Faster: ready in minutes; about 30 cents a ticket.'],
+  [
+    'batch',
+    `Cheaper: usually ready within an hour (at most a day); about ${CENTS_PER_TICKET.batch} cents a ticket.`,
+  ],
+  ['now', `Faster: ready in minutes; about ${CENTS_PER_TICKET.now} cents a ticket.`],
   ['other', "Other tickets, not Tally's: not read; you type each one in from its scan. Free."],
 ];
 const AT_ONCE = 3;
@@ -270,11 +273,17 @@ export function Upload({ embedded = false }: { embedded?: boolean }) {
           severity="success"
           sx={{ mt: 2 }}
           action={
-            !busy && (
+            !busy &&
+            (done.some((i) => i.speed === 'other') ? (
+              // Other tickets wait outside any month until typed in (D68).
+              <Button color="inherit" component={Link} to="/review">
+                Type them in now
+              </Button>
+            ) : (
               <Button color="inherit" component={Link} to="/">
                 Back to this month
               </Button>
-            )
+            ))
           }
         >
           {pages === 1 ? '1 ticket' : `${pages} tickets`}, about ${(cents / 100).toFixed(2)}.

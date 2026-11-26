@@ -14,7 +14,7 @@ import {
   PrismaClient,
   TicketStatus,
 } from '../generated/prisma/client.ts';
-import { finalGroups, listPlace, lockMonth } from './organiser.ts';
+import { finalGroups, listPlace, lockMonth, rowKey } from './organiser.ts';
 
 /**
  * Step 6c: the month a settled ticket date belongs to, created if this is its first ticket. Safe
@@ -99,7 +99,7 @@ export class MonthsService {
     const minutes = hoursToMinutes(hours);
     if (minutes === null) {
       throw new BadRequestException(
-        'Type the hours as a number such as 37.5 or 4.25 (whole minutes, more than 0).',
+        'Type the hours like 37.5, 4.25 or 37:30 (whole minutes, more than 0).',
       );
     }
     await this.prisma.$transaction(async (tx) => {
@@ -263,7 +263,7 @@ export class MonthsService {
     return groups.map((g) => {
       const rows = new Map<string, { name: string; tickets: typeof g.tickets }>();
       for (const t of g.tickets.filter((t) => t.workerName)) {
-        const key = t.workerName!.toLowerCase().replace(/\s+/g, ' ').trim();
+        const key = rowKey(t.workerName!);
         const row = rows.get(key) ?? { name: t.workerName!, tickets: [] };
         row.tickets.push(t);
         rows.set(key, row);

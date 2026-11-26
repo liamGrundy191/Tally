@@ -1,7 +1,17 @@
 // Small pages and messages.
 import { Alert, Box, Button, Typography } from '@mui/material';
+import { AGENCY_TIME_ZONE } from '@tally/shared';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router';
+
+/** A moment as its date in Israel (DD/MM/YY): when a month was closed, when an invite ends. */
+export const dateInIsrael = (iso: string) =>
+  new Date(iso).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    timeZone: AGENCY_TIME_ZONE,
+  });
 
 export function Page({ title, children }: { title: string; children: ReactNode }) {
   return (

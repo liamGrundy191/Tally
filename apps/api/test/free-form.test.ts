@@ -322,7 +322,7 @@ describe.skipIf(!databaseUrl || !storageConfigured)('other tickets, typed in (D6
     const refused = await close();
     expect(refused.status).toBe(409);
     expect(refused.body.message).toBe(
-      '1 ticket has no date yet. Fix its date or remove it before closing the month.',
+      '1 ticket has no date yet, or a date still to check. Check it or remove it before closing the month.',
     );
     await owner.send('POST', `/api/tickets/${waiting.id}/exclude`, { version: waiting.version });
     expect((await close()).status).toBe(202);

@@ -241,9 +241,23 @@ describe.skipIf(!databaseUrl || !storageConfigured)('closing a month (T3.3)', ()
       res = await close(oct.monthId, 'October 2026');
       expect(res.status).toBe(409);
       expect(res.body.message).toBe(
-        '1 ticket has no date yet. Fix its date or remove it before closing the month.',
+        '1 ticket has no date yet, or a date still to check. Check it or remove it before closing the month.',
       );
       await prisma.ticket.delete({ where: { id: undated.id } });
+      // A date in doubt, stored as another month's: the paper may say October (D69).
+      const doubt = await ticket(u, null, null, 'Hila', {
+        status: 'needs_review',
+        shiftDate: new Date(Date.UTC(2026, 8, 30)),
+      });
+      await prisma.flag.create({
+        data: { ticketId: doubt.id, code: 'PASS_DISAGREEMENT', field: 'date', detail: {} },
+      });
+      res = await close(oct.monthId, 'October 2026');
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(
+        '1 ticket has no date yet, or a date still to check. Check it or remove it before closing the month.',
+      );
+      await prisma.ticket.delete({ where: { id: doubt.id } });
       // A ticket was removed after the download: the files must be made again first (D66).
       res = await close(oct.monthId, 'October 2026');
       expect(res.status).toBe(409);

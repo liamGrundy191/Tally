@@ -28,8 +28,11 @@ const WORKPLACE_DOUBTS = [
 ];
 const pairKey = (a: string, b: string) => [a, b].sort();
 const HEBREW = /[\u0590-\u05FF]/;
-/** A big month's organising takes longer than Prisma's default 5 seconds. */
-const LONG = { timeout: 120_000, maxWait: 60_000 };
+/**
+ * A big month's organising takes longer than Prisma's default 5 seconds; whatever waits for a
+ * month's lock must wait as long.
+ */
+export const LONG = { timeout: 120_000, maxWait: 60_000 };
 
 /**
  * One organiser or answer per month at a time: two uploads finishing together, or an answer
@@ -37,6 +40,13 @@ const LONG = { timeout: 120_000, maxWait: 60_000 };
  */
 export const lockMonth = (tx: Tx, monthId: string) =>
   tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${monthId}))`;
+
+/** One change at a time to the names list or the workplace list (5.4): none is lost. */
+export const lockList = (tx: Tx, list: 'names' | 'workplaces') =>
+  tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${list}))`;
+
+/** A worker's row: names compared as rows are (5.2), in the hours and on the names sheet. */
+export const rowKey = (name: string) => name.toLowerCase().replace(/\s+/g, ' ').trim();
 
 /**
  * A workplace typed as a list spelling ("Beit Hadar") is stored under its list name, as a read
@@ -357,7 +367,7 @@ export class Organiser {
     );
     if (keep.id === other.id) return null;
     // A workplace list replaced meanwhile would otherwise lose the spelling added here.
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('workplaces'))`;
+    await lockList(tx, 'workplaces');
     await tx.workplaceGroup.update({ where: { id: other.id }, data: { mergedIntoId: keep.id } });
     await tx.ticket.updateMany({
       where: { workplaceGroupId: other.id },

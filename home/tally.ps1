@@ -9,6 +9,8 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $envFile = Join-Path $PSScriptRoot 'tally.env'
 $site = 'http://localhost:8080'
+# A copy of the data taken before an update changes the database, deleted once the update works.
+$backup = Join-Path $PSScriptRoot 'backup-before-update.dump'
 
 function Say($text) { Write-Host $text -ForegroundColor Cyan }
 
@@ -134,12 +136,28 @@ function Open {
   Start-Process $site
 }
 
+$script:backupFresh = $false
+
+function Save-Backup {
+  Say 'Saving a copy of the data first...'
+  Run 'Starting the database' { Compose up -d --wait postgres }
+  Run 'Saving a copy of the data' { Compose exec -T postgres pg_dump -U tally -Fc -f /tmp/backup.dump tally }
+  # Next to an older copy a failed update left, which is replaced only once this one is complete.
+  Run 'Saving a copy of the data' { Compose cp postgres:/tmp/backup.dump "$backup.new" }
+  Compose exec -T postgres rm -f /tmp/backup.dump
+  Move-Item -Force "$backup.new" $backup
+  $script:backupFresh = $true
+}
+
 function Update {
   if (-not (Test-Path $envFile)) { throw 'Tally is not installed yet: run Install Tally first.' }
   Say 'Getting the newest version...'
-  Run 'Getting the newest version' { git -C $root pull --ff-only }
+  Run 'Getting the newest version (check the internet connection)' { git -C $root pull --ff-only }
   Wait-Docker
+  Save-Backup
   Build-And-Start
+  # Kept only while needed: nothing of a closed month may outlive its closing (6.4).
+  Remove-Item $backup -ErrorAction SilentlyContinue
   Say 'Tally is up to date.'
 }
 
@@ -150,6 +168,8 @@ try {
   Write-Host ''
   Write-Host "Something went wrong: $($_.Exception.Message)" -ForegroundColor Red
   Write-Host 'Nothing is lost. Send a photo of this window to Liam.'
+  if ($script:backupFresh) { Write-Host "A copy of the data from before this update is in $backup." }
+  elseif (Test-Path $backup) { Write-Host "An older copy of the data, from an update that failed before, is in $backup." }
   Read-Host 'Press Enter to close'
   exit 1
 }

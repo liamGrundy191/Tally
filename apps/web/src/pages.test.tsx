@@ -316,6 +316,11 @@ describe('the month page', () => {
       hours: '4.25',
     });
     await click('Remove');
+    // It asks first: nothing is removed until confirmed.
+    expect(calls.some((c) => c.method === 'DELETE')).toBe(false);
+    expect(document.body.textContent).toContain('Remove these morning hours?');
+    await act(async () => dialogButton('Remove')!.click());
+    await settle();
     expect(calls.some((c) => c.method === 'DELETE' && c.path.endsWith('/morning/e1'))).toBe(true);
   });
 

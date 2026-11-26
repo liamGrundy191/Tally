@@ -714,3 +714,15 @@ Some workplaces will always use their own paper tickets, not Tally's. Liam allow
 ## D69 · No month closes while a ticket has no date (Liam)
 
 A ticket whose date could not be read or was typed wrong waits with no date and no month. Closing a month only counted tickets dated in it, so a shift of that month with an unusable date could be deleted with the month without its hours. Now Close refuses while any ticket (not removed, not being read) has no date at all: "1 ticket has no date yet. Fix its date or remove it before closing the month." One forgotten ticket blocks every month until it is fixed or removed; Liam chose that over the risk of missing hours.
+
+Made wider after a review: a ticket whose date is still in doubt (an open date flag) also blocks, whatever date is stored, since a reading can be a month off and the ticket waits outside the right month. A date in a closed month (MONTH_CLOSED) does not block. The refusal links to those tickets.
+
+## D70 · Fixes from a full review before the first demo (Liam)
+
+Four read-only reviewers (money path, code, plan and screens, the home install) found no wrong or double-counted hours in the exports. Fixed:
+
+- **Remove ticket** refuses a ticket that replaced a duplicate: the replaced one is already out, so both copies of the shift would be (as D68 already did for shifts).
+- **Read again** clears the 57 tick, so the new reading is ticked by the list and decided by a person again (D66). The menu says "Read the scan again (costs money)".
+- **Morning hours** refuse a two-digit decimal other than .25, .50 or .75 ("7.30" may mean 7:30), and take 37:30, like other tickets' hours (D68).
+- **Update Tally** saves a copy of the database before it changes it, and deletes the copy once the update has worked; a failed update leaves it in `home\` for Liam. Kept no longer, so nothing of a closed month outlives it (6.4).
+- Smaller: removing morning hours asks first; after uploading other tickets, "Type them in now"; an empty month queue says to download the files next; shared helpers instead of copies (the month lock wait, list locks, a worker's row key, dates in the web app).
