@@ -10,10 +10,11 @@ import { createAdmin } from '../src/users/create-admin.ts';
 import { Browser } from './helpers/browser.ts';
 import { testApp } from './helpers/test-app.ts';
 import { databaseUrl, testDatabase } from './helpers/test-db.ts';
+import { storageConfigured, testStorage } from './helpers/test-storage.ts';
 
 const OWNER = { email: 'owner@example.com', password: 'owner password 1' };
 
-describe.skipIf(!databaseUrl)('the 57 rate and morning hours (D66)', () => {
+describe.skipIf(!databaseUrl || !storageConfigured)('the 57 rate and morning hours (D66)', () => {
   const db = testDatabase();
   const prisma = db.prisma;
   let app: INestApplication;
@@ -22,13 +23,15 @@ describe.skipIf(!databaseUrl)('the 57 rate and morning hours (D66)', () => {
   let farm: string;
   let book: ExcelJS.Workbook;
   const tickets = { minutes: 0 };
+  // A saved ticket comes back with a link to its scan, which needs a bucket.
+  const files = testStorage();
 
   beforeAll(async () => {
-    await db.migrate();
+    await Promise.all([db.migrate(), files.create()]);
     await createAdmin(prisma, OWNER.email, OWNER.password);
     const ownerId = (await prisma.user.findFirstOrThrow()).id;
     let base: string;
-    ({ app, base } = await testApp(db));
+    ({ app, base } = await testApp(db, { storage: files.storage }));
     owner = new Browser(base);
     await owner.login(OWNER.email, OWNER.password);
     await prisma.listEntry.createMany({
@@ -88,7 +91,7 @@ describe.skipIf(!databaseUrl)('the 57 rate and morning hours (D66)', () => {
 
   afterAll(async () => {
     await app?.close();
-    await db.drop();
+    await Promise.all([db.drop(), files.drop()]);
   });
 
   const morningPath = () => `/api/months/${monthId}/morning`;
