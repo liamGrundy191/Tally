@@ -153,6 +153,19 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
     }
   });
 
+  it('without REVIEW_EVERYTHING, a ticket on the 57 list still waits for a person (D67)', async () => {
+    const entry = await prisma.listEntry.create({
+      data: { kind: 'rate57', name: 'Yael', spellings: ['סופר פארם'] },
+    });
+    try {
+      const [t] = await read('week 2b.pdf', ['clean']);
+      expect(t).toMatchObject({ status: 'needs_review', verifiedHow: null, workerName: 'Yael' });
+      expect(codes(t!)).toEqual([]);
+    } finally {
+      await prisma.listEntry.delete({ where: { id: entry.id } });
+    }
+  });
+
   it('never takes a Hebrew-only names list line as the English name', async () => {
     // "יעל" alone on the names list: an entry with no English spelling.
     const yael = await prisma.listEntry.findFirstOrThrow({ where: { name: 'Yael' } });

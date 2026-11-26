@@ -686,7 +686,7 @@ Liam changes two rejected ideas, "storing rates or pay" and "hours without a tic
   - **A "57 rate" box on each ticket**, stored as yes/no on the ticket and deleted with the month. The list only pre-ticks it, on a ticket's first check or when its name or place is changed in the form, with a note "On the 57 list: untick it if this is someone else". What the person saved wins: reopening a ticket never re-ticks it, and changing the list never changes checked tickets. So two workers with the same name are kept apart by the person's tick, not by the name.
   - **On the workplace sheet**, a ticked ticket's hours are in their own row, "<name> \*57", below the green total, which counts the regular rows only. The totals sheet's רגיל points at the green total and \*57 sums the \*57 rows: every ticket minute is in exactly one of the two (tested). The names sheet keeps plain names. The workplace PDFs are unchanged.
   - **The month page notes**, as information only: a ready ticket on the 57 list that is not ticked, and one English name in one place that stands for different Hebrew spellings (two people typed alike would share one row; give them different English names).
-  - Tickets that become ready without the check screen (`REVIEW_EVERYTHING=false`, not used at home) are never ticked; the note shows them.
+  - A ticket on the 57 list always comes to the check screen, even with `REVIEW_EVERYTHING=false` (D67).
 - **Morning hours:**
   - From a separate source with no tickets. On the month page: choose a workplace (the workplace list's places and the month's own), type the hours as a decimal (37.5, 4.25; a comma works too), Add; each entry is listed with Remove, and entries for one place add up.
   - Stored as whole minutes; a number that is not whole minutes above zero (37.33) is refused, never rounded.
@@ -695,3 +695,7 @@ Liam changes two rejected ideas, "storing rates or pay" and "hours without a tic
 - **Closing asks for files made after the last change:** the last Excel must come after the last change to the month's tickets, places or morning hours (a removal and a ticket moved to another month count, through the month's own time), and the last PDFs after the last change to its tickets or places. Otherwise: "You changed something after your last download. Download the files again first." The Close window's "download the final files first" box already does this.
 - **The 57 list is a list like the others:** kept from month to month, and deleted with the other lists when no month is open (D56).
 - **What Tally never stores:** a rate or an amount of money. The person works out pay from the columns.
+
+## D67 · A ticket on the 57 list always waits for a person (Liam)
+
+The plan is to turn `REVIEW_EVERYTHING` off once real months show no unflagged mistakes (PLAN 4, step 7). Then a ticket with no flags is ready without the check screen, and only that screen ticks the 57 box (D66), so a 57-rate worker's hours would land in רגיל. Now a ticket whose English name and place are on the 57 list is saved as `needs_review` with no flags, like `REVIEW_EVERYTHING` does: one click, with the box pre-ticked. A name in doubt has no English name yet, so its flag already brings it to a person.
