@@ -22,6 +22,23 @@ type Tx = Prisma.TransactionClient;
 const LONG = { timeout: 120_000, maxWait: 60_000 };
 const BATCH = 1000;
 
+/**
+ * When the month last changed: its tickets and places (both files), and its morning hours and
+ * removals (the Excel only). The month's own time stands for what leaves no row behind.
+ */
+async function lastChange(tx: Prisma.TransactionClient, monthId: string, monthActivity: Date) {
+  const [t, g, m] = await Promise.all([
+    tx.ticket.aggregate({ where: { monthId }, _max: { updatedAt: true } }),
+    tx.workplaceGroup.aggregate({ where: { monthId }, _max: { updatedAt: true } }),
+    tx.morningHours.aggregate({ where: { monthId }, _max: { updatedAt: true } }),
+  ]);
+  const max = (...ds: (Date | null | undefined)[]) =>
+    new Date(Math.max(0, ...ds.map((d) => d?.getTime() ?? 0)));
+  const tickets = max(t._max.updatedAt, g._max.updatedAt);
+  // A ticket that left the month (the month's own time) is in the old PDFs too.
+  return { pdfs: max(tickets, monthActivity), any: max(tickets, m._max.updatedAt, monthActivity) };
+}
+
 @Injectable()
 export class Purger {
   constructor(
@@ -43,12 +60,15 @@ export class Purger {
       if (!isMonthName(typed, month)) {
         throw new BadRequestException(`To close it, type the month's name: ${monthName(month)}.`);
       }
-      const kinds = new Set(
-        (await tx.download.findMany({ where: { monthId }, select: { kind: true } })).map(
-          (d) => d.kind,
-        ),
-      );
-      if (!kinds.has('excel') || !kinds.has('pdfs')) {
+      const last = async (kind: 'excel' | 'pdfs') =>
+        (
+          await tx.download.findFirst({
+            where: { monthId, kind },
+            orderBy: { createdAt: 'desc' },
+          })
+        )?.createdAt;
+      const [excel, pdfs] = [await last('excel'), await last('pdfs')];
+      if (!excel || !pdfs) {
         throw new ConflictException(
           'Download the Excel and the workplace PDFs before closing the month.',
         );
@@ -86,6 +106,13 @@ export class Purger {
           outside === 1
             ? '1 ticket dated in this month is waiting for a date or a check.'
             : `${outside} tickets dated in this month are waiting for a date or a check.`,
+        );
+      }
+      // Closing deletes everything: a change after the last download would reach no file (D66).
+      const changed = await lastChange(tx, monthId, month.lastActivityAt);
+      if (changed.pdfs > pdfs || changed.any > excel) {
+        throw new ConflictException(
+          'You changed something after your last download. Download the files again first.',
         );
       }
       await this.markClosing(tx, monthId, userId);

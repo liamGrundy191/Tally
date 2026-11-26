@@ -54,6 +54,8 @@ enum ReadSpeed {
 enum ListKind {
   workplace
   name
+  /// Workers on the *57 pay rate, with their places (D66): only pre-ticks a ticket's box.
+  rate57
 }
 
 enum DownloadKind {
@@ -133,6 +135,7 @@ model Month {
 
   tickets         Ticket[]
   workplaceGroups WorkplaceGroup[]
+  morningHours    MorningHours[]
   auditEntries    AuditEntry[]
   downloads       Download[]
 
@@ -200,6 +203,9 @@ model Ticket {
   version          Int             @default(0)
   /// Times the ticket was sent to be read again; a new round is never answered from kept readings.
   readRound        Int             @default(0)
+  /// "57 rate" as a person saved it (D66): true puts its hours in a *57 row and column. null until
+  /// a person saves the ticket, so the 57 list may tick it only then.
+  rate57           Boolean?
   /// The reader's best guesses for flagged fields (D24), shown to the reviewer, never used as values.
   suggestions      Json            @default("{}")
 
@@ -223,7 +229,8 @@ model WorkplaceGroup {
   mergedInto     WorkplaceGroup?  @relation("mergedInto", fields: [mergedIntoId], references: [id], onDelete: SetNull)
   merged         WorkplaceGroup[] @relation("mergedInto")
 
-  tickets Ticket[]
+  tickets      Ticket[]
+  morningHours MorningHours[]
 
   @@index([monthId])
 }
@@ -317,6 +324,22 @@ model Download {
   kind      DownloadKind
   userId    String       @db.Uuid
   user      User         @relation(fields: [userId], references: [id])
+
+  @@index([monthId])
+}
+
+/// Hours from the separate morning source, typed by a person (D66). No ticket: they only fill the
+/// totals sheet's בוקר column, never a workplace sheet or PDF. Deleted with the month.
+model MorningHours {
+  id               String         @id @default(uuid()) @db.Uuid
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  monthId          String         @db.Uuid
+  month            Month          @relation(fields: [monthId], references: [id], onDelete: Cascade)
+  /// The place, as a group: a merge or a rename carries the hours along.
+  workplaceGroupId String         @db.Uuid
+  workplaceGroup   WorkplaceGroup @relation(fields: [workplaceGroupId], references: [id], onDelete: Cascade)
+  minutes          Int
 
   @@index([monthId])
 }

@@ -38,6 +38,8 @@ export const saveTicketSchema = z.object({
     .array(z.enum(ACCEPTABLE_FLAGS, { error: 'This cannot be confirmed as written: correct it.' }))
     .max(10)
     .default([]),
+  /** The person ticked "57 rate" (D66). */
+  rate57: z.boolean().default(false),
 });
 
 /** Exclude and reprocess name the version the person saw, like a save. */

@@ -338,3 +338,10 @@ Until now, results were judged by eye on four tickets. Liam was wary of this ste
 - **Find where the money goes first.** Each reading sent about 20,000 tokens, but only about 1,500 were the ticket itself; the rest (instructions and spelling lists) was the same every time. Caching that shared part cuts its price to a twentieth.
 - **The owner's condition: no loss of accuracy.** Caching itself does not change the model's answers; what changed was the order of the request, so the developer proved with a before/after copy that only the order changed, had an independent reviewer look for risks, and tested on real tickets against the truth file before using it.
 - **Measure cheaply.** Instead of paying to read the old way again, the old run's saved answers were replayed through today's checks for free; only the new way was read (12 tickets, about $1.10): no wrong value accepted, the same number of boxes for a person, and about 9 cents a ticket instead of 14.5.
+
+### 38. Fitting the agency's pay columns without storing pay
+
+- **The owner reversed two early "never" rules, on purpose and with limits.** The agency's Excel has columns for a worker on a different pay rate and for morning hours that come with no ticket. Tally now fills both, but stores only a yes/no per ticket and the hours a person types: never a rate or money.
+- **Let a person decide, let the list help.** Two workers can share a name, so the list only pre-ticks a box on the check screen; the person's saved tick decides, and the month page points out anything that looks forgotten.
+- **Make the numbers impossible to double count.** The special-rate hours sit below the workplace total, in their own column on the totals sheet; a test checks that every ticket minute is in exactly one of the two.
+- **A critic before the code.** An independent review of the plan found the real traps: morning hours matched by name would split when places are merged (so they belong to the place itself), and closing a month could delete hours added after the last download (so closing now asks for fresh files).

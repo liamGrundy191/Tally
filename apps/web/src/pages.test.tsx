@@ -14,6 +14,7 @@ import {
   replies,
   REVIEWER,
   settle,
+  type,
   text,
   url,
   useFakeApi,
@@ -132,6 +133,8 @@ describe('the month page', () => {
           { groupId: 'g2', name: 'Empty place', rows: [], unnamed: [] },
         ],
         questions: [],
+        morning: [],
+        notes: { rate57Unticked: [], sameName: [] },
       },
     };
     await open('/months/m-nov');
@@ -272,14 +275,75 @@ describe('the month page', () => {
       },
     ],
     questions: [],
+    morning: [],
+    notes: { rate57Unticked: [], sameName: [] },
   };
+
+  it('lists the morning hours, adds one for a place, and removes one (D66)', async () => {
+    replies['GET /api/months/m-nov'] = {
+      status: 200,
+      body: { ...SMALL, morning: [{ id: 'e1', groupId: 'g1', place: 'דולב', minutes: 2250 }] },
+    };
+    replies['GET /api/lists/workplace'] = {
+      status: 200,
+      body: [{ name: 'מאפייה', spellings: [] }],
+    };
+    replies['POST /api/months/m-nov/morning'] = { status: 204 };
+    replies['DELETE /api/months/m-nov/morning/e1'] = { status: 204 };
+    await open('/months/m-nov');
+    expect(text()).toContain('Add morning hours');
+    expect(text()).toContain('דולב: 37.5 hours (37 h 30 min)');
+    // The list's places and the month's, to choose from.
+    await act(async () => {
+      container
+        .querySelector<HTMLElement>('[role="combobox"]')!
+        .dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    const options = [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent);
+    expect(options).toEqual(expect.arrayContaining(['מאפייה', 'דולב', 'Golan Farm']));
+    await act(async () =>
+      (
+        [...document.querySelectorAll('[role="option"]')].find(
+          (o) => o.textContent === 'מאפייה',
+        ) as HTMLElement
+      ).click(),
+    );
+    await settle();
+    await type('Hours, e.g. 37.5', '4.25');
+    await click('Add');
+    expect(calls.find((c) => c.method === 'POST')!.body).toEqual({
+      place: 'מאפייה',
+      hours: '4.25',
+    });
+    await click('Remove');
+    expect(calls.some((c) => c.method === 'DELETE' && c.path.endsWith('/morning/e1'))).toBe(true);
+  });
+
+  it('notes a ticket on the 57 list that is not ticked, and a name written two ways (D66)', async () => {
+    replies['GET /api/months/m-nov'] = {
+      status: 200,
+      body: {
+        ...SMALL,
+        notes: {
+          rate57Unticked: [{ ticketId: 't1', name: 'Yael', place: 'דולב' }],
+          sameName: [{ name: 'Kwame', place: 'Golan Farm' }],
+        },
+      },
+    };
+    await open('/months/m-nov');
+    expect(text()).toContain('Yael at דולב is on the 57 list, but this ticket is not ticked 57.');
+    expect(button('Open the ticket')?.getAttribute('href')).toBe('/months/m-nov/check/t1');
+    expect(text()).toContain('the name Kwame is written in different ways');
+  });
 
   it('searches the tickets by name, workplace or date, and opens one for review', async () => {
     replies['GET /api/months/m-nov'] = { status: 200, body: SMALL };
     await open('/months/m-nov');
     expect(button('Check next')?.getAttribute('href')).toBe('/months/m-nov/check');
     const search = async (value: string) => {
-      const input = container.querySelector('input')!;
+      const input = [...container.querySelectorAll('input')].find((i) =>
+        i.labels?.[0]?.textContent?.startsWith('Search'),
+      )!;
       await act(async () => {
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
           input,
@@ -702,7 +766,13 @@ describe('the upload page', () => {
 });
 
 describe('closing a month', () => {
-  const MONTH = { ...NOVEMBER, workplaces: [], questions: [] };
+  const MONTH = {
+    ...NOVEMBER,
+    workplaces: [],
+    questions: [],
+    morning: [],
+    notes: { rate57Unticked: [], sameName: [] },
+  };
   const typeInDialog = async (value: string) => {
     const input = document.querySelector<HTMLInputElement>('[role="dialog"] input[type="text"]')!;
     await act(async () => {

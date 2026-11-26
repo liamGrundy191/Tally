@@ -225,7 +225,7 @@ There is one workplace list and one names list (D25, D28), shared by all months 
 2. The user uploads scans whenever they come, usually weekly. Uploads are not tied to a month: each ticket joins the month of its date.
 3. The user reviews flagged tickets. Tickets that are not yet `verified` are left out of downloads, and the month page says how many are waiting ("12 tickets still need review").
 4. Any time, the user downloads a fresh Excel (6.2) or the workplace PDFs (6.3). Each download is built from the current data and recorded.
-5. Hours change only through tickets: **remove** a ticket (exclude it), or scan a **new ticket**; the duplicate question (5.2) lets it **replace** the old one. There is no editing of hours without a ticket, so the Excel and the PDFs always agree with the paper.
+5. Hours change only through tickets: **remove** a ticket (exclude it), or scan a **new ticket**; the duplicate question (5.2) lets it **replace** the old one. There is no editing of hours without a ticket, so the Excel and the PDFs always agree with the paper. (D66: the one exception is the morning hours a person types per place, which appear only in the totals sheet's בוקר column, never in a workplace sheet or PDF.)
 6. When done (usually by the 10th of the next month), the user presses **Close month**, downloads the final Excel and PDFs, and types the month's name to confirm. Allowed only after at least one download of each. The purge (6.4) deletes everything and marks the month `closed`. From then on the final Excel is the user's own to change as they like.
 7. A ticket dated in a closed month raises `MONTH_CLOSED`; the user excludes it and adds it to the final Excel by hand.
 

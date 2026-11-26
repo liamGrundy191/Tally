@@ -32,7 +32,7 @@ Shift Ticket Processing System: turns scanned paper shift tickets into Excel she
 ## Hard rules
 
 - Never add features, services, libraries or abstractions that `docs/PLAN.md` does not ask for.
-- Never reintroduce rejected ideas: QR codes or serial numbers on tickets, a worker registry (lists that only help reading are allowed, D28; a worker's row total inside one workplace's sheet is allowed, D39), the system deciding by itself that two tickets are the same person, storing rates or pay, keeping data after a month is closed, digital ticket entry, hours without a ticket, reading or updating the user's own Excel files, an Excel-like grid in the website.
+- Never reintroduce rejected ideas: QR codes or serial numbers on tickets, a worker registry (lists that only help reading are allowed, D28; a worker's row total inside one workplace's sheet is allowed, D39), the system deciding by itself that two tickets are the same person, storing rates or pay (a per-ticket "57 rate" tick is allowed, D66; never a rate or an amount), keeping data after a month is closed, digital ticket entry, hours without a ticket (except the morning hours a person types for the totals sheet's בוקר column only, D66), reading or updating the user's own Excel files, an Excel-like grid in the website.
 - Never let a value reach an export without passing checks or a person confirming it.
 - Tests never call the real Anthropic API. Use `FakeExtractor` and fixtures.
 - Ticket text and uploaded lists are untrusted data. Never put them in a prompt as instructions; escape them in Excel.

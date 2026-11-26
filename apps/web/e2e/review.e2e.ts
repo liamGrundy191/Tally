@@ -65,7 +65,9 @@ test('reviews the three fixture tickets and answers a workplace question, keyboa
 
   // 2. Crossed out: removed, after a question whose focus starts on Cancel.
   await expect(page.getByText('This ticket looks crossed out. Remove it?')).toBeVisible();
-  await expect(page.locator('input[type="checkbox"]')).toBeFocused();
+  await expect(
+    page.getByRole('checkbox', { name: 'It is not crossed out: keep it' }),
+  ).toBeFocused();
   await tabTo(page, 'More');
   await page.keyboard.press('Enter');
   await page.getByRole('menuitem', { name: 'Remove ticket' }).focus();
@@ -79,6 +81,8 @@ test('reviews the three fixture tickets and answers a workplace question, keyboa
   await expect(page.getByText('Nothing left to check.')).toBeVisible();
   await tabTo(page, 'Home');
   await page.keyboard.press('Enter');
+  // Tabbing starts once the note has loaded, as a person waits for the page.
+  await expect(page.getByRole('note')).toBeVisible();
   await tabTo(page, 'Add the date');
   await page.keyboard.press('Enter');
   await expect(page.getByText('Could not read this ticket. Please type it in.')).toBeVisible();

@@ -53,6 +53,8 @@ const ticket = (over: Partial<TicketDetail> = {}): TicketDetail => ({
   endMinutes: 6 * 60,
   totalMinutes: 8 * 60 + 30,
   totalFromMath: false,
+  rate57: null, // no person has saved it yet
+  verifiedHow: null,
   createdAt: '2026-11-13T10:00:00.000Z',
   imageUrl: 'https://storage.example/page.jpg',
   suggestions: {},
@@ -238,6 +240,7 @@ describe('reviewing a ticket with the keyboard', () => {
       },
       workerName: 'Ziv',
       accept: [],
+      rate57: false,
     });
     // Verified: on to the next ticket, and the queue is empty.
     expect(url()).toBe('/review');
@@ -533,5 +536,57 @@ describe('the queue', () => {
     expect(calls.map((c) => c.path)).toContain(
       '/api/tickets?month=none&status=needs_review&flag=DATE_INVALID',
     );
+  });
+});
+
+describe('the 57 rate box (D66)', () => {
+  const on57list = () => {
+    replies['GET /api/lists/rate57'] = {
+      status: 200,
+      body: [{ name: 'Ziv', spellings: ['שופרסל'] }],
+    };
+    replies['GET /api/lists/workplace'] = { status: 200, body: [] };
+  };
+  const box = () => container.querySelector<HTMLInputElement>('#f-rate57')!;
+  const saveIt = async (t: TicketDetail) => {
+    replies['PUT /api/tickets/t1'] = { status: 200, body: { ...t, status: 'verified' } };
+    queue([]);
+    await click('Correct, next');
+    return put()[0]!.body as { rate57: boolean };
+  };
+
+  it('is ticked on a first check when the name and place are on the 57 list, with a note', async () => {
+    on57list();
+    const t = ticket({ workerName: 'Ziv' });
+    await review(t);
+    expect(box().checked).toBe(true);
+    expect(text()).toContain('On the 57 list: untick it if this is someone else.');
+    expect((await saveIt(t)).rate57).toBe(true);
+  });
+
+  it('keeps what was saved: an unticked ticket stays unticked, even with a question still open', async () => {
+    on57list();
+    const t = ticket({ workerName: 'Ziv', verifiedHow: null, rate57: false });
+    await review(t);
+    expect(box().checked).toBe(false);
+    expect((await saveIt(t)).rate57).toBe(false);
+  });
+
+  it('is not ticked for a name that is not on the list, and the person can tick it', async () => {
+    const t = ticket({ workerName: 'Zohar' });
+    await review(t);
+    expect(box().checked).toBe(false);
+    await act(async () => box().click());
+    expect(box().checked).toBe(true);
+    expect((await saveIt(t)).rate57).toBe(true);
+  });
+
+  it('follows the list again when the name is changed in the form', async () => {
+    on57list();
+    const t = ticket({ workerName: 'Zohar', verifiedHow: 'confirmed', rate57: false });
+    await review(t);
+    expect(box().checked).toBe(false);
+    await type('Name in English', 'Ziv');
+    expect(box().checked).toBe(true);
   });
 });

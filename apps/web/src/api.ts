@@ -68,6 +68,13 @@ export interface MonthDetail extends MonthSummary {
       ticketId: string | null;
     }[];
   }[];
+  /** Morning hours typed per place (D66), under the place they ended in. */
+  morning: { id: string; groupId: string; place: string; minutes: number }[];
+  /** Information for the month page (D66); nothing waits on them. */
+  notes: {
+    rate57Unticked: { ticketId: string; name: string; place: string }[];
+    sameName: { name: string; place: string }[];
+  };
 }
 
 /** An entry of the workplace or names list (5.4). */
@@ -92,6 +99,9 @@ export interface Ticket {
   endMinutes: number | null;
   totalMinutes: number | null;
   totalFromMath: boolean;
+  /** "57 rate" as a person saved it (D66); null until someone saves the ticket. */
+  rate57: boolean | null;
+  verifiedHow: string | null;
   createdAt: string;
   imageUrl: string;
 }

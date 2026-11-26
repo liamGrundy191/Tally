@@ -233,6 +233,13 @@ describe.skipIf(!databaseUrl || !storageConfigured)('closing a month (T3.3)', ()
         '1 ticket dated in this month is waiting for a date or a check.',
       );
       await prisma.ticket.delete({ where: { id: outside.id } });
+      // A ticket was removed after the download: the files must be made again first (D66).
+      res = await close(oct.monthId, 'October 2026');
+      expect(res.status).toBe(409);
+      expect(res.body.message).toBe(
+        'You changed something after your last download. Download the files again first.',
+      );
+      await downloadBoth(oct.monthId);
       expect((await close(oct.monthId, ' october  2026 ')).status).toBe(202);
       const m = await prisma.month.findUniqueOrThrow({ where: { id: oct.monthId } });
       expect(m).toMatchObject({
