@@ -281,7 +281,8 @@ describe.skipIf(!databaseUrl || !storageConfigured)('reading tickets (T1.4)', ()
       speeds.length = 0;
       expect((await reprocess(t!)).status).toBe(204);
       const again = await readAgain(t!.id);
-      expect(again).toMatchObject({ status: 'verified', readRound: 1, version: 3 });
+      // Clean, but read again at a person's request: it comes back to them (D70).
+      expect(again).toMatchObject({ status: 'needs_review', readRound: 1, version: 3 });
       expect(again.flags).toEqual([]); // the open question went with the old reading
       expect(answered.sort()).toEqual([`${t!.id}:A`, `${t!.id}:B`]);
       expect(speeds).toEqual(['now']);

@@ -117,7 +117,8 @@ export class Reader {
     const rate57 = lists.filter((l) => l.kind === 'rate57');
     const places = lists.filter((l) => l.kind === 'workplace');
     const on57 = (name: string, place: string) => onRate57List(rate57, places, name, place);
-    for (const r of reads) await this.save(r, placeOf, englishOf, on57);
+    const again = new Set(tickets.filter((t) => t.readRound > 0).map((t) => t.id));
+    for (const r of reads) await this.save(r, placeOf, englishOf, on57, again.has(r.id));
   }
 
   /**
@@ -172,6 +173,7 @@ export class Reader {
     placeOf: ReadonlyMap<string, string>,
     englishOf: ReadonlyMap<string, string>,
     on57: (name: string, place: string) => boolean,
+    readAgain: boolean,
   ) {
     const c = r.checked;
     const flags: Flag[] = c
@@ -218,7 +220,8 @@ export class Reader {
         const asks57 = !!workerName && !!workplace && on57(workerName, workplace);
         const status = !c
           ? 'needs_manual_entry'
-          : flags.length > 0 || this.config.reviewEverything || asks57
+          : // Read again at a person's request: it comes back to them, its 57 box unset (D70).
+            flags.length > 0 || this.config.reviewEverything || asks57 || readAgain
             ? 'needs_review'
             : 'verified';
         const saved = await tx.ticket.updateMany({
