@@ -379,7 +379,7 @@ REST + JSON under `/api`. Every route except login and invite acceptance require
 
 Worker concurrency defaults to 4 readings at once for an upload read straight away; several uploads are read side by side, so one in batch mode does not hold up the next. Every job has a timeout; a reading job sends a heartbeat, so a dead worker's job is taken up again within a minute (D43). Related writes run in one transaction. Logs are structured JSON with the queue job ID and `ticketId`. Errors go to Sentry (optional DSN).
 
-**If the system is down:** shifts are unaffected (paper). At worst, the owner counts by hand as today, or waits and uploads later. Recovery: redeploy the containers from the repository, restore the database from backup, or re-scan the paper. The README includes a one-page recovery guide.
+**If the system is down:** shifts are unaffected (paper). At worst, the owner counts by hand as today, or waits and uploads later. Recovery: redeploy the containers from the repository, restore the database from backup, or re-scan the paper. The recovery guide is `docs/RUNBOOK-hosted.md` (hosting is shelved, D61).
 
 ---
 
