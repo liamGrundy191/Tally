@@ -50,7 +50,7 @@ export function Lists({ bare = false }: { bare?: boolean }) {
         The names and workplaces you expect, so Tally reads them better and suggests spellings. They
         never add a worker or a workplace to the Excel. Write one entry per line. Give an entry's
         other spellings after an equals sign: the Hebrew spelling, then =, then the English (
-        <code dir="ltr">דולב = Dolev</code>). Or paste two columns from Excel. Lines starting with #
+        <code dir="ltr">עינב = Einav</code>). Or paste two columns from Excel. Lines starting with #
         are skipped. Up to {MAX_LIST_ENTRIES} entries of {MAX_LIST_LINE} characters.
       </Typography>
       {LIST_KINDS.map((kind) => (

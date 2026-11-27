@@ -48,8 +48,8 @@ const WORDS: Record<Exclude<Outcome, 'correct' | 'flagged_right_guess'>, string>
 
 /**
  * The list exists to turn a misspelt workplace into its proper name, so a list entry is right when
- * the writing resembles that entry and no other place (D31). Two spellings of one place (Dolev and
- * דולב) are the same place (D36).
+ * the writing resembles that entry and no other place (D31). Two spellings of one place (Einav and
+ * עינב) are the same place (D36).
  */
 const rightListEntry = (
   shown: string | null,

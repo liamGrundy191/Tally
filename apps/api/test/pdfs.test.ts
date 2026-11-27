@@ -69,8 +69,8 @@ describe('file names and the ZIP', () => {
         [
           'חוות גולן',
           'a/../b',
-          'Dolev',
-          'dolev',
+          'Einav',
+          'einav',
           'x:*?"<>|\\y',
           ' . ',
           'z'.repeat(200),
@@ -84,8 +84,8 @@ describe('file names and the ZIP', () => {
     ).toEqual([
       `חוות גולן ${MONTH}.pdf`,
       `a..b ${MONTH}.pdf`,
-      `Dolev ${MONTH}.pdf`,
-      `dolev ${MONTH} (2).pdf`, // Windows compares file names ignoring capitals
+      `Einav ${MONTH}.pdf`,
+      `einav ${MONTH} (2).pdf`, // Windows compares file names ignoring capitals
       `xy ${MONTH}.pdf`,
       `מקום עבודה ${MONTH}.pdf`,
       `${'z'.repeat(100)} ${MONTH}.pdf`,

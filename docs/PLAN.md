@@ -162,7 +162,7 @@ Each step writes its result before the next starts and checks for its own saved 
 | `MARKERS_NOT_FOUND` / `IMAGE_BLURRY` / `IMAGE_DARK` | Pre-check failed                                                                                                               | "The scan is blurry"                                |
 | `WORKPLACE_SIMILAR`                                 | The workplace is similar to, but not the same as, another in the month                                                         | "Is 'סופר-פארם' the same place as 'סופר פארם'?"     |
 | `WORKPLACE_NOT_ON_LIST`                             | A workplace list is in use and neither reading matches an entry (D25)                                                          | "Is 'X' a new workplace?"                           |
-| `MATCH_AMBIGUOUS`                                   | Both readings match a list entry, but the writing also resembles another entry (D25, D28)                                      | "Is this בית נוי or בית נוף?"                       |
+| `MATCH_AMBIGUOUS`                                   | Both readings match a list entry, but the writing also resembles another entry (D25, D28)                                      | "Is this בית שלו or בית שלב?"                       |
 | `POSSIBLE_DUPLICATE`                                | See 5.2                                                                                                                        | "There is already a ticket for Kwame here on 13/11" |
 | `NAME_NOT_CONFIRMED`                                | A clear Hebrew name has no `Hebrew = English` line on the names list (5.2, D45)                                                | "Confirm the name in English letters"               |
 | `MONTH_CLOSED`                                      | The ticket's date is in a month that is already closed (6.1); the ticket stays outside any month                               | "November is already closed"                        |
@@ -206,7 +206,7 @@ The system never chooses for the user.
 
 ### 5.3 Workplaces: grouped, with confirmation for similar spellings
 
-- The agency's list of workplaces is given to the extractor (D25). When both readings name the same list entry and the handwriting resembles it, the workplace is that entry; otherwise it is flagged, and a workplace on no list is flagged as possibly new. A list line may give a place's spellings in both languages (`Dolev = דולב`); the Hebrew one is the place's name, used for its sheet and PDF (D36).
+- The agency's list of workplaces is given to the extractor (D25). When both readings name the same list entry and the handwriting resembles it, the workplace is that entry; otherwise it is flagged, and a workplace on no list is flagged as possibly new. A list line may give a place's spellings in both languages (`Einav = עינב`); the Hebrew one is the place's name, used for its sheet and PDF (D36).
 - Workplaces with the same normalised name are grouped automatically.
 - A workplace whose normalised name is similar to another group's (Levenshtein distance ≤ 2, or one contains the other) raises `WORKPLACE_SIMILAR`. The user chooses **Same place** (merge, choosing the display name) or **Different place**. The decision applies to every ticket in both groups. **Same place** also adds the other spelling to the workplace list, so the next month recognises it without asking (D45).
 - Workplace groups exist only inside a month and are deleted with it.

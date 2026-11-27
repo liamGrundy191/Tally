@@ -65,7 +65,7 @@ beforeEach(() => {
   replies['GET /api/months/m-nov'] = { status: 200, body: MONTH };
   replies['GET /api/lists/workplace'] = {
     status: 200,
-    body: [{ name: 'דולב', spellings: ['Dolev'] }],
+    body: [{ name: 'עינב', spellings: ['Einav'] }],
   };
   replies['GET /api/lists/name'] = {
     status: 200,
@@ -197,12 +197,12 @@ describe('the Workplaces page', () => {
     replies['GET /api/months'] = { status: 200, body: [{ ...NOVEMBER, status: 'closing' }] };
     replies['PUT /api/lists/workplace'] = {
       status: 200,
-      body: [{ name: 'דולב', spellings: [] }],
+      body: [{ name: 'עינב', spellings: [] }],
     };
     await open('/workplaces');
     expect(text()).toContain('No open month.');
     expect(text()).toContain('Spelling lists');
-    await edit('Workplace list', 'דולב');
+    await edit('Workplace list', 'עינב');
     expect(text()).toContain('1 entry (was 1)');
     await act(async () => replaceButtons()[0]!.click());
     await settle();
@@ -210,7 +210,7 @@ describe('the Workplaces page', () => {
     await act(async () => dialogButton('Replace')!.click());
     await settle();
     expect(calls.filter((c) => c.method === 'PUT').map((c) => [c.path, c.body])).toEqual([
-      ['/api/lists/workplace', { text: 'דולב' }],
+      ['/api/lists/workplace', { text: 'עינב' }],
     ]);
   });
 
@@ -249,7 +249,7 @@ describe('the Spelling lists page', () => {
   it('shows each list as editable text', async () => {
     await open('/lists');
     expect(text()).toContain('Spelling lists');
-    expect(area('Workplace list').value).toBe('דולב = Dolev');
+    expect(area('Workplace list').value).toBe('עינב = Einav');
     expect(area('Names list').value).toBe('Dana = דנה\nKwame');
     expect(area('Workplace list').getAttribute('dir')).toBe('auto');
     expect(text()).toContain('2 entries');
@@ -296,7 +296,7 @@ describe('the Spelling lists page', () => {
 
   it('counts the other spellings a replace drops from an entry that stays', async () => {
     await open('/lists');
-    await edit('Workplace list', 'דולב');
+    await edit('Workplace list', 'עינב');
     expect(text()).toContain(
       '1 entry (was 1): 0 new, 0 no longer on the list, 1 other spelling removed.',
     );
@@ -313,13 +313,13 @@ describe('the Spelling lists page', () => {
       body: { message: 'The list is too long.' },
     };
     await open('/lists');
-    await edit('Workplace list', 'דולב');
+    await edit('Workplace list', 'עינב');
     await act(async () => replaceButtons()[0]!.click());
     await settle();
     await act(async () => dialogButton('Replace')!.click());
     await settle();
     expect(text()).toContain('The list is too long.');
-    expect(area('Workplace list').value).toBe('דולב');
+    expect(area('Workplace list').value).toBe('עינב');
   });
 
   it('allows an empty list, and says so', async () => {
