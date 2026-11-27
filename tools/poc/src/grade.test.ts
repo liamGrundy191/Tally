@@ -145,13 +145,13 @@ describe('grading one ticket', () => {
 });
 
 describe('workplaces from the list', () => {
-  const list = ['בית הורדים', 'דולב', 'דולפ'];
+  const list = ['בית שושנים', 'עינב', 'עינפ'];
   const accepted = (entry: string) =>
     readAs(answer({ workplace: entry }), answer({ workplace: entry }));
   it('a misspelt workplace given its proper list name is right', () => {
     const r = grade(
-      [{ file: 'scan.pdf', page: 1, read: accepted('בית הורדים') }],
-      [truth({ workplace: 'בית הורדם' })],
+      [{ file: 'scan.pdf', page: 1, read: accepted('בית שושנים') }],
+      [truth({ workplace: 'בית שושנם' })],
       list,
     );
     expect(r.fields.workplace.correct).toBe(1);
@@ -160,36 +160,36 @@ describe('workplaces from the list', () => {
 
   it('is wrong when the writing is, or also resembles, another entry', () => {
     const other = grade(
-      [{ file: 'scan.pdf', page: 1, read: accepted('דולב') }],
-      [truth({ workplace: 'דולפ' })],
+      [{ file: 'scan.pdf', page: 1, read: accepted('עינב') }],
+      [truth({ workplace: 'עינפ' })],
       list,
     );
     expect(other.fields.workplace.wrong_not_flagged).toBe(1);
     const both = grade(
-      [{ file: 'scan.pdf', page: 1, read: accepted('דולב') }],
-      [truth({ workplace: 'דולק' })], // one letter from each
+      [{ file: 'scan.pdf', page: 1, read: accepted('עינב') }],
+      [truth({ workplace: 'עינק' })], // one letter from each
       list,
     );
     expect(both.fields.workplace.wrong_not_flagged).toBe(1);
   });
 
   it('an English spelling is the same place as its Hebrew name (D36)', () => {
-    const spelt = ['Dolev', 'דולב', 'דולפ'];
+    const spelt = ['Einav', 'עינב', 'עינפ'];
     const placeOf = new Map([
-      ['Dolev', 'דולב'],
-      ['דולב', 'דולב'],
-      ['דולפ', 'דולפ'],
+      ['Einav', 'עינב'],
+      ['עינב', 'עינב'],
+      ['עינפ', 'עינפ'],
     ]);
     const r = grade(
       [
-        { file: 'scan.pdf', page: 1, read: accepted('Dolev') },
-        { file: 'scan.pdf', page: 2, read: accepted('Dolev') },
-        { file: 'scan.pdf', page: 3, read: accepted('Dolev') },
+        { file: 'scan.pdf', page: 1, read: accepted('Einav') },
+        { file: 'scan.pdf', page: 2, read: accepted('Einav') },
+        { file: 'scan.pdf', page: 3, read: accepted('Einav') },
       ],
       [
-        truth({ workplace: 'Dolev' }),
-        truth({ workplace: 'Dolv' }, false, 2), // misspelt English
-        truth({ workplace: 'דולפ' }, false, 3), // another place
+        truth({ workplace: 'Einav' }),
+        truth({ workplace: 'Einv' }, false, 2), // misspelt English
+        truth({ workplace: 'עינפ' }, false, 3), // another place
       ],
       spelt,
       placeOf,
@@ -199,7 +199,7 @@ describe('workplaces from the list', () => {
   });
 
   it('without a list, only an exact reading is right', () => {
-    const r = one(readAs(answer({ workplace: 'בית הורדים' })), truth({ workplace: 'בית הורדם' }));
+    const r = one(readAs(answer({ workplace: 'בית שושנים' })), truth({ workplace: 'בית שושנם' }));
     expect(r.fields.workplace.wrong_not_flagged).toBe(1);
   });
 });

@@ -210,7 +210,7 @@ export function reconcilePasses(
       suggestions[field] = ma!;
       return false;
     }
-    // Handwriting that also fits another entry (בית נוי / בית נוף) could be either: a person decides.
+    // Handwriting that also fits another entry (בית שלו / בית שלב) could be either: a person decides.
     const alsoFits = agreed
       ? list.filter(
           (e) =>

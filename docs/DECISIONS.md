@@ -117,7 +117,7 @@ Changes plan principle 2. The extractor still returns `legible: false` whenever 
 - **The list.** The extractor receives the agency's workplaces and must name one entry exactly as `workplaceMatch`, or null. The answer format only allows list entries, so it cannot invent one.
 - **When the workplace is accepted.** Both readings name the same entry, and every reading of the handwriting (value or suggestion) resembles it: at most max(2, 30% of the entry's length) letters different after name normalisation. The workplace is then set to the list entry, with no workplace reading flag. A crossed-out or overwritten workplace stays flagged.
 - **When it is flagged.** Different entries; only one reading matching; no readable handwriting to compare; or handwriting that does not resemble the entry, so an entry is never forced onto the writing.
-- **Two similar entries.** If the handwriting also resembles a second entry (for example בית נוי and בית נוף), the workplace is not accepted even when both readings agree: `MATCH_AMBIGUOUS` asks a person, with the matched entry suggested. Liam found this gap: two readings can make the same mistake.
+- **Two similar entries.** If the handwriting also resembles a second entry (for example בית שלו and בית שלב), the workplace is not accepted even when both readings agree: `MATCH_AMBIGUOUS` asks a person, with the matched entry suggested. Liam found this gap: two readings can make the same mistake.
 - **Not on the list.** When neither reading matches any entry, `WORKPLACE_NOT_ON_LIST` asks whether it is a new workplace.
 - **Where the list lives.** For now, `workplaces.txt` (one per line, kept off GitHub as it lists the agency's clients); later, an "upload Excel" screen in the app. No nicknames per entry yet.
 - **Names.** See D28.
@@ -168,7 +168,7 @@ Names were the weakest field on Liam's tickets. The name decides who gets paid, 
 - **What the reviewer finds filled in** is the guess, or the value when no reading was in doubt (for example a corrected box). A box where the two readings disagreed, and no guess is agreed, counts as "no guess", even though one reading's value is kept.
 - **A failed reading** counts as "no guess" in all six boxes, because a person types the whole ticket.
 - **Comparison is by meaning**, using the same rules the system uses: 8:30 is 08:30, 10/11/2026 is 10/11/26, and names and workplaces are normalised.
-- **A misspelt workplace given its list name is right** (found on Liam's first real run: written "בית הורדם", accepted as the list's "בית הורדים"). It counts as right only when the writing resembles that entry and no other one; turning a misspelling into the proper name is what the list is for.
+- **A misspelt workplace given its list name is right** (found on Liam's first real run, shown here with an invented place: written "בית שושנם", accepted as the list's "בית שושנים"). It counts as right only when the writing resembles that entry and no other one; turning a misspelling into the proper name is what the list is for.
 - **The whole folder is one batch** for the "names from the same batch" step (D28), like one upload.
 - **Spending.** Without `--yes` the runner only checks the files and shows the estimated cost. With it, the runner stops starting new tickets at 1.5 times the estimate.
 - **Excel.** The truth file must be saved as "CSV UTF-8"; anything else is refused instead of garbling Hebrew. Seconds that Excel adds to times (08:30:00) are dropped. Output files start with the UTF-8 marker Excel needs, and text that looks like a formula is escaped.
@@ -212,9 +212,9 @@ Measured on Liam's 12 real tickets in batch mode, then on the two hardest of the
 
 - **Copied, not invented.** Claude writes the 100 tickets' contents as the truth file, and four people copy them onto real tickets. Typing in the true values afterwards from 100 handwritten tickets would itself introduce mistakes. Results are not split by writer: the goal is how well tickets are read, not who wrote them.
 - **Half in English.** Liam learned that real tickets are about half English and half Hebrew, each ticket entirely in one language. The test has 48 English, 48 Hebrew and 4 mixed tickets, to check that a mixed one does not trip the system.
-- **Two spellings of one place.** `workplaces.txt` lines may give a place in both languages: `Dolev = דולב`. Both spellings are on the list; the place's name is the Hebrew one (the agency's Excel is in Hebrew). Grading counts an English reading of a place as that place.
+- **Two spellings of one place.** `workplaces.txt` lines may give a place in both languages: `Einav = עינב`. Both spellings are on the list; the place's name is the Hebrew one (the agency's Excel is in Hebrew). Grading counts an English reading of a place as that place.
 - **What the mix contains.** Most names and places come from the real lists. 12 names and 8 places are not on them, 3 places are misspelt by one letter, and there are night shifts, wrong totals, corrected digits and empty totals. Every real place appears at least once. Places longer than the 15 boxes are written past the last box.
-- **To watch in the results.** Many real place names are one or two letters apart (in the style of דולב and דולפ). The look-alike check (D25) sends those to a person even when written clearly; the test measures how often.
+- **To watch in the results.** Many real place names are one or two letters apart (in the style of עינב and עינפ). The look-alike check (D25) sends those to a person even when written clearly; the test measures how often.
 
 ## D37 · T3.1 · The agency's Excel layout (Liam, Q2)
 
@@ -293,7 +293,7 @@ Liam learned how the agency really works: it updates its Excel through the month
 - **Retries.** A failed reading is tried again, 5 attempts in all, waiting 2, 4, 8 and 16 seconds; an unusable answer counts as a failed attempt. A refused API key is not retried: it stops the job, which pg-boss retries later. Jobs are tried 5 times in all.
 - **Long jobs.** A reading job may run for hours in batch mode. It sends a heartbeat, so if the worker dies its job is taken up again within a minute. Known limit: a batch still running at Anthropic when the worker dies is not picked up; its round is sent again, so that one round is paid twice. Rare (a crash during a batch), and recorded rather than built around.
 - **Month (6c).** A ticket joins the month of its date only when nothing at all is flagged on the date, including a date in the future or more than 45 days old: those wait outside any month until a person confirms the date. A date in a closed month raises `MONTH_CLOSED`, and the ticket stays outside any month.
-- **The workplace as read is kept,** except that a list spelling ("Dolev") is stored as its place's Hebrew name (D36), so both spellings of one place group together in T1.5.
+- **The workplace as read is kept,** except that a list spelling ("Einav") is stored as its place's Hebrew name (D36), so both spellings of one place group together in T1.5.
 - **D30 is stored** on the ticket (`totalFromMath`), so the review screen can show that the total was accepted because the times confirm it.
 - **A page that cannot be split does not stop the others** (principle 4, from the code review). It is retried with the job; on the last attempt the rest of the file is read and the page is recorded on the upload (`failedPages`), for the progress screen (T1.6) to show.
 - **`EXTRACTOR` must be set** to `anthropic` or `fake`: the worker never falls back to the fake reader by itself, which would "read" real tickets. The fake reader gives every ticket the same prepared clean answer, for local runs without a key.

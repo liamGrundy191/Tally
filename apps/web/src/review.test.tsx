@@ -156,8 +156,8 @@ describe('the reasons', () => {
       'Total of 19:00 is unusually long',
     );
     expect(
-      html(flag('MATCH_AMBIGUOUS', 'workplace', { match: 'בית נוי', alsoFits: ['בית נוף'] })),
-    ).toBe('Is this בית נוי or בית נוף?');
+      html(flag('MATCH_AMBIGUOUS', 'workplace', { match: 'בית שלו', alsoFits: ['בית שלב'] })),
+    ).toBe('Is this בית שלו or בית שלב?');
     expect(html(flag('MONTH_CLOSED', 'date', { year: 2026, month: 11 }))).toContain(
       'November 2026 is already closed',
     );

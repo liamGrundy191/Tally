@@ -597,25 +597,25 @@ describe('workplace list (D25)', () => {
 
   it('keeps the stricter look-alike test for workplaces: two letters apart still counts', () => {
     const r = checkExtraction(
-      pass({ workplace: 'בית נוי' }, { workplaceMatch: 'בית נוי' }),
-      pass({ workplace: 'בית נוי' }, { workplaceMatch: 'בית נוי' }),
+      pass({ workplace: 'בית שלו' }, { workplaceMatch: 'בית שלו' }),
+      pass({ workplace: 'בית שלו' }, { workplaceMatch: 'בית שלו' }),
       settings,
-      { knownWorkplaces: ['בית נוי', 'בית נוף', 'בית מוף'] },
+      { knownWorkplaces: ['בית שלו', 'בית שלב', 'בית סלב'] },
     );
-    expect(r.flags[0]!.detail).toEqual({ match: 'בית נוי', alsoFits: ['בית נוף', 'בית מוף'] });
+    expect(r.flags[0]!.detail).toEqual({ match: 'בית שלו', alsoFits: ['בית שלב', 'בית סלב'] });
   });
 
   it('flags when the handwriting also fits a second, similar entry on the list', () => {
-    const twins = { knownWorkplaces: ['בית נוי', 'בית נוף'] };
+    const twins = { knownWorkplaces: ['בית שלו', 'בית שלב'] };
     const r = checkExtraction(
-      pass({ workplace: 'בית נוי' }, { workplaceMatch: 'בית נוי' }),
-      pass({ workplace: 'בית נוי' }, { workplaceMatch: 'בית נוי' }),
+      pass({ workplace: 'בית שלו' }, { workplaceMatch: 'בית שלו' }),
+      pass({ workplace: 'בית שלו' }, { workplaceMatch: 'בית שלו' }),
       settings,
       twins,
     );
     expect(codes(r.flags)).toEqual(['MATCH_AMBIGUOUS:workplace']);
-    expect(r.flags[0]!.detail).toEqual({ match: 'בית נוי', alsoFits: ['בית נוף'] });
-    expect(r.suggestions.workplace).toBe('בית נוי');
+    expect(r.flags[0]!.detail).toEqual({ match: 'בית שלו', alsoFits: ['בית שלב'] });
+    expect(r.suggestions.workplace).toBe('בית שלו');
     expect(r.workplaceFromList).toBe(false);
   });
 

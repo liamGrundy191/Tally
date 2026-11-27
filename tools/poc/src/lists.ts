@@ -16,7 +16,7 @@ export function loadList(path: string): string[] {
 }
 
 /**
- * workplaces.txt, where a line may give one place's spellings: "Dolev = דולב". Every spelling is
+ * workplaces.txt, where a line may give one place's spellings: "Einav = עינב". Every spelling is
  * on the list; `placeOf` gives each spelling the place's name, the Hebrew one (D36).
  */
 export function loadWorkplaces(path: string) {

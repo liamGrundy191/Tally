@@ -17,8 +17,8 @@ describe('parseList', () => {
   });
 
   it('skips comment lines starting with #, as in names.txt and workplaces.txt', () => {
-    expect(entries('workplace', '# the places\n  # indented\nדולב = Dolev')).toEqual([
-      { name: 'דולב', spellings: ['Dolev'] },
+    expect(entries('workplace', '# the places\n  # indented\nעינב = Einav')).toEqual([
+      { name: 'עינב', spellings: ['Einav'] },
     ]);
   });
 

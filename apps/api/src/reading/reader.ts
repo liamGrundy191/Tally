@@ -231,7 +231,7 @@ export class Reader {
             templateVersion: TEMPLATE_V1.version,
             firstName: written,
             workerName,
-            // A list spelling ("Dolev") stands for its place, named in Hebrew (D36).
+            // A list spelling ("Einav") stands for its place, named in Hebrew (D36).
             workplaceRaw:
               workplace && c?.workplaceFromList ? (placeOf.get(workplace) ?? workplace) : workplace,
             shiftDate: c?.fields.shiftDate ? new Date(c.fields.shiftDate) : null,

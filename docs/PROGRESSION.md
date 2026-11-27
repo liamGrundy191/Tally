@@ -116,7 +116,7 @@ Before handing it over, it was tested on Liam's tickets with a deliberately wron
 
 **Result with the real list.** With the agency's 32 workplaces, all four workplaces on Liam's test tickets were matched by both readings, up from none. Three went straight through. The fourth looked corrected on paper, so it is still shown to a person. No wrong value got through unflagged. One reading was confidently wrong about a name again, but the two readings disagreed, so it was flagged. Names remain the weak field.
 
-**A gap Liam found.** He asked what stops both readings from picking the same wrong entry when two places have similar names. The answer was "nothing", and his list already had such a pair (invented example: בית נוי and בית נוף). Now, when the handwriting also resembles a second entry, the workplace goes to a person even if both readings agree.
+**A gap Liam found.** He asked what stops both readings from picking the same wrong entry when two places have similar names. The answer was "nothing", and his list already had such a pair (invented example: בית שלו and בית שלב). Now, when the handwriting also resembles a second entry, the workplace goes to a person even if both readings agree.
 
 **Cost.** Liam raised cost as a real factor. One run over four tickets costs about 8 cents per ticket. That makes "when does the cost outweigh the time saved" a question to measure, alongside accuracy.
 

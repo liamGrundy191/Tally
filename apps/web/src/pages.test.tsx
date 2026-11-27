@@ -119,7 +119,7 @@ describe('the month page', () => {
         workplaces: [
           {
             groupId: 'g1',
-            name: 'דולב',
+            name: 'עינב',
             rows: [
               {
                 name: 'Yael',
@@ -144,7 +144,7 @@ describe('the month page', () => {
     );
     expect(text()).toContain('3 tickets ready for the Excel; 1 removed');
     expect(text()).toContain('2 tickets are not sorted into a workplace yet');
-    const place = [...container.querySelectorAll('h3')].find((h) => h.textContent === 'דולב')!;
+    const place = [...container.querySelectorAll('h3')].find((h) => h.textContent === 'עינב')!;
     expect(place.getAttribute('dir')).toBe('auto');
     expect(text()).not.toContain('Empty place');
     expect(text()).toContain('10/11/26');
@@ -198,7 +198,7 @@ describe('the month page', () => {
     });
 
     it('saves one workplace’s PDF under its Hebrew name, only where tickets are ready', async () => {
-      const name = 'דולב נובמבר 2026.pdf';
+      const name = 'עינב נובמבר 2026.pdf';
       replies['GET /api/months/m-nov/pdfs?workplace=g1'] = {
         status: 200,
         body: 'pdf bytes',
@@ -207,13 +207,13 @@ describe('the month page', () => {
         },
       };
       await open('/months/m-nov');
-      // Golan Farm has no ready ticket, so one button: דולב's.
+      // Golan Farm has no ready ticket, so one button: עינב's.
       expect(
         [...container.querySelectorAll('button')].filter((b) => b.textContent === 'Download PDF'),
       ).toHaveLength(1);
       await click('Download PDF');
       expect(saved).toEqual([`${name} blob:excel`]);
-      expect(button('Download PDF')?.getAttribute('aria-label')).toBe('Download PDF for דולב');
+      expect(button('Download PDF')?.getAttribute('aria-label')).toBe('Download PDF for עינב');
     });
 
     it('falls back to its own name when the server’s is broken', async () => {
@@ -224,7 +224,7 @@ describe('the month page', () => {
       };
       await open('/months/m-nov');
       await click('Download PDF');
-      expect(saved).toEqual(['דולב.pdf blob:excel']);
+      expect(saved).toEqual(['עינב.pdf blob:excel']);
     });
 
     it('says why one workplace’s PDF cannot be made, under that workplace', async () => {
@@ -232,7 +232,7 @@ describe('the month page', () => {
       replies['GET /api/months/m-nov/pdfs?workplace=g1'] = { status: 404, body: { message: why } };
       await open('/months/m-nov');
       await click('Download PDF');
-      const place = [...container.querySelectorAll('h3')].find((h) => h.textContent === 'דולב')!;
+      const place = [...container.querySelectorAll('h3')].find((h) => h.textContent === 'עינב')!;
       expect(place.parentElement!.textContent).toContain(why);
       expect(text().split(why)).toHaveLength(2); // shown once, not at the top as well
     });
@@ -263,7 +263,7 @@ describe('the month page', () => {
     workplaces: [
       {
         groupId: 'g1',
-        name: 'דולב',
+        name: 'עינב',
         rows: [{ name: 'Yael', tickets: [ticket('t1')] }],
         unnamed: [],
       },
@@ -282,7 +282,7 @@ describe('the month page', () => {
   it('lists the morning hours, adds one for a place, and removes one (D66)', async () => {
     replies['GET /api/months/m-nov'] = {
       status: 200,
-      body: { ...SMALL, morning: [{ id: 'e1', groupId: 'g1', place: 'דולב', minutes: 2250 }] },
+      body: { ...SMALL, morning: [{ id: 'e1', groupId: 'g1', place: 'עינב', minutes: 2250 }] },
     };
     replies['GET /api/lists/workplace'] = {
       status: 200,
@@ -292,7 +292,7 @@ describe('the month page', () => {
     replies['DELETE /api/months/m-nov/morning/e1'] = { status: 204 };
     await open('/months/m-nov');
     expect(text()).toContain('Add morning hours');
-    expect(text()).toContain('דולב: 37.5 hours (37 h 30 min)');
+    expect(text()).toContain('עינב: 37.5 hours (37 h 30 min)');
     // The list's places and the month's, to choose from.
     await act(async () => {
       container
@@ -300,7 +300,7 @@ describe('the month page', () => {
         .dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
     });
     const options = [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent);
-    expect(options).toEqual(expect.arrayContaining(['מאפייה', 'דולב', 'Golan Farm']));
+    expect(options).toEqual(expect.arrayContaining(['מאפייה', 'עינב', 'Golan Farm']));
     await act(async () =>
       (
         [...document.querySelectorAll('[role="option"]')].find(
@@ -330,13 +330,13 @@ describe('the month page', () => {
       body: {
         ...SMALL,
         notes: {
-          rate57Unticked: [{ ticketId: 't1', name: 'Yael', place: 'דולב' }],
+          rate57Unticked: [{ ticketId: 't1', name: 'Yael', place: 'עינב' }],
           sameName: [{ name: 'Kwame', place: 'Golan Farm' }],
         },
       },
     };
     await open('/months/m-nov');
-    expect(text()).toContain('Yael at דולב is on the 57 list, but this ticket is not ticked 57.');
+    expect(text()).toContain('Yael at עינב is on the 57 list, but this ticket is not ticked 57.');
     expect(button('Open the ticket')?.getAttribute('href')).toBe('/months/m-nov/check/t1');
     expect(text()).toContain('the name Kwame is written in different ways');
   });
@@ -360,7 +360,7 @@ describe('the month page', () => {
     await search('kwa');
     expect(text()).toContain('Kwame');
     expect(text()).not.toContain('Yael');
-    await search('דולב');
+    await search('עינב');
     expect(text()).toContain('Yael');
     expect(text()).not.toContain('Kwame');
     await search('nobody');
