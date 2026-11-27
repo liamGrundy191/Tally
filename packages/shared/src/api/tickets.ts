@@ -54,7 +54,7 @@ export function shiftHours(text: string): number | null {
     ? Number(clock[2]) < 60
       ? Number(clock[1]) * 60 + Number(clock[2])
       : null
-    : /^\d{1,2}(?:[.,](?:5|50|25|75))?$/.test(t)
+    : /^\d{1,2}(?:[.,](?:0|00|5|50|25|75))?$/.test(t)
       ? Math.round(Number(t.replace(',', '.')) * 60) // exact: quarters of an hour only
       : null;
   return minutes !== null && minutes > 0 ? minutes : null;

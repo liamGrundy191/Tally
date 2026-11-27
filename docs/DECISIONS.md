@@ -722,7 +722,7 @@ Made wider after a review: a ticket whose date is still in doubt (an open date f
 Four read-only reviewers (money path, code, plan and screens, the home install) found no wrong or double-counted hours in the exports. Fixed:
 
 - **Remove ticket** refuses a ticket that replaced a duplicate: the replaced one is already out, so both copies of the shift would be (as D68 already did for shifts).
-- **Read again** clears the 57 tick, so the new reading is ticked by the list and decided by a person again (D66). The menu says "Read the scan again (costs money)".
-- **Morning hours** refuse a two-digit decimal other than .25, .50 or .75 ("7.30" may mean 7:30), and take 37:30, like other tickets' hours (D68).
+- **Read again** clears the 57 tick, and the ticket always comes back to a person afterwards, even with `REVIEW_EVERYTHING=false`, so the 57 box is decided again (D66). The menu says "Read the scan again (costs money)".
+- **Morning hours** take whole hours (37, 37.0, 37.00), .5, .25, .50, .75 or 37:30, like other tickets' hours (D68); any other decimal is refused ("7.30" may mean 7:30).
 - **Update Tally** saves a copy of the database before it changes it, and deletes the copy once the update has worked; a failed update leaves it in `home\` for Liam. Kept no longer, so nothing of a closed month outlives it (6.4).
 - Smaller: removing morning hours asks first; after uploading other tickets, "Type them in now"; an empty month queue says to download the files next; shared helpers instead of copies (the month lock wait, list locks, a worker's row key, dates in the web app).

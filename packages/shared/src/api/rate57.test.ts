@@ -8,6 +8,8 @@ describe('morning hours as typed (D66)', () => {
     expect(hoursToMinutes('8')).toBe(480);
     expect(hoursToMinutes(' 7,75 ')).toBe(465); // a comma, as Hebrew Excel writes it
     expect(hoursToMinutes('37:30')).toBe(2250);
+    expect(hoursToMinutes('37.00')).toBe(2220); // as Excel writes whole hours
+    expect(hoursToMinutes('8,0')).toBe(480);
   });
 
   it('asks rather than guess at hours that look like minutes ("7.30" for 7:30)', () => {

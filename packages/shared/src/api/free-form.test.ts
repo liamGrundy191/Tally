@@ -10,6 +10,7 @@ describe('the hours of a shift on another ticket (D68)', () => {
     expect(shiftHours('7.25')).toBe(435);
     expect(shiftHours('7,75')).toBe(465);
     expect(shiftHours('12:05')).toBe(725);
+    expect(shiftHours('8.00')).toBe(480);
   });
 
   it('refuses what it would have to guess, and nothing worked', () => {
